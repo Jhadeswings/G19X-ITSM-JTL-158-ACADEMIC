@@ -1,0 +1,91 @@
+# Sistema de Identificación de Talento de Alto Potencial — MVP
+
+MVP web local para **PluriOne S.A. de C.V.**
+
+- **PRD:** v1.3 · **Especificación Técnica:** v1.5 · **Style Guide:** v1.1 (documentos en la raíz)
+- **Estado actual:** scaffolding inicial. Sin lógica de negocio, sin autenticación, sin tablas de dominio.
+
+## Stack
+
+| Capa | Tecnología |
+|---|---|
+| Frontend | React + Vite |
+| Backend | FastAPI (Python 3.11) |
+| ORM | SQLAlchemy 2.x |
+| Migraciones | Alembic |
+| Base de datos | PostgreSQL 15 (con extensión `pg_trgm`) |
+| Contenedores | Docker / Docker Compose |
+
+## Requisitos
+
+- Docker y Docker Compose
+- (Opcional, para desarrollo fuera de Docker) Node.js ≥ 18 y Python 3.11
+
+## Levantar el entorno
+
+```bash
+# 1. Variables de entorno
+cp .env.example .env            # Windows: copy .env.example .env
+cd backend && cp .env.example .env && cd ..   # opcional, solo para correr el backend fuera de Docker
+cd frontend && cp .env.example .env && cd ..  # opcional, solo para correr el frontend fuera de Docker
+
+# 2. Construir y arrancar (db + backend + frontend)
+docker compose up --build
+```
+
+Servicios resultantes:
+
+| Servicio | URL / acceso |
+|---|---|
+| Frontend (React) | http://localhost:5173 |
+| Backend (FastAPI) | http://localhost:8000 |
+| Documentación interactiva (OpenAPI) | http://localhost:8000/docs |
+| Healthcheck del backend | http://localhost:8000/health |
+| PostgreSQL 15 | `localhost:5433` (usuario/contraseña según `.env`) |
+
+> Docker Compose garantiza que el backend solo ejecuta `alembic upgrade head`
+> después de que PostgreSQL pase su healthcheck (Especificación Técnica §34).
+
+## Estructura del repositorio
+
+```
+.
+├── docker-compose.yml       # orquestación local (db, backend, frontend)
+├── db/init/                 # scripts de inicialización de PostgreSQL (pg_trgm)
+├── backend/                 # API FastAPI + Alembic
+│   ├── app/
+│   │   ├── core/            # configuración y conexión a base de datos
+│   │   ├── api/             # (futuro) rutas
+│   │   ├── models/          # (futuro) entidades SQLAlchemy
+│   │   ├── schemas/         # (futuro) esquemas Pydantic
+│   │   └── services/        # (futuro) servicios de dominio
+│   └── alembic/             # migraciones (versions/ vacía en esta fase)
+└── frontend/                # SPA React (Vite)
+```
+
+## Desarrollo fuera de Docker (opcional)
+
+**Backend** (requiere PostgreSQL accesible, p. ej. el de Docker en `localhost:5433`):
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate        # Windows | source .venv/bin/activate (Linux/macOS)
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+**Frontend:**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Notas de fase (scaffolding)
+
+- No hay tablas de dominio todavía; `alembic/versions/` está vacía y `alembic upgrade head` es *no-op*.
+- No se usa `create_all()` ni SQLite (prohibido por Especificación Técnica §1).
+- No se han agregado claves de API de IA ni servicios externos; se integrarán (Groq/Gemini vía LangChain) en fases posteriores.
+- Zona horaria de negocio: `America/Mexico_City`.

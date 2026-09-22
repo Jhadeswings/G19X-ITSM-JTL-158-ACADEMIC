@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:15
+    container_name: talento_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-talento}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talento_local}
+      POSTGRES_DB: ${POSTGRES_DB:-talento_alto_potencial}
+      TZ: America/Mexico_City
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Script de inicialización: habilita la extensión pg_trgm (Especificación §8)
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-talento} -d ${POSTGRES_DB:-talento_alto_potencial}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    container_name: talento_backend
+    restart: unless-stopped
+    environment:
+      TZ: America/Mexico_City
+      # Dentro de la red de compose el host es el nombre del servicio "db"
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-talento}:${POSTGRES_PASSWORD:-talento_local}@db:5432/${POSTGRES_DB:-talento_alto_potencial}
+    ports:
+      - "8000:8000"
+    depends_on:
+      # Especificación §34: no ejecutar migraciones hasta que PostgreSQL esté healthy
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build: ./frontend
+    container_name: talento_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+volumes:
+  postgres_data:

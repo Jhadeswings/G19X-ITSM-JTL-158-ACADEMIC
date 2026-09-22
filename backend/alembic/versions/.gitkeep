@@ -1,0 +1,5 @@
+# Directorio de migraciones Alembic.
+# Fase de scaffolding: VACÍO. Las migraciones de las entidades de dominio
+# (CuentaAcceso, Empleado, Proyecto, Participacion, Capacitacion, Evaluacion,
+# AuditoriaModificacion + extensión pg_trgm e índices, según §33) se crearán
+# en fases posteriores con `alembic revision --autogenerate`.
