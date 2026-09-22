@@ -18,8 +18,9 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import get_settings
 from app.core.db import Base
 
-# Importar modelos de dominio cuando existan (fase posterior):
-# import app.models  # noqa: F401
+# Modelos de dominio: imprescindible importarlos para que ``autogenerate``
+# los detecte (§33). El esquema evoluciona SOLO mediante Alembic.
+import app.models  # noqa: F401
 
 config = context.config
 
