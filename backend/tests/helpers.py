@@ -46,6 +46,9 @@ URL_RH_BUSQUEDA_MANUAL = "/api/v1/rh/talent-search/manual"
 # Fase 8 (interpretación con lenguaje natural)
 URL_RH_INTERPRETAR_BUSQUEDA = "/api/v1/rh/talent-search/interpret"
 
+# Fase 9 (mentoría)
+URL_RH_MENTORIA_SUGGEST = "/api/v1/rh/mentorship/suggest"
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}

@@ -17,6 +17,7 @@ from app.api import (
     me_proyectos,
     rh_empleados,
     rh_evaluations,
+    rh_mentorship,
     rh_participaciones,
     rh_proyectos,
     rh_talent_search,
@@ -42,6 +43,7 @@ app.include_router(rh_participaciones.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rh_evaluations.router, prefix=settings.API_V1_PREFIX)
 app.include_router(me_evaluations.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rh_talent_search.router, prefix=settings.API_V1_PREFIX)
+app.include_router(rh_mentorship.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health", tags=["infra"])

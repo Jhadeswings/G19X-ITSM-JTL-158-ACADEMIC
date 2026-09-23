@@ -482,4 +482,48 @@ NINGUNA. La interpretación no persiste resultados (§27): no se creó ni
 modificó ningún modelo ni tabla.
 
 
+# Decisiones técnicas — Fase 9: mentoría (PRD §14, Especificación §29)
+
+## 43. MentorshipService: determinista, derivado y sin IA
+
+`MentorshipService.suggest(receiver_id, competency_code)` (§29) es una
+consulta DERIVADA del ResultadoActual vigente: reutiliza
+`CompetencyEngine` sin duplicar fórmulas, NO usa evaluaciones históricas
+como fuente de niveles, NO usa IA (ni Groq, ni Gemini, ni LangChain) y
+NO persiste sugerencias, rankings, scores ni relaciones mentor/receptor
+(cero escrituras verificadas por test con row counts).
+
+Contrato (`/api/v1/rh/mentorship/suggest`, solo `require_rh`):
+`SugerenciaMentoriaIn` es estricto (`extra="forbid"`) y acepta SOLO
+`receiver_id` + `competency_code` (enum cerrado de las cinco): el cliente
+no puede introducir datos del mentor ni niveles. La respuesta expone
+exactamente los tres casos requeridos sin estados adicionales:
+sugerencia encontrada (`elegible=true` + `mentor`), receptor no elegible
+(`elegible=false`, nivel 5 / DI / inactivo) y ningún mentor elegible
+(`elegible=true` + `mentor=null`). La justificación viaja siempre en
+`criterio_del_sistema` con la etiqueta obligatoria "Criterio del
+sistema" (PRD §14.3); jamás "mejor empleado"/"top mentor"/"mejor
+talento" (verificado por test).
+
+Decisiones concretas:
+- Receptor inactivo: los documentos exigen receptor activo pero no
+  definen código HTTP específico; como el recurso SÍ existe (el 404 está
+  reservado a `receiver_id` inexistente), se responde `elegible=false`
+  con criterio explícito: comportamiento mínimo compatible sin inventar
+  estados.
+- Desempate con `Fraction` (racional exacto): el promedio de las otras
+  cuatro competencias se compara SIN redondear y sin errores de flotante.
+  `INSUFFICIENT_DATA` se EXCLUYE del promedio (nunca vale cero, verificado
+  por un test donde contar DI como 0 cambiaría el mentor). Un mentor sin
+  NINGÚN valor numérico ordena por debajo de cualquier promedio real y
+  pasa directo al desempate por nombre/id.
+- El propio receptor nunca es candidato: su nivel no puede ser
+  estrictamente superior a sí mismo (§14.2).
+
+## 44. Migraciones de Fase 9
+
+NINGUNA. Mentoría es derivada y no persistente: no se creó ni modificó
+ningún modelo ni tabla.
+
+
 
