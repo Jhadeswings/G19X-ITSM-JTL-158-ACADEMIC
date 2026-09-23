@@ -40,6 +40,9 @@ URL_RH_EMPLEADO_EVALUACIONES = (
 )
 URL_ME_EVALUACIONES = "/api/v1/me/evaluations"
 
+# Fase 7 (búsqueda manual de talento)
+URL_RH_BUSQUEDA_MANUAL = "/api/v1/rh/talent-search/manual"
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}

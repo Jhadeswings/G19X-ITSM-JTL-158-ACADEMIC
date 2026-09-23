@@ -379,4 +379,41 @@ UPDATE/DELETE directos — verificado con SQL crudo en la suite.
   inmutabilidad §24, ambos en la migración 0001 de Fase 2). Se verificó
   antes de decidir: no crear migración si ya cumple.
 
+---
+
+# Decisiones técnicas — Fase 7: búsqueda manual de talento
+
+## 36. Servicio y contrato estricto
+
+`TalentSearchService.search_manual(criteria)` (Especificación §26) es un
+servicio de SOLO LECTURA que reutiliza `CompetencyEngine` sin duplicar
+ninguna fórmula. `BusquedaManualIn` es estricto (`extra="forbid"`):
+`competencies` obligatorio con ≥1 criterio, `code` validado por el enum
+cerrado de las cinco competencias (código desconocido ⇒ 422), `min_level`
+entero 1–5 (0/6/4.5 ⇒ 422). Se rechazan códigos DUPLICADOS (AND ambiguo
+entre dos `min_level` del mismo `code`); y `extra="forbid"` impide campos
+de selección arbitrarios como `employee_id` del cliente (§32/IDOR).
+
+## 37. Reglas y orden
+
+AND entre todos los criterios; solo empleados ACTIVOS;
+`INSUFFICIENT_DATA` no satisface ningún `min_level` (ni siquiera 1).
+Orden: promedio informativo de las competencias seleccionadas (desc,
+`Decimal` cuantizado a 2 decimales, calculado en memoria) y, en empate,
+nombre ascendente y después id ascendente (PRD §13.2). El promedio NO es
+competencia, NO es ResultadoActual, NO es score global ni ranking, y NO
+se persiste: la suite compara row counts de todas las tablas antes y
+después y verifica que no existe tabla de búsquedas/promedios. Sin
+etiquetas de "mejor empleado"/"top talento" en ningún punto del contrato.
+
+## 38. Endpoint, permisos y migraciones de Fase 7
+
+`POST /api/v1/rh/talent-search/manual` (solo `require_rh`; Empleado 403,
+sin token 401). La respuesta incluye eco de `criterios` para la revisión
+de RH prevista por el flujo de lenguaje natural (§27), niveles y estado
+de las competencias consultadas por empleado coincidente, y
+`promedio_seleccionadas`. Migraciones: NINGUNA (nada se persiste; no se
+modificó ningún modelo).
+
+
 
