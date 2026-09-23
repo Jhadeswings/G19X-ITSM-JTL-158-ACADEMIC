@@ -1,8 +1,9 @@
 """Aplicación FastAPI.
 
-Fase 3: incluye los endpoints reales de autenticación (``/api/v1/auth``) e
-identidad (``/api/v1/me``). El resto de endpoints de negocio se agregarán
-en fases posteriores según PRD v1.3 y Especificación Técnica v1.5.
+Fase 6: incluye evaluaciones oficiales históricas (generación atómica y
+lecturas read-only para RH; historial propio sin 9-Box para Empleado).
+El resto de endpoints de negocio se agregarán en fases posteriores según
+PRD v1.3 y Especificación Técnica v1.5.
 """
 
 from fastapi import FastAPI
@@ -11,9 +12,11 @@ from app.api import (
     auth,
     me,
     me_capacitaciones,
+    me_evaluations,
     me_participaciones,
     me_proyectos,
     rh_empleados,
+    rh_evaluations,
     rh_participaciones,
     rh_proyectos,
 )
@@ -24,7 +27,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.APP_NAME,
     description="MVP local — PluriOne S.A. de C.V.",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
@@ -35,6 +38,8 @@ app.include_router(me_proyectos.router, prefix=settings.API_V1_PREFIX)
 app.include_router(me_participaciones.router, prefix=settings.API_V1_PREFIX)
 app.include_router(me_capacitaciones.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rh_participaciones.router, prefix=settings.API_V1_PREFIX)
+app.include_router(rh_evaluations.router, prefix=settings.API_V1_PREFIX)
+app.include_router(me_evaluations.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health", tags=["infra"])

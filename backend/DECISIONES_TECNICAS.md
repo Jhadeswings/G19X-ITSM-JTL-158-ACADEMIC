@@ -299,3 +299,84 @@ antes/después y la ausencia de modelo `ResultadoActual`.
 Ninguna (por definición: §18 prohíbe persistir ResultadoActual y no se
 modificó ningún modelo).
 
+---
+
+# Decisiones técnicas — Fase 6: evaluaciones oficiales y 9-Box histórico
+
+## 29. Concurrencia de la generación: pg_advisory_xact_lock por periodo
+
+`evaluation_service.generar_evaluaciones()` toma
+`pg_advisory_xact_lock(clave)` ANTES del pre-check, donde
+`clave = anio * 4 + trimestre` derivada del `YYYY-QN` (inyectiva, estable
+y sin dependencia del hashing). El lock es de alcance transaccional: se
+libera con el COMMIT/ROLLBACK de la propia generación, sin limpieza
+manual. Dos ejecuciones simultáneas del mismo periodo se serializan: la
+segunda espera, y al reanudar su pre-check (`COUNT(periodo)`) ya ve las
+filas confirmadas de la primera ⇒ `409`. No se depende solo del
+pre-check: `UNIQUE(empleado_id, periodo)` (migración 0001) + captura de
+`IntegrityError` ⇒ `409` como defensa final. El test de concurrencia usa
+dos sesiones PostgreSQL independientes en hilos reales.
+
+## 30. Snapshot histórico: columnas planas, nunca recálculo
+
+`Evaluacion` guarda los cinco niveles y estados por columna
+(`desempeno_tecnico_nivel/status`, ...) más `performance_axis`,
+`potential_axis` (`Numeric(4,3)`) y `box_code` (`String(16)`, alfabeto
+A/M/B). La generación es el ÚNICO punto que calcula (CompetencyEngine →
+`nine_box.calcular_nine_box`); las lecturas devuelven exclusivamente los
+valores guardados. Solo las etiquetas de presentación
+(`etiqueta_performance`/`etiqueta_potencial`) se derivan del eje
+almacenado con `nine_box.etiqueta_eje` (determinista, no es un recálculo
+de competencias). DI se guarda como `nivel NULL` +
+`INSUFFICIENT_DATA` (§14), y ejes/celda quedan `NULL` (§20.2).
+
+## 31. Periodo vigente
+
+`app/core/fechas.periodo_actual()` (ya existente) determina el periodo
+`YYYY-QN` con fecha de negocio `America/Mexico_City` calculada desde UTC.
+La aplicación es responsable del periodo (§22): nada de `CURRENT_DATE`
+en PostgreSQL. El endpoint de generación NO acepta periodo del cliente.
+
+## 32. 9-Box histórico
+
+Se reutiliza el servicio puro `app/services/nine_box.py` (Fase 6,
+preexistente) sin duplicar lógica. `box_code` usa el alfabeto A/M/B de
+Style Guide §16 (primer carácter = Desempeño, segundo = Potencial):
+AA/AM/AB/MA/MM/MB/BA/BM/BB. Nunca códigos A1/A2/A3. La celda se deriva
+únicamente de los ejes.
+
+## 33. Atomicidad e inmutabilidad
+
+Generación en UNA transacción: advisory lock → pre-check → empleados
+activos → cálculo → `add_all` → `flush` (fuerza CHECK/UNIQUE dentro de
+la transacción) → `commit`. Cualquier fallo (incluido un empleado que
+lanza) ⇒ rollback total, cero evaluaciones parciales. Inmutabilidad en
+dos capas (§24): la API no define PATCH/DELETE y el trigger
+`trg_evaluaciones_inmutable` (migración 0001, Fase 2) rechaza
+UPDATE/DELETE directos — verificado con SQL crudo en la suite.
+
+## 34. Endpoints y códigos de estado
+
+- `POST /api/v1/rh/evaluations/generate` (solo RH): `201` si se generaron
+  evaluaciones; `200` coherente con `total_generadas=0` cuando no hay
+  empleados activos (no se inventa nada); `409` si el periodo ya existe.
+- `GET /api/v1/rh/evaluations` (paginado, filtros `empleado_id`/`periodo`
+  validado con patrón `^\d{4}-Q[1-4]$`) y `GET /api/v1/rh/evaluations/{id}`:
+  contrato completo con 9-Box (PRD §10).
+- `GET /api/v1/rh/employees/{id}/evaluations`: historial por empleado (404
+  si el empleado no existe).
+- `GET /api/v1/me/evaluations` (solo Empleado): historial propio SIN ejes
+  ni 9-Box (`EvaluacionEmpleadoOut`, PRD §21). No existe
+  `GET /me/evaluations/{id}` (superficie mínima anti-IDOR).
+
+## 35. Ownership (§32) y migraciones de Fase 6
+
+- `empleado_id` SIEMPRE derivado de la cuenta autenticada
+  (`empleado_id_propio`); RH accede a cualquier histórico por contrato.
+  `generado_por_cuenta_id` registra la cuenta RH que ejecutó.
+- Migraciones: NINGUNA. El modelo `Evaluacion` ya cumplía exactamente la
+  Especificación (campos §21, `UNIQUE(empleado_id, periodo)` y trigger de
+  inmutabilidad §24, ambos en la migración 0001 de Fase 2). Se verificó
+  antes de decidir: no crear migración si ya cumple.
+
+

@@ -32,6 +32,14 @@ URL_RH_PARTICIPACIONES = "/api/v1/rh/participations"
 URL_RH_EMPLEADO_PARTICIPACIONES = "/api/v1/rh/employees/{empleado_id}/participations"
 URL_ME_CAPACITACIONES = "/api/v1/me/trainings"
 
+# Fase 6
+URL_RH_EVALUACIONES = "/api/v1/rh/evaluations"
+URL_RH_GENERAR_EVALUACIONES = f"{URL_RH_EVALUACIONES}/generate"
+URL_RH_EMPLEADO_EVALUACIONES = (
+    "/api/v1/rh/employees/{empleado_id}/evaluations"
+)
+URL_ME_EVALUACIONES = "/api/v1/me/evaluations"
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
