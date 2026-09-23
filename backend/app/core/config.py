@@ -54,6 +54,19 @@ class Settings(BaseSettings):
     # por un proveedor real (ver backend/DECISIONES_TECNICAS.md).
     RECOVERY_TOKEN_DEV_LOG: bool = True
 
+    # ------------------------------------------------------------------
+    # IA (Fase 8): interpretación de búsqueda con lenguaje natural
+    # (Especificación §27). Groq primario, Gemini fallback. Opcionales:
+    # sin claves, el endpoint de interpretación responde con el error
+    # controlado y el resto del sistema funciona igual. Nunca versionar.
+    # ------------------------------------------------------------------
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_TIMEOUT_SEGUNDOS: float = 20.0
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_TIMEOUT_SEGUNDOS: float = 20.0
+
 
 @lru_cache
 def get_settings() -> Settings:

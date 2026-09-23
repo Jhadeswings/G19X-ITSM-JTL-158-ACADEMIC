@@ -15,6 +15,14 @@ pyjwt>=2.8
 # reproducibilidad de la imagen.
 tzdata>=2024.1
 
+# IA (Fase 8): orquestación de LLM (ET v1.5 §1 stack obligatorio).
+# Solo paquetes de integración, NO `langchain` completo. LangChain vive
+# únicamente en la capa de transporte de cada proveedor; el fallback y la
+# validación siguen siendo del AIOrchestrator (§27.3, DECISIONES §40).
+langchain-core>=1.6,<2.0
+langchain-groq>=1.1,<2.0
+langchain-google-genai>=4.4,<5.0
+
 # Tests (Fase 3): suite contra PostgreSQL real vía Docker.
 pytest>=8.0
 httpx>=0.27

@@ -416,4 +416,70 @@ de las competencias consultadas por empleado coincidente, y
 modificó ningún modelo).
 
 
+# Decisiones técnicas — Fase 8: interpretación IA de búsqueda (§27)
+
+## 39. Contrato, endpoint y privacidad
+
+`POST /api/v1/rh/talent-search/interpret` (solo `require_rh`) recibe
+EXCLUSIVAMENTE `query_text` (`InterpretacionIn`, `extra="forbid"`, no
+vacío, máx 500 caracteres). La salida del LLM se valida con el MISMO
+contrato Pydantic cerrado para ambos proveedores
+(`CriteriosInterpretadosDTO`, `extra="forbid"`): cualquier campo
+prohibido (`employee_id`, `candidate_names`, `winner`,
+`recommended_employee`, `talent_score`, `reason_for_selection`...) o
+valor inválido invalida la interpretación y cuenta como fallo del
+proveedor (→ fallback). El prompt lleva SOLO `query_text` + catálogo
+cerrado + reglas de `min_level` (§27.1): sin PII, sin empleados, sin
+evaluaciones/participaciones/capacitaciones ni `resolvio_problema`
+(verificado por test con datos sembrados). La interpretación NO ejecuta
+la búsqueda ni persiste nada (§27): la suite compara row counts de todas
+las tablas antes y después. Sin proveedores configurados (claves
+opcionales en variables de entorno, nunca versionadas) el endpoint
+responde 502 controlado; nunca se inventa una interpretación.
+
+## 40. LangChain: transporte solamente (stack obligatorio ET §1)
+
+La Especificación Técnica v1.5 §1 declara LangChain como orquestación IA
+obligatoria. Se incorpora SOLO en la capa de transporte de cada proveedor
+con los paquetes de integración `langchain-core`, `langchain-groq` y
+`langchain-google-genai` (NO `langchain` completo: no hay chains,
+agents, memoria ni RAG que justificaran el paquete entero).
+
+Lo que NO se delega a LangChain (regla §27.3 del proyecto):
+- `AIOrchestrator` conserva el control EXPLÍCITO del fallback
+  Groq (primario) → Gemini (fallback) → error controlado 502;
+- `ProveedorLLM` sigue siendo la abstracción propia
+  (`interpretar(prompt) -> str`, texto crudo);
+- `validar_salida_proveedor` + contrato Pydantic siguen siendo la
+  única validación de salida (el prompt NO es mecanismo de seguridad);
+- el prompt mínimo de `prompt.py` permanece sin cambios.
+
+Los chats de LangChain (`ChatGroq`, `ChatGoogleGenerativeAI`) se
+construyen con `temperature=0` y salida JSON. TODA excepción de
+construcción o invocación se traduce a `ErrorProveedor` para que el
+orquestador decida el fallback: LangChain jamás rompe el flujo
+controlado. Los tests siguen mockeando `ProveedorLLM`: no requieren
+claves reales ni llamadas a proveedores.
+
+## 41. `area`/`position`: informativos, NO filtros (decisión técnica)
+
+`CriteriosInterpretadosDTO` incluye `area` y `position` porque la
+Especificación §27.2 los muestra en el ejemplo de salida estructurada del
+LLM. PERO ni §26 (`search_manual(criteria)` define su input solo con
+`competencies`) ni el PRD §13.1 (búsqueda manual = competencias +
+nivel mínimo) autorizan inequívocamente filtros por área/puesto, y la
+regla de autoridad (PRD §24 / ET §0) prohíbe inventar comportamiento.
+
+Por tanto: `area`/`position` viajan en el DTO para la REVISIÓN de RH,
+NO se envían a `TalentSearchService` y `BusquedaManualIn` los rechaza
+(`extra="forbid"`, cubierto por test). Convertirlos en filtros
+ejecutables es una DECISIÓN PENDIENTE DE PRODUCTO, no un gap de
+implementación.
+
+## 42. Migraciones de Fase 8
+
+NINGUNA. La interpretación no persiste resultados (§27): no se creó ni
+modificó ningún modelo ni tabla.
+
+
 
