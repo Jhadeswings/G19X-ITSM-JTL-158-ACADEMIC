@@ -25,7 +25,10 @@ import app.models  # noqa: F401
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: fileConfig() por defecto DESACTIVA los
+    # loggers ya existentes (incluidos los de la propia app cuando las
+    # migraciones se ejecutan desde la aplicación o desde los tests).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Inyectar la URL real desde la configuración de la aplicación.
 config.set_main_option("sqlalchemy.url", get_settings().DATABASE_URL)

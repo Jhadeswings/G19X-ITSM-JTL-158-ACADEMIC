@@ -1,0 +1,98 @@
+"""Router RH: gestión de empleados (Fase 4A).
+
+Todo protegido con ``require_rh``: la autorización se ejecuta en backend.
+Un Empleado no puede gestionar empleados (403).
+"""
+
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import require_rh
+from app.core.db import get_db
+from app.models.cuenta_acceso import CuentaAcceso
+from app.schemas.empleado import (
+    EmpleadoCreateIn,
+    EmpleadoOut,
+    EmpleadoPageOut,
+    EmpleadoUpdateIn,
+    EstadoEmpleadoIn,
+)
+from app.services import empleado_service
+
+router = APIRouter(
+    prefix="/rh/employees", tags=["rh-empleados"], dependencies=[Depends(require_rh)]
+)
+
+
+@router.post("", response_model=EmpleadoOut, status_code=status.HTTP_201_CREATED)
+def crear_empleado(
+    datos: EmpleadoCreateIn,
+    cuenta_rh: CuentaAcceso = Depends(require_rh),
+    db: Session = Depends(get_db),
+) -> EmpleadoOut:
+    """Alta de empleado + CuentaAcceso con credencial temporal (PRD §3.3).
+
+    La credencial temporal nunca se expone en la respuesta.
+    """
+    _ = cuenta_rh
+    empleado = empleado_service.crear_empleado(db, datos)
+    return EmpleadoOut.model_validate(empleado)
+
+
+@router.get("", response_model=EmpleadoPageOut)
+def listar_empleados(
+    pagina: int = Query(1, ge=1),
+    por_pagina: int = Query(20, ge=1, le=100),
+    activo: bool | None = Query(None),
+    area: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> EmpleadoPageOut:
+    """Lista administrativa paginada de empleados."""
+    empleados, total = empleado_service.listar_empleados(
+        db, pagina=pagina, por_pagina=por_pagina, activo=activo, area=area
+    )
+    return EmpleadoPageOut(
+        total=total,
+        pagina=pagina,
+        por_pagina=por_pagina,
+        items=[EmpleadoOut.model_validate(e) for e in empleados],
+    )
+
+
+@router.get("/{empleado_id}", response_model=EmpleadoOut)
+def consultar_empleado(
+    empleado_id: int, db: Session = Depends(get_db)
+) -> EmpleadoOut:
+    return EmpleadoOut.model_validate(
+        empleado_service.obtener_empleado(db, empleado_id)
+    )
+
+
+@router.patch("/{empleado_id}", response_model=EmpleadoOut)
+def actualizar_empleado(
+    empleado_id: int,
+    datos: EmpleadoUpdateIn,
+    db: Session = Depends(get_db),
+) -> EmpleadoOut:
+    """Actualiza datos administrativos permitidos (nombre/puesto/área/ingreso)."""
+    empleado = empleado_service.obtener_empleado(db, empleado_id)
+    return EmpleadoOut.model_validate(
+        empleado_service.actualizar_empleado(db, empleado, datos)
+    )
+
+
+@router.patch("/{empleado_id}/estado", response_model=EmpleadoOut)
+def cambiar_estado_empleado(
+    empleado_id: int,
+    datos: EstadoEmpleadoIn,
+    db: Session = Depends(get_db),
+) -> EmpleadoOut:
+    """Activa/desactiva SOLO el estado del empleado.
+
+    No modifica CuentaAcceso: ambos estados están separados (ver
+    DECISIONES_TECNICAS.md).
+    """
+    empleado = empleado_service.obtener_empleado(db, empleado_id)
+    return EmpleadoOut.model_validate(
+        empleado_service.cambiar_activo(db, empleado, datos.activo)
+    )

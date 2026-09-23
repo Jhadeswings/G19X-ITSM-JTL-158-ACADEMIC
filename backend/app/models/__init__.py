@@ -16,6 +16,7 @@ from app.models.empleado import Empleado
 from app.models.evaluacion import Evaluacion
 from app.models.participacion import Participacion
 from app.models.proyecto import Proyecto
+from app.models.token_recuperacion import TokenRecuperacion
 
 __all__ = [
     "AuditoriaModificacion",
@@ -25,4 +26,5 @@ __all__ = [
     "Evaluacion",
     "Participacion",
     "Proyecto",
+    "TokenRecuperacion",
 ]

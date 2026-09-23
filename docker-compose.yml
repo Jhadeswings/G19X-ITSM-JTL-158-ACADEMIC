@@ -29,6 +29,11 @@ services:
       TZ: America/Mexico_City
       # Dentro de la red de compose el host es el nombre del servicio "db"
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-talento}:${POSTGRES_PASSWORD:-talento_local}@db:5432/${POSTGRES_DB:-talento_alto_potencial}
+      # Autenticación (Fase 3): secretos SIEMPRE desde el .env de la raíz,
+      # nunca versionados (Especificación Técnica §35).
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY es obligatorio en el .env de la raíz}
+      SEED_RH_EMAIL: ${SEED_RH_EMAIL:-}
+      SEED_RH_PASSWORD: ${SEED_RH_PASSWORD:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -37,6 +42,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "alembic upgrade head &&
+             python -m app.core.seed &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:
