@@ -53,6 +53,9 @@ URL_RH_MENTORIA_SUGGEST = "/api/v1/rh/mentorship/suggest"
 URL_RH_GAPS = "/api/v1/rh/gaps"
 URL_RH_ATTENTION = "/api/v1/rh/attention-required"
 
+# Fase 11 (comparación de empleados)
+URL_RH_COMPARACION = "/api/v1/rh/employees/compare"
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}

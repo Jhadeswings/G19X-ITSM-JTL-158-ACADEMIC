@@ -567,4 +567,42 @@ NINGUNA. Ambas vistas son derivadas y no persistente: no se creó ni
 modificó ningún modelo ni tabla.
 
 
+# Decisiones técnicas — Fase 11: comparación de empleados
+
+## 47. ComparisonService: vista lateral derivada (PRD §20.5)
+
+Endpoint: `POST /api/v1/rh/employees/compare`, exclusivo de RH.
+
+- Contrato estricto (`extra="forbid"`): SOLO `employee_ids`, obligatorio,
+  mínimo 2, enteros positivos y sin duplicados. Cualquier campo adicional
+  (nombres, niveles, resultados) ⇒ 422: el cliente NUNCA puede alterar
+  el contenido de la comparación; el backend resuelve todos los datos.
+- ID inexistente ⇒ **404** reutilizando `obtener_empleado` (patrón
+  existente de recurso inexistente).
+- Empleado existente pero INACTIVO ⇒ **422** con el patrón de validación
+  existente del proyecto (no se inventó ningún código HTTP nuevo): la
+  petición COMPLETA se rechaza. Jamás se elimina un ID en silencio: la
+  respuesta debe corresponder exactamente al conjunto válido solicitado,
+  o no haber respuesta.
+- Contenido por empleado: identificación (id, nombre, puesto, área),
+  las CINCO competencias actuales y experiencia como contexto. Se
+  reutilizan `CompetencyEngine`, `CompetenciaResultadoDTO` y
+  `ExperienciaDTO` (antigüedad + proyectos únicos): cero fórmulas
+  duplicadas, `INSUFFICIENT_DATA` preservado (`nivel=None`, nunca 0).
+- NO existe: 9-Box, ganador/mejor/top empleado, ranking, score global,
+  `ExperienceScore`, recomendación ni selección automática. La
+  experiencia NO ordena ni clasifica. Sin IA (sin Groq/Gemini/LangChain/
+  AIOrchestrator).
+- Orden: se conserva EXACTAMENTE el orden de `employee_ids` recibido
+  (PRD no define ranking para comparación). Neutral y determinista:
+  evita clasificación implícita por promedio o nivel y permite que la
+  UI futura respete la selección de RH.
+- Fuente: ResultadoActual vigente. Las evaluaciones históricas NO
+  alteran la comparación (verificado por test).
+
+## 48. Migraciones de Fase 11
+
+NINGUNA. La comparación es una vista derivada: no se creó tabla
+`Comparison`, ni modelo persistente, ni histórico, ni cache persistente.
+
 
