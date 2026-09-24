@@ -49,6 +49,10 @@ URL_RH_INTERPRETAR_BUSQUEDA = "/api/v1/rh/talent-search/interpret"
 # Fase 9 (mentoría)
 URL_RH_MENTORIA_SUGGEST = "/api/v1/rh/mentorship/suggest"
 
+# Fase 10 (brechas y atención requerida)
+URL_RH_GAPS = "/api/v1/rh/gaps"
+URL_RH_ATTENTION = "/api/v1/rh/attention-required"
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}

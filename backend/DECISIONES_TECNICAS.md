@@ -526,4 +526,45 @@ NINGUNA. Mentoría es derivada y no persistente: no se creó ni modificó
 ningún modelo ni tabla.
 
 
+# Decisiones técnicas — Fase 10: brechas y atención requerida
+
+## 45. GapService y AttentionService: vistas derivadas del dashboard
+
+Brechas (PRD §15, `GET /api/v1/rh/gaps?competency_code=...`):
+- Una competencia por consulta: el parámetro se valida contra el enum
+  cerrado de las cinco (código desconocido ⇒ 422) y repetirlo en la
+  query string también ⇒ 422 (contrato estricto).
+- Denominador de los porcentajes: EXCLUSIVAMENTE los empleados
+  evaluables (CALCULABLE) de esa competencia. `INSUFFICIENT_DATA` se
+  cuenta por separado (`datos_insuficientes`), NO entra en los grupos
+  1–2 / 3–5, NO entra en el denominador y jamás se convierte en nivel 0.
+- Con 0 evaluables los porcentajes son `0.00` (sin división entre
+  cero): valor neutro; el PRD prohíbe presentarlo como alarma.
+- Fuente: ResultadoActual vigente vía `CompetencyEngine` (sin
+  evaluaciones históricas). Sin score, sin ranking, sin persistencia.
+
+Atención requerida (PRD §19.1, ET §30, `GET /api/v1/rh/attention-required`):
+- Vista DERIVADA global: NO existe tabla ni modelo `Alert`, no modifica
+  datos, no altera competencias/9-Box/evaluaciones y no genera
+  auditoría. Solo empleados activos; el cliente no decide quién aparece.
+- Condiciones exactas (§30): `PERFIL_INCOMPLETO` (falta nombre,
+  cuenta/correo, puesto, área o fecha de ingreso) O
+  `SIN_PARTICIPACION_RECIENTE` (ninguna participación con
+  `fecha_registro >= hoy_negocio − 90 días`). Ambas condiciones ⇒ una
+  sola aparición con los dos motivos.
+- Fecha límite: `fecha_negocio_hoy()` (America/Mexico_City desde UTC,
+  §12; nunca hora local del contenedor ni UTC sin convertir). La
+  frontera usa `>=`: participación con fecha EXACTAMENTE hoy−90 es
+  reciente (no aparece por esa condición); hoy−91 sí. Se usa
+  `fecha_registro`, jamás `created_at` técnico, evaluaciones ni niveles.
+- Motivos neutrales estructurados (enum cerrado) para orientación
+  operativa; vocabulario prohibido verificado por test (PRD §23).
+- Orden determinista: nombre ascendente, id ascendente.
+
+## 46. Migraciones de Fase 10
+
+NINGUNA. Ambas vistas son derivadas y no persistente: no se creó ni
+modificó ningún modelo ni tabla.
+
+
 
