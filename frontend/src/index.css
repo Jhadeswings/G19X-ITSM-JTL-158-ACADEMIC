@@ -1,12 +1,31 @@
-/* Estilos mínimos de arranque (neutros).
-   Los tokens visuales oficiales (paleta, tipografía, componentes) del
-   Style Guide v1.1 se incorporarán en la fase de frontend. */
+/* Estilos del frontend — tokens visuales del Style Guide v1.1 (§4–§8).
+   La IA es visualmente secundaria al dato calculado (§3.6). */
 
 :root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Tokens de color (Style Guide §4.1) */
+  --color-bg: #f6f7f5;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f0f4f2;
+  --color-text-primary: #263238;
+  --color-text-secondary: #5f6b73;
+  --color-primary: #4f7f7b;
+  --color-primary-soft: #e4eeec;
+  --color-secondary: #637696;
+  --color-accent: #d99a7c;
+  --color-border: #dce2df;
+
+  /* Tipografía: Inter con respaldo del sistema (§5) */
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
-  color: #1f2937;
-  background-color: #f9fafb;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg);
+
+  /* Radius (§8) */
+  --radius-card: 12px;
+  --radius-control: 8px;
+
+  /* Focus visible accesible (§22) */
+  --foco: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-primary);
 }
 
 * {
@@ -18,9 +37,400 @@ body {
   min-height: 100vh;
 }
 
-.app-placeholder {
-  max-width: 640px;
-  margin: 4rem auto;
-  padding: 0 1rem;
+:focus-visible {
+  outline: none;
+  box-shadow: var(--foco);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Layout general                                                      */
+/* ------------------------------------------------------------------ */
+
+.app__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px; /* §11 */
+  padding: 0 24px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app__titulo {
+  font-weight: 600;
+}
+
+.app__contenido {
+  max-width: 1280px; /* §7 */
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.mi-progreso .seccion {
+  margin-bottom: 32px; /* §6 */
+}
+
+.mi-progreso .seccion h2 {
+  font-size: 24px;
+  line-height: 32px;
+  margin: 0 0 16px;
+}
+
+.seccion__intro,
+.contexto__nota,
+.competencia__ayuda,
+.ia__nota,
+.transparencia__nota {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* ¿Cómo voy? — contexto */
+.contexto {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 16px;
+}
+
+.contexto__titulo {
+  font-weight: 500;
+  margin: 0 0 4px;
+}
+
+.contexto__texto,
+.contexto__nota {
+  margin: 0 0 4px;
+}
+
+/* Competencias (§15.1) */
+.competencias {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.competencia {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 16px;
+}
+
+.competencia__nombre {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.competencia__nivel {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* DI (§15.3): neutro, JAMÁS rojo como tratamiento principal. */
+.competencia--di .competencia__nivel {
+  color: var(--color-text-secondary);
+}
+
+.competencia__evidencia {
+
+/* ¿Cómo se obtienen? */
+.como-se-obtienen {
+  margin: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 8px 24px;
+}
+
+.como-se-obtienen__fila {
+  padding: 12px 0;
+}
+
+.como-se-obtienen__fila + .como-se-obtienen__fila {
+  border-top: 1px solid var(--color-border);
+}
+
+.como-se-obtienen dt {
+  font-weight: 600;
+}
+
+.como-se-obtienen dd {
+  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* Fortalezas / Oportunidades: cápsulas con texto legible (§4.4). */
+.categorias__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.categorias__item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px; /* cápsula (§8) */
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.estado-vacio {
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 16px;
+}
+
+/* IA (§17.2/§3.6): bloque secundario, fondo suave, separado del dato. */
+.ia {
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 24px;
+}
+
+.ia__badge {
+  display: inline-block;
+  margin: 0 0 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--color-secondary);
+}
+
+.ia__titulo {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-secondary);
+}
+
+.ia__texto {
+  margin: 0 0 8px;
+}
+
+.ia__acciones {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.ia__acciones li {
+  margin-bottom: 4px;
+}
+
+.ia__nota {
+  margin: 0;
+}
+
+/* Transparencia (§20) */
+.transparencia {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 24px;
+}
+
+.transparencia__titulo {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.transparencia__lista {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.transparencia__nota {
+  margin: 0;
+}
+
+/* Botones (§12.3) */
+.boton {
+  font: inherit;
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  padding: 0 16px;
+  height: 44px;
+  cursor: pointer;
+}
+
+.boton--primario {
+  background: var(--color-primary);
+  color: var(--color-surface);
+
+/* Estados (§13) */
+.estado-carga,
+.estado-error {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 24px;
+  max-width: 560px;
+  margin: 24px auto;
+}
+
+.estado-error__titulo {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.estado-error__mensaje,
+.estado-error__ayuda {
+  margin: 0 0 8px;
+  color: var(--color-text-secondary);
+}
+
+.esqueleto {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.esqueleto__linea {
+  height: 16px;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-soft);
+  animation: pulso 1.2s ease-in-out infinite;
+}
+
+.esqueleto__linea--corta {
+  width: 60%;
+}
+
+@keyframes pulso {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Login */
+.login {
+  max-width: 420px;
+  margin: 64px auto;
+  padding: 0 16px;
   text-align: center;
 }
+
+.login h1 {
+  font-size: 20px;
+  line-height: 28px;
+  margin: 0 0 24px;
+}
+
+.login__tarjeta {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 24px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login__tarjeta h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.campo input {
+  font: inherit;
+  height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 0 12px;
+  background: var(--color-surface);
+}
+
+.login__error {
+  margin: 0;
+  color: #8c3b2e;
+  font-size: 14px;
+}
+
+/* Movimiento respetuoso (§23) */
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto__linea {
+    animation: none;
+  }
+}
+
+  font-weight: 500;
+}
+
+.boton--primario:hover {
+  filter: brightness(1.05);
+}
+
+.boton--primario:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.boton--fantasma {
+  background: transparent;
+  color: var(--color-primary);
+  border-color: var(--color-border);
+}
+
+
+.estado-vacio__titulo {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.estado-vacio__descripcion {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-secondary);
+}
+
+.competencia__como {
+  font-size: 14px;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.competencia__como:hover {
+  text-decoration: underline;
+}
+
