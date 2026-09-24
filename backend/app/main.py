@@ -14,6 +14,7 @@ from app.api import (
     me_capacitaciones,
     me_evaluations,
     me_participaciones,
+    me_progress,
     me_proyectos,
     rh_attention,
     rh_comparison,
@@ -50,6 +51,7 @@ app.include_router(rh_mentorship.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rh_gaps.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rh_attention.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rh_comparison.router, prefix=settings.API_V1_PREFIX)
+app.include_router(me_progress.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health", tags=["infra"])

@@ -13,10 +13,11 @@ Lo que NO se delega a LangChain (permanece del proyecto, §27.3):
   (``validar_salida_proveedor`` + contrato Pydantic);
 - el prompt mínimo (§27.1).
 
-Contrato común: ``interpretar(prompt) -> str`` devuelve el TEXTO CRUDO
+Contrato común: ``generar(system, prompt) -> str`` (y su caso particular
+``interpretar(prompt)`` para búsqueda, §27.1) devuelve el TEXTO CRUDO
 del modelo (se espera JSON). Cualquier problema de red/HTTP/API se
 traduce a ``ErrorProveedor`` para que el orquestador pruebe el fallback.
-El prompt ya es el objeto MÍNIMO permitido por §27.1: los adaptadores no
+Los prompts ya son el objeto MÍNIMO permitido: los adaptadores no
 añaden contexto de empleados ni PII.
 """
 
@@ -34,12 +35,22 @@ class ErrorProveedor(Exception):
 
 
 class ProveedorLLM(Protocol):
-    """Interfaz común de proveedores de interpretación."""
+    """Interfaz común de proveedores de LLM.
+
+    ``generar(system, prompt)`` es el método GENÉRICO de invocación con
+    instrucciones de sistema propias de cada caso de uso. ``interpretar``
+    se mantiene por compatibilidad con la interpretación de búsqueda
+    (Fase 8): equivale a ``generar(INSTRUCCIONES, prompt)``.
+    """
 
     nombre: str
 
+    def generar(self, system: str, prompt: str) -> str:
+        """Devuelve el texto crudo del modelo para system+prompt dados."""
+        ...  # pragma: no cover
+
     def interpretar(self, prompt: str) -> str:
-        """Devuelve el texto crudo del modelo para el prompt dado."""
+        """Caso particular de búsqueda: instrucciones §27.1 fijas."""
         ...  # pragma: no cover
 
 
@@ -75,11 +86,11 @@ class GroqProveedor:
         except Exception as error:  # construcción inválida = proveedor caído
             raise ErrorProveedor(f"Groq falló: {error}") from error
 
-    def interpretar(self, prompt: str) -> str:
+    def generar(self, system: str, prompt: str) -> str:
         try:
             respuesta = self._chat.invoke(
                 [
-                    ("system", INSTRUCCIONES),
+                    ("system", system),
                     ("human", prompt),
                 ]
             )
@@ -88,6 +99,10 @@ class GroqProveedor:
             raise
         except Exception as error:
             raise ErrorProveedor(f"Groq falló: {error}") from error
+
+    def interpretar(self, prompt: str) -> str:
+        """Interpretación de búsqueda (§27.1): instrucciones fijas."""
+        return self.generar(INSTRUCCIONES, prompt)
 
 
 class GeminiProveedor:
@@ -113,11 +128,11 @@ class GeminiProveedor:
         except Exception as error:  # construcción inválida = proveedor caído
             raise ErrorProveedor(f"Gemini falló: {error}") from error
 
-    def interpretar(self, prompt: str) -> str:
+    def generar(self, system: str, prompt: str) -> str:
         try:
             respuesta = self._chat.invoke(
                 [
-                    ("system", INSTRUCCIONES),
+                    ("system", system),
                     ("human", prompt),
                 ]
             )
@@ -126,3 +141,7 @@ class GeminiProveedor:
             raise
         except Exception as error:
             raise ErrorProveedor(f"Gemini falló: {error}") from error
+
+    def interpretar(self, prompt: str) -> str:
+        """Interpretación de búsqueda (§27.1): instrucciones fijas."""
+        return self.generar(INSTRUCCIONES, prompt)

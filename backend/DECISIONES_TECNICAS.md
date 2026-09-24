@@ -606,3 +606,69 @@ NINGUNA. La comparación es una vista derivada: no se creó tabla
 `Comparison`, ni modelo persistente, ni histórico, ni cache persistente.
 
 
+# Decisiones técnicas — Fase 12: recomendaciones de desarrollo con IA
+
+## 49. Endpoint, contexto mínimo y separación dato/sugerencia
+
+Endpoint elegido: `GET /api/v1/me/progress/recommendation`, exclusivo de
+Empleado (`require_empleado` + `empleado_id_propio`). Motivación: ningún
+documento fija ruta exacta; `/me/progress` es el prefijo natural de la
+vista "Mi progreso" (PRD §21.2) y sigue la convención `/me/<recurso>` de
+los routers existentes. GET sin cuerpo: el cliente NO puede enviar
+`employee_id`, niveles, fortalezas ni texto — todo se deriva del token
+y del estado actual (query/body inyectados se ignoran por contrato).
+
+Contexto MÍNIMO enviado al LLM (PRD §18, depurado por
+`RecommendationService._contexto_minimo`):
+- por cada una de las cinco competencias: código + nivel 1–5 o estado
+  `INSUFFICIENT_DATA` (nivel `null`);
+- fortalezas y oportunidades YA calculadas por reglas (§17.4): la IA
+  las recibe como hechos, nunca las deriva;
+- experiencia SOLO como contexto: años de antigüedad (entero) y
+  proyectos únicos. Nunca fórmula de talento, nunca cambia niveles ni
+  categorías.
+
+EXCLUIDO del prompt (verificado por test con proveedor espía): nombre,
+correo, `employee_id`/IDs, `resolvio_problema`, texto libre de
+participaciones, entregables, situaciones descritas, evidencia interna,
+evaluaciones históricas, datos de otros empleados y credenciales.
+
+Contrato IA (`SalidaRecomendacionIA`, cerrado `extra="forbid"`):
+`{"recommendation": str ≤500 no vacía, "actions": [str ≤200] × ≤5}`.
+Cualquier campo adicional (`employee_id`, `winner`, `talent_score`,
+`score`, `nivel`, `competency_level`, `box_code`, `performance_axis`,
+`potential_axis`, `strengths_generated_by_ai`,
+`opportunities_generated_by_ai`, nombres...) invalida la salida ⇒ se
+trata como fallo del proveedor ⇒ fallback. Se rechazan además los cinco
+juicios que el PRD prohíbe literalmente ("mejor empleado", "top
+talento", "ganador", "bajo potencial", "empleado insuficiente"): lista
+mínima cerrada, no un filtro general de lenguaje.
+
+Separación dato/sugerencia (Style Guide §3.6): la respuesta tiene DOS
+bloques estructurales — `resultado_actual` (reutiliza
+`ResultadoActualDTO` tal cual: competencias con DI preservado,
+experiencia, fortalezas y oportunidades por reglas; la IA no puede
+modificarlos) y `recomendacion_ia` (con `origen: "IA"` constante,
+`proveedor`, `recommendation` y `actions`). El texto IA jamás se
+presenta como resultado oficial.
+
+## 50. Orquestación, fallback y migraciones
+
+Generalización limpia de `AIOrchestrator` sin romper `/interpret`
+(Fase 8): el bucle de fallback común vive en `_ejecutar_con_fallback`
+(ET §38: Groq → Gemini → 502 controlado; sin claves configuradas el
+resultado es el mismo 502: nunca se inventa ni hardcodea una
+recomendación). `interpretar_busqueda` conserva su comportamiento
+exacto (sigue llamando `proveedor.interpretar`); el nuevo
+`generar_recomendacion(contexto)` usa `proveedor.generar(system,
+prompt)` con instrucciones propias (`INSTRUCCIONES_RECOMENDACION`).
+Los adaptadores Groq/Gemini, la configuración, LangChain y la validación
+Pydantic común NO se duplican: solo se generalizó el método de
+invocación (`interpretar` = caso particular con instrucciones §27.1).
+
+Migraciones: NINGUNA. La recomendación NO se persiste: sin tabla, sin
+histórico, sin modelo, sin auditoría (§25) y sin cache persistente.
+Cada consulta deriva el ResultadoActual vigente y pide una sugerencia
+nueva al proveedor.
+
+

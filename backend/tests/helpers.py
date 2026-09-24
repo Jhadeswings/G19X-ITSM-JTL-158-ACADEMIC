@@ -56,6 +56,9 @@ URL_RH_ATTENTION = "/api/v1/rh/attention-required"
 # Fase 11 (comparación de empleados)
 URL_RH_COMPARACION = "/api/v1/rh/employees/compare"
 
+# Fase 12 (recomendación de desarrollo con IA)
+URL_ME_RECOMENDACION = "/api/v1/me/progress/recommendation"
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
