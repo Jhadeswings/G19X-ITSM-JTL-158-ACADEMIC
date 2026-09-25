@@ -12,6 +12,7 @@ import {
   obtenerSesion,
 } from '../api/autenticacion.js'
 import { obtenerProgreso } from '../api/progreso.js'
+import { obtenerCuenta } from '../api/cuenta.js'
 import App from '../App.jsx'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
 
@@ -26,6 +27,11 @@ vi.mock('../api/autenticacion.js', () => ({
 
 vi.mock('../api/progreso.js', () => ({ obtenerProgreso: vi.fn() }))
 
+// La cuenta del header (§11) se mockea resuelta para no depender de la red.
+vi.mock('../api/cuenta.js', () => ({
+  obtenerCuenta: vi.fn().mockResolvedValue({ email: 'persona@empresa.dev' }),
+}))
+
 const EMPLEADO = { token: 'token-empleado', rol: 'EMPLEADO', mustChangePassword: false }
 const EMPLEADO_TEMPORAL = { token: 'token-temporal', rol: 'EMPLEADO', mustChangePassword: true }
 const RH = { token: 'token-rh', rol: 'RH', mustChangePassword: false }
@@ -38,6 +44,8 @@ beforeEach(() => {
   vi.mocked(actualizarSesion).mockReset()
   vi.mocked(cambiarPassword).mockReset()
   vi.mocked(obtenerProgreso).mockReset()
+  vi.mocked(obtenerCuenta).mockReset()
+  vi.mocked(obtenerCuenta).mockResolvedValue({ email: 'persona@empresa.dev' })
 })
 
 /** Llena el formulario de acceso y envía las credenciales. */

@@ -58,7 +58,13 @@ body {
 }
 
 .app__titulo {
+  margin: 0;
+  font-size: 24px; /* §5: H2 24/32, por ir dentro del header de 64 px (§11) */
+  line-height: 32px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app__contenido {
@@ -388,13 +394,6 @@ body {
   font-size: 14px;
 }
 
-/* Movimiento respetuoso (§23) */
-@media (prefers-reduced-motion: reduce) {
-  .esqueleto__linea {
-    animation: none;
-  }
-}
-
 .boton--primario:hover {
   filter: brightness(1.05);
 }
@@ -431,5 +430,154 @@ body {
 
 .competencia__como:hover {
   text-decoration: underline;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shell con navegación lateral (§7, §10, §11)                         */
+/* ------------------------------------------------------------------ */
+
+.layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr); /* §7: sidebar 240 px */
+  min-height: 100vh;
+}
+
+.layout__principal {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app__izquierda {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* §6 */
+  min-width: 0;
+}
+
+.app__acciones {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* §6 */
+}
+
+.app__cuenta {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* Navegación lateral del Empleado (§10) */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; /* §6 */
+  padding: 16px 12px; /* §6 */
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.sidebar__marca {
+  margin: 0;
+  padding: 0 12px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.sidebar__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* §6 */
+}
+
+.sidebar__enlace {
+  font: inherit;
+  width: 100%;
+  padding: 12px; /* §6: control cómodo, 44 px de alto */
+  text-align: left;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.sidebar__enlace:hover {
+  background: var(--color-surface-soft);
+}
+
+/* Activo (§10): fondo primary-soft y texto primary, sin barras de color.
+   El color no es la única señal: el botón lleva aria-current="page" (§22). */
+.sidebar__enlace--activo {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.layout__menu {
+  display: none; /* solo en mobile (§7) */
+}
+
+/* Tablet (§7): sidebar compacto y menor padding */
+@media (max-width: 1023px) {
+  .layout {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+
+  .app__contenido {
+    padding: 16px; /* §7: menor padding */
+  }
+}
+
+/* Mobile (§7): la navegación lateral es un drawer */
+@media (max-width: 767px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .layout__menu {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 240px;
+    z-index: 1;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform 150ms ease, visibility 150ms ease; /* §23 */
+  }
+
+  .sidebar--abierto {
+    visibility: visible;
+    transform: none;
+  }
+}
+
+/* Movimiento respetuoso (§23): se declara al final para que anule las
+   transiciones anteriores cuando el sistema lo pide. */
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto__linea {
+    animation: none;
+  }
+
+  .sidebar {
+    transition: none;
+  }
 }
 
