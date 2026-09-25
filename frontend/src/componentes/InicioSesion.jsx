@@ -15,8 +15,8 @@ export default function InicioSesion({ onExito }) {
     setEnviando(true)
     setError(null)
     try {
-      const token = await iniciarSesion(email.trim(), password)
-      onExito(token)
+      const sesion = await iniciarSesion(email.trim(), password)
+      onExito(sesion)
     } catch (e) {
       setError(
         e?.estado === 401
