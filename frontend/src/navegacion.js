@@ -14,3 +14,20 @@ export const SECCIONES_EMPLEADO = [
 
 // Sección inicial: la única vista funcional de esta etapa (PRD §21.2).
 export const SECCION_INICIAL = 'mi-progreso'
+
+// Secciones de navegación del rol RH (Style Guide §10; PRD §20).
+// En esta etapa solo "Empleados" es funcional (alta de empleado, PRD §3.3);
+// el resto reutiliza SeccionTemporal hasta su implementación.
+export const SECCIONES_RH = [
+  { id: 'inicio', titulo: 'Inicio' },
+  { id: 'empleados', titulo: 'Empleados' },
+  { id: 'proyectos', titulo: 'Proyectos' },
+  { id: 'busqueda', titulo: 'Búsqueda' },
+  { id: 'comparar', titulo: 'Comparar' },
+  { id: 'mentoria', titulo: 'Mentoría' },
+  { id: 'brechas', titulo: 'Brechas' },
+  { id: 'evaluaciones', titulo: 'Evaluaciones' },
+]
+
+// Sección inicial de RH: la única vista funcional de esta etapa.
+export const SECCION_RH_INICIAL = 'empleados'

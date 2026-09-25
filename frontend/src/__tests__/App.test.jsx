@@ -174,8 +174,12 @@ describe('App — rol RH', () => {
 
     await entrarCon(RH)
 
+    // Ve su propio shell con la sección funcional "Empleados" (alta, PRD §3.3).
     expect(
-      await screen.findByText('Las vistas de RH todavía no están disponibles'),
+      await screen.findByRole('heading', { level: 1, name: 'Empleados' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Crear empleado' }),
     ).toBeInTheDocument()
     expect(obtenerProgreso).not.toHaveBeenCalled()
     expect(
@@ -195,8 +199,10 @@ describe('App — rol RH', () => {
     expect(
       await screen.findByRole('heading', { name: 'Primer acceso' }),
     ).toBeInTheDocument()
+    // Sin shell ni navegación hasta cambiar la contraseña.
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     expect(
-      screen.queryByText('Las vistas de RH todavía no están disponibles'),
+      screen.queryByRole('button', { name: 'Crear empleado' }),
     ).not.toBeInTheDocument()
   })
 })

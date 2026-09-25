@@ -7,7 +7,7 @@ import { limpiarSesion, obtenerSesion } from '../api/autenticacion.js'
 import { obtenerCuenta } from '../api/cuenta.js'
 import { obtenerProgreso } from '../api/progreso.js'
 import App from '../App.jsx'
-import { SECCIONES_EMPLEADO } from '../navegacion.js'
+import { SECCIONES_EMPLEADO, SECCIONES_RH } from '../navegacion.js'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
 
 vi.mock('../api/autenticacion.js', () => ({
@@ -180,16 +180,18 @@ describe('Shell de Empleado — sesión y roles', () => {
     expect(obtenerProgreso).not.toHaveBeenCalled()
   })
 
-  it('RH no entra al shell de Empleado', async () => {
+  it('RH ve su propio shell, no el del Empleado', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
 
     expect(
-      await screen.findByText('Las vistas de RH todavía no están disponibles'),
+      await screen.findByRole('heading', { level: 1, name: 'Empleados' }),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Mi progreso' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Las vistas de RH todavía no están disponibles'),
     ).not.toBeInTheDocument()
     expect(obtenerProgreso).not.toHaveBeenCalled()
     expect(obtenerCuenta).not.toHaveBeenCalled()
@@ -220,4 +222,95 @@ describe('Shell de Empleado — sesión y roles', () => {
     ).toBeInTheDocument()
     expect(limpiarSesion).toHaveBeenCalled()
   })
+
+describe('Shell de RH — navegación', () => {
+  it('muestra las ocho secciones del Style Guide §10 en orden', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('heading', { level: 1, name: 'Empleados' })
+
+    const etiquetas = within(navegacion())
+      .getAllByRole('button')
+      .map((boton) => boton.textContent)
+
+    expect(etiquetas).toEqual(SECCIONES_RH.map((seccion) => seccion.titulo))
+    expect(etiquetas).toEqual([
+      'Inicio',
+      'Empleados',
+      'Proyectos',
+      'Búsqueda',
+      'Comparar',
+      'Mentoría',
+      'Brechas',
+      'Evaluaciones',
+    ])
+  })
+
+  it('abre Empleados por defecto (única vista funcional de RH)', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+
+    expect(
+      await screen.findByRole('button', { name: 'Crear empleado' }),
+    ).toBeInTheDocument()
+    expect(
+      within(navegacion()).getByRole('button', { name: 'Empleados' }),
+    ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('las secciones no implementadas reutilizan SeccionTemporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('button', { name: 'Crear empleado' })
+
+    for (const titulo of [
+      'Inicio',
+      'Proyectos',
+      'Búsqueda',
+      'Comparar',
+      'Mentoría',
+      'Brechas',
+      'Evaluaciones',
+    ]) {
+      abrir(titulo)
+      expect(
+        screen.getByText(`«${titulo}» todavía no está disponible`),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Crear empleado' }),
+      ).not.toBeInTheDocument()
+    }
+    expect(obtenerProgreso).not.toHaveBeenCalled()
+  })
+
+  it('volver a Empleados recupera el formulario de alta', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('button', { name: 'Crear empleado' })
+
+    abrir('Mentoría')
+    abrir('Empleados')
+
+    expect(
+      screen.getByRole('button', { name: 'Crear empleado' }),
+    ).toBeInTheDocument()
+    expect(
+      within(navegacion()).getByRole('button', { name: 'Empleados' }),
+    ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('el cierre de sesión sigue funcionando desde el shell de RH', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('button', { name: 'Crear empleado' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Inicia sesión' }),
+    ).toBeInTheDocument()
+    expect(limpiarSesion).toHaveBeenCalled()
+  })
+})
+
 })

@@ -1,4 +1,4 @@
-// App raíz: sesión, enrutamiento por rol y navegación del Empleado
+// App raíz: sesión, enrutamiento por rol y navegación
 // (PRD §3, §20, §21; Especificación Técnica §31/§32; Style Guide §7, §10, §11).
 //
 // El estado de sesión (token + rol + must_change_password) SOLO decide qué
@@ -9,7 +9,8 @@
 //   1. sin sesión → InicioSesion;
 //   2. credencial temporal → CambioContrasena (PRD §3.3: el backend bloquea
 //      el resto de endpoints mientras must_change_password = true), sin shell;
-//   3. rol sin vistas de Empleado (RH) → shell sin navegación + aviso;
+//   3. rol RH → shell con las ocho secciones del Style Guide §10; solo
+//      "Empleados" es funcional en esta etapa (alta, PRD §3.3);
 //   4. Empleado con contraseña definitiva → shell de Empleado con las seis
 //      secciones del Style Guide §10; solo "Mi progreso" es funcional (§21.2).
 
@@ -21,11 +22,16 @@ import {
   obtenerSesion,
 } from './api/autenticacion.js'
 import { obtenerCuenta } from './api/cuenta.js'
-import AccesoRh from './componentes/AccesoRh.jsx'
 import CambioContrasena from './componentes/CambioContrasena.jsx'
 import InicioSesion from './componentes/InicioSesion.jsx'
 import Layout from './componentes/Layout.jsx'
-import { SECCIONES_EMPLEADO, SECCION_INICIAL } from './navegacion.js'
+import {
+  SECCIONES_EMPLEADO,
+  SECCIONES_RH,
+  SECCION_INICIAL,
+  SECCION_RH_INICIAL,
+} from './navegacion.js'
+import AltaEmpleado from './vistas/AltaEmpleado.jsx'
 import MiProgreso from './vistas/MiProgreso.jsx'
 import SeccionTemporal from './vistas/SeccionTemporal.jsx'
 
@@ -90,12 +96,28 @@ function App() {
     )
   }
 
-  // PRD §3.1: el backend solo emite los roles RH y EMPLEADO. Todo lo que no
-  // sea Empleado se queda sin navegación ni vistas de Empleado.
+  // PRD §3.1: el backend solo emite los roles RH y EMPLEADO. El rol RH
+  // recibe su propio shell con la navegación del Style Guide §10; el estado
+  // `seccion` compartido puede venir de otra vista, así que se resuelve
+  // contra SECCIONES_RH con la sección inicial como respaldo.
   if (sesion.rol !== 'EMPLEADO') {
+    const activaRh =
+      SECCIONES_RH.find((item) => item.id === seccion) ||
+      SECCIONES_RH.find((item) => item.id === SECCION_RH_INICIAL)
+
     return (
-      <Layout titulo="Acceso RH" onCerrarSesion={cerrarSesion}>
-        <AccesoRh />
+      <Layout
+        titulo={activaRh.titulo}
+        secciones={SECCIONES_RH}
+        activa={activaRh.id}
+        onSeleccionar={setSeccion}
+        onCerrarSesion={cerrarSesion}
+      >
+        {activaRh.id === 'empleados' ? (
+          <AltaEmpleado token={sesion.token} alSesionExpirada={cerrarSesion} />
+        ) : (
+          <SeccionTemporal titulo={activaRh.titulo} />
+        )}
       </Layout>
     )
   }
