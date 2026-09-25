@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { limpiarSesion, obtenerSesion } from '../api/autenticacion.js'
 import { obtenerCuenta } from '../api/cuenta.js'
 import { obtenerProgreso } from '../api/progreso.js'
+import { obtenerAtencionRequerida, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../api/dashboardRh.js'
 import App from '../App.jsx'
 import { SECCIONES_EMPLEADO, SECCIONES_RH } from '../navegacion.js'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
@@ -21,6 +22,7 @@ vi.mock('../api/autenticacion.js', () => ({
 
 vi.mock('../api/cuenta.js', () => ({ obtenerCuenta: vi.fn() }))
 vi.mock('../api/progreso.js', () => ({ obtenerProgreso: vi.fn() }))
+vi.mock('../api/dashboardRh.js', () => ({ obtenerAtencionRequerida: vi.fn(), obtenerEmpleadosActivos: vi.fn(), obtenerProyectosActivos: vi.fn() }))
 
 const EMPLEADO = { token: 'token-empleado', rol: 'EMPLEADO', mustChangePassword: false }
 const EMPLEADO_TEMPORAL = { token: 'token-temporal', rol: 'EMPLEADO', mustChangePassword: true }
@@ -31,11 +33,17 @@ beforeEach(() => {
   vi.mocked(limpiarSesion).mockReset()
   vi.mocked(obtenerCuenta).mockReset()
   vi.mocked(obtenerProgreso).mockReset()
+  vi.mocked(obtenerEmpleadosActivos).mockReset()
+  vi.mocked(obtenerProyectosActivos).mockReset()
+  vi.mocked(obtenerAtencionRequerida).mockReset()
   vi.mocked(obtenerCuenta).mockResolvedValue({
     email: 'persona@empresa.dev',
     empleado_nombre: 'Ana López',
   })
   vi.mocked(obtenerProgreso).mockResolvedValue(crearRespuesta())
+  vi.mocked(obtenerEmpleadosActivos).mockResolvedValue({ total: 12, items: [] })
+  vi.mocked(obtenerProyectosActivos).mockResolvedValue({ total: 4, items: [] })
+  vi.mocked(obtenerAtencionRequerida).mockResolvedValue({ total: 0, items: [] })
 })
 
 function navegacion() {
@@ -185,7 +193,7 @@ describe('Shell de Empleado — sesión y roles', () => {
     render(<App />)
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Empleados' }),
+      await screen.findByRole('heading', { name: 'Empleados activos' }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Mi progreso' }),
@@ -227,7 +235,7 @@ describe('Shell de RH — navegación', () => {
   it('muestra las ocho secciones del Style Guide §10 en orden', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
-    await screen.findByRole('heading', { level: 1, name: 'Empleados' })
+    await screen.findByRole('heading', { name: 'Empleados activos' })
 
     const etiquetas = within(navegacion())
       .getAllByRole('button')
@@ -246,25 +254,24 @@ describe('Shell de RH — navegación', () => {
     ])
   })
 
-  it('abre Empleados por defecto (única vista funcional de RH)', async () => {
+  it('abre Inicio por defecto y muestra el Dashboard RH', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
 
     expect(
-      await screen.findByRole('button', { name: 'Crear empleado' }),
+      await screen.findByRole('heading', { name: 'Empleados activos' }),
     ).toBeInTheDocument()
-    expect(
-      within(navegacion()).getByRole('button', { name: 'Empleados' }),
-    ).toHaveAttribute('aria-current', 'page')
+    expect(screen.getAllByRole('heading', { name: 'Atención requerida' })).toHaveLength(2)
+    expect(screen.getByText('12')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
   })
 
   it('las secciones no implementadas reutilizan SeccionTemporal', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
-    await screen.findByRole('button', { name: 'Crear empleado' })
+    await screen.findByRole('heading', { name: 'Empleados activos' })
 
     for (const titulo of [
-      'Inicio',
       'Proyectos',
       'Búsqueda',
       'Comparar',
@@ -286,7 +293,7 @@ describe('Shell de RH — navegación', () => {
   it('volver a Empleados recupera el formulario de alta', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
-    await screen.findByRole('button', { name: 'Crear empleado' })
+    await screen.findByRole('heading', { name: 'Empleados activos' })
 
     abrir('Mentoría')
     abrir('Empleados')
@@ -302,7 +309,7 @@ describe('Shell de RH — navegación', () => {
   it('el cierre de sesión sigue funcionando desde el shell de RH', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
-    await screen.findByRole('button', { name: 'Crear empleado' })
+    await screen.findByRole('heading', { name: 'Empleados activos' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
 

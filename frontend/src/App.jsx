@@ -31,6 +31,7 @@ import {
   SECCION_INICIAL,
   SECCION_RH_INICIAL,
 } from './navegacion.js'
+import InicioRH from './vistas/InicioRH.jsx'
 import AltaEmpleado from './vistas/AltaEmpleado.jsx'
 import MiProgreso from './vistas/MiProgreso.jsx'
 import SeccionTemporal from './vistas/SeccionTemporal.jsx'
@@ -114,7 +115,13 @@ function App() {
         onSeleccionar={setSeccion}
         onCerrarSesion={cerrarSesion}
       >
-        {activaRh.id === 'empleados' ? (
+        {activaRh.id === 'inicio' ? (
+          <InicioRH
+            token={sesion.token}
+            onSesionExpirada={cerrarSesion}
+            onVerEmpleados={() => setSeccion('empleados')}
+          />
+        ) : activaRh.id === 'empleados' ? (
           <AltaEmpleado token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : (
           <SeccionTemporal titulo={activaRh.titulo} />

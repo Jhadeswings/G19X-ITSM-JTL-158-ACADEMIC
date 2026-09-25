@@ -30,4 +30,4 @@ export const SECCIONES_RH = [
 ]
 
 // Sección inicial de RH: la única vista funcional de esta etapa.
-export const SECCION_RH_INICIAL = 'empleados'
+export const SECCION_RH_INICIAL = 'inicio'

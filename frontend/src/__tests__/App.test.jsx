@@ -13,6 +13,7 @@ import {
 } from '../api/autenticacion.js'
 import { obtenerProgreso } from '../api/progreso.js'
 import { obtenerCuenta } from '../api/cuenta.js'
+import { obtenerAtencionRequerida, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../api/dashboardRh.js'
 import App from '../App.jsx'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
 
@@ -26,6 +27,7 @@ vi.mock('../api/autenticacion.js', () => ({
 }))
 
 vi.mock('../api/progreso.js', () => ({ obtenerProgreso: vi.fn() }))
+vi.mock('../api/dashboardRh.js', () => ({ obtenerAtencionRequerida: vi.fn(), obtenerEmpleadosActivos: vi.fn(), obtenerProyectosActivos: vi.fn() }))
 
 // La cuenta del header (§11) se mockea resuelta para no depender de la red.
 vi.mock('../api/cuenta.js', () => ({
@@ -45,7 +47,13 @@ beforeEach(() => {
   vi.mocked(cambiarPassword).mockReset()
   vi.mocked(obtenerProgreso).mockReset()
   vi.mocked(obtenerCuenta).mockReset()
+  vi.mocked(obtenerEmpleadosActivos).mockReset()
+  vi.mocked(obtenerProyectosActivos).mockReset()
+  vi.mocked(obtenerAtencionRequerida).mockReset()
   vi.mocked(obtenerCuenta).mockResolvedValue({ email: 'persona@empresa.dev' })
+  vi.mocked(obtenerEmpleadosActivos).mockResolvedValue({ total: 12, items: [] })
+  vi.mocked(obtenerProyectosActivos).mockResolvedValue({ total: 4, items: [] })
+  vi.mocked(obtenerAtencionRequerida).mockResolvedValue({ total: 0, items: [] })
 })
 
 /** Llena el formulario de acceso y envía las credenciales. */
@@ -174,13 +182,12 @@ describe('App — rol RH', () => {
 
     await entrarCon(RH)
 
-    // Ve su propio shell con la sección funcional "Empleados" (alta, PRD §3.3).
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Empleados' }),
+      (await screen.findAllByRole('heading', { level: 1, name: 'Inicio' }))[0],
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Crear empleado' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Empleados activos' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Proyectos activos' })).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { name: 'Atención requerida' })).toHaveLength(2)
     expect(obtenerProgreso).not.toHaveBeenCalled()
     expect(
       screen.queryByRole('heading', { name: 'Competencias' }),
