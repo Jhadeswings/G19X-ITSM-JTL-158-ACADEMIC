@@ -61,7 +61,7 @@ describe('MiProgreso — competencias (dato del sistema)', () => {
       screen.getByRole('heading', { name: 'Competencias' }),
     )
 
-    expect(screen.getAllByText('— · Datos insuficientes')).toHaveLength(2)
+    expect(screen.getAllByText('— Datos insuficientes')).toHaveLength(2)
     expect(screen.queryByText('0 ·')).not.toBeInTheDocument()
   })
 

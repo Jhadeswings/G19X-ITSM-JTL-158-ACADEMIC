@@ -121,7 +121,8 @@ body {
 
 .competencia__nombre {
   margin: 0 0 8px;
-  font-size: 16px;
+  font-size: 20px; /* §5: H3 20 / 28 px */
+  line-height: 28px;
   font-weight: 600;
 }
 
@@ -137,6 +138,11 @@ body {
 }
 
 .competencia__evidencia {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-secondary);
+}
 
 /* ¿Cómo se obtienen? */
 .como-se-obtienen {
@@ -276,6 +282,8 @@ body {
 .boton--primario {
   background: var(--color-primary);
   color: var(--color-surface);
+  font-weight: 500;
+}
 
 /* Estados (§13) */
 .estado-carga,
@@ -336,8 +344,8 @@ body {
 }
 
 .login h1 {
-  font-size: 20px;
-  line-height: 28px;
+  font-size: 32px; /* §5: H1 32 / 40 px */
+  line-height: 40px;
   margin: 0 0 24px;
 }
 
@@ -387,9 +395,6 @@ body {
   }
 }
 
-  font-weight: 500;
-}
-
 .boton--primario:hover {
   filter: brightness(1.05);
 }
@@ -416,12 +421,6 @@ body {
   color: var(--color-text-secondary);
   font-size: 14px;
   line-height: 20px;
-}
-
-  margin: 0 0 8px;
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--color-text-secondary);
 }
 
 .competencia__como {

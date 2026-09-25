@@ -40,7 +40,7 @@ export default function CompetenciaCard({ competencia }) {
       {sinDatos ? (
         <>
           <p className="competencia__nivel competencia__nivel--di">
-            — · Datos insuficientes
+            — Datos insuficientes
           </p>
           <p className="competencia__ayuda">
             Aún no hay suficiente evidencia registrada para calcular este
