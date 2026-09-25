@@ -5,7 +5,11 @@
 // acceso viaja SIEMPRE en la cabecera Authorization (el backend deriva
 // toda la identidad del token, ET §31/§32).
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Origen de la API. Por defecto RELATIVO (mismo origen): en desarrollo el
+// proxy de Vite reenvía `/api` al backend (sin CORS) y en producción el
+// frontend se sirve junto a la API. `VITE_API_URL` queda como escape
+// explícito para apuntar a otro origen de forma consciente.
+const BASE_URL = import.meta.env.VITE_API_URL || ''
 
 /** Error de API con mensaje comprensible y estado HTTP asociado. */
 export class ErrorApi extends Error {
