@@ -4,6 +4,7 @@
 // 1–2 por reglas). Este componente SOLO las presenta: nunca las
 // recalcula ni las deduce de los niveles mostrados.
 
+import { Check, Lightbulb } from 'lucide-react'
 import { NOMBRES_COMPETENCIAS } from '../textos.js'
 import EstadoVacio from './EstadoVacio.jsx'
 
@@ -23,6 +24,7 @@ function ListaCategorias({ claves }) {
 export function Fortalezas({ claves }) {
   return (
     <div className="categorias categorias--fortalezas">
+      <div className="categorias__heading"><Check aria-hidden="true" /><span>Capacidades que ya puedes consolidar</span></div>
       <ListaCategorias claves={claves} />
       {(!claves || claves.length === 0) && (
         <EstadoVacio
@@ -37,6 +39,7 @@ export function Fortalezas({ claves }) {
 export function Oportunidades({ claves }) {
   return (
     <div className="categorias categorias--oportunidades">
+      <div className="categorias__heading"><Lightbulb aria-hidden="true" /><span>Áreas donde puedes buscar próximos pasos</span></div>
       <ListaCategorias claves={claves} />
       {(!claves || claves.length === 0) && (
         <EstadoVacio

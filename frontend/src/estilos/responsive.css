@@ -1,0 +1,58 @@
+@media (max-width: 1180px) {
+  :root { --sidebar-width: 238px; }
+  .competencias { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .app-header__role strong { display: none; }
+}
+@media (max-width: 900px) {
+  .auth-layout, .onboarding-layout { grid-template-columns: minmax(0, 1fr); }
+  .auth-identity, .onboarding-context { min-height: 410px; }
+  .auth-identity__message, .onboarding-context__copy { margin-top: auto; margin-bottom: 72px; }
+  .auth-access, .onboarding-action { min-height: 620px; }
+  .product-sidebar { display: none; }
+  .app-shell { display: block; }
+  .app-header__menu { display: inline-flex; }
+  .shell-drawer { position: fixed; inset: 0; z-index: 70; display: block; visibility: hidden; pointer-events: none; }
+  .shell-drawer--open { visibility: visible; pointer-events: auto; }
+  .shell-drawer__overlay { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; background: rgba(24,42,41,.45); border: 0; opacity: 0; transition: opacity 200ms ease; }
+  .shell-drawer--open .shell-drawer__overlay { opacity: 1; }
+  .shell-drawer__panel { position: absolute; inset: 0 auto 0 0; width: min(310px,88vw); transform: translateX(-100%); transition: transform 220ms ease; }
+  .shell-drawer--open .shell-drawer__panel { transform: none; }
+  .product-sidebar--mobile { display: flex; width: 100%; }
+  .employee-form__sections { grid-template-columns: 1fr; }
+  .form-section + .form-section { border-left: 0; border-top: 1px solid var(--line-soft); }
+  .transparencia__content { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  :root { --header-height: 68px; }
+  .auth-identity, .onboarding-context { min-height: 360px; padding: 28px 22px; }
+  .auth-identity__message, .onboarding-context__copy { width: 100%; margin-bottom: 54px; }
+  .auth-identity__message h1, .onboarding-context__copy h2 { font-size: 36px; }
+  .auth-access, .onboarding-action { min-height: auto; padding: 40px 22px 56px; }
+  .app-header { padding: 0 14px; }
+  .app-header__eyebrow { display: none; }
+  .app-header__title { font-size: 16px; }
+  .account-chip { display: none; }
+  .app-header__session .ui-button { width: 42px; padding: 0; }
+  .app-header__logout-text { display: none; }
+  .app-content { padding: 28px 18px 48px; }
+  .section-header { align-items: flex-start; flex-direction: column; }
+  .section-header__title { font-size: 31px; }
+  .employee-form__intro, .form-section { padding: 24px 18px; }
+  .employee-form__actions { align-items: stretch; flex-direction: column; padding: 18px; }
+  .employee-form__actions .ui-button { width: 100%; }
+  .employee-success { margin-top: 0; padding: 34px 20px; }
+  .employee-success__summary > div { grid-template-columns: 1fr; gap: 5px; }
+  .growth-intro, .growth-section__heading { align-items: flex-start; flex-direction: column; }
+  .growth-section__heading > p { text-align: left; }
+  .growth-current { padding: 28px 20px; }
+  .competencias { grid-template-columns: 1fr; }
+  .competencia { min-height: 240px; }
+  .growth-section--criteria, .growth-section--ia, .transparencia, .categorias { padding: 22px 18px; }
+  .como-se-obtienen__fila { grid-template-columns: 1fr; gap: 7px; }
+  .transparencia__lista { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -19,8 +19,15 @@
 
 import { useState } from 'react'
 import { crearEmpleado } from '../api/empleados.js'
+import { CheckCircle2, RotateCcw, UserPlus } from 'lucide-react'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
+import Alert from '../componentes/ui/Alert.jsx'
+import Badge from '../componentes/ui/Badge.jsx'
+import FormField from '../componentes/FormField.jsx'
+import { Button } from '../componentes/ui/Button.jsx'
+import { Input } from '../componentes/ui/Input.jsx'
+import SectionHeader from '../componentes/SectionHeader.jsx'
 
 /** Mensaje comprensible por estado HTTP (nunca detalles técnicos). */
 function mensajeDeError(error) {
@@ -115,110 +122,40 @@ export default function AltaEmpleado({ token, alSesionExpirada }) {
   if (fase === 'exito' && alta) {
     const correo = alta.cuenta?.email || email
     return (
-      <div className="login">
-        <section className="login__tarjeta" aria-live="polite">
-          <h2>Empleado creado</h2>
-          <p>
-            Se registró a <strong>{alta.nombre}</strong> con el correo de
-            acceso <strong>{correo}</strong>.
-          </p>
-          <p>
-            {alta.cuenta?.activo
-              ? 'La cuenta de acceso está activa'
-              : 'La cuenta de acceso está inactiva'}
-            {alta.cuenta?.must_change_password
-              ? ' y requiere cambio de contraseña en el primer acceso.'
-              : '.'}
-          </p>
-          <p className="contexto__nota">
-            La credencial temporal no se muestra en la interfaz. En este
-            entorno de desarrollo, el backend la registra en su log para
-            entregársela al empleado.
-          </p>
-          <button
-            type="button"
-            className="boton boton--primario"
-            onClick={reiniciar}
-          >
-            Registrar otro empleado
-          </button>
-        </section>
+      <div className="employee-success" aria-live="polite">
+        <div className="employee-success__seal"><CheckCircle2 aria-hidden="true" /></div>
+        <p className="eyebrow eyebrow--accent">Registro completado</p>
+        <Badge tone="success" className="employee-success__badge"><CheckCircle2 aria-hidden="true" /> Operación confirmada</Badge>
+        <h2>Empleado creado</h2>
+        <p className="employee-success__lead">La persona quedó registrada y su cuenta de acceso está preparada.</p>
+        <dl className="employee-success__summary">
+          <div><dt>Nombre</dt><dd>{alta.nombre}</dd></div>
+          <div><dt>Correo de acceso</dt><dd>{correo}</dd></div>
+          <div><dt>Cuenta</dt><dd>{alta.cuenta?.activo ? 'Activa' : 'Inactiva'}</dd></div>
+          <div><dt>Primer acceso</dt><dd>{alta.cuenta?.must_change_password ? 'requiere cambio de contraseña en el primer acceso' : 'Completado'}</dd></div>
+        </dl>
+        <Alert tone="info" title="Nota operativa">La credencial temporal no se muestra aquí. En este entorno de desarrollo, el backend la registra en su log para entregársela a la persona.</Alert>
+        <Button type="button" onClick={reiniciar}><RotateCcw aria-hidden="true" /> Registrar otro empleado</Button>
       </div>
     )
   }
 
   return (
-    <div className="login">
-      <form
-        className="login__tarjeta"
-        aria-labelledby="alta-titulo"
-        onSubmit={manejarEnvio}
-      >
-        <h2 id="alta-titulo">Registrar empleado</h2>
-        <p className="seccion__intro" id="ayuda-alta">
-          Registra los datos del nuevo empleado. El sistema creará también su
-          cuenta de acceso con una credencial temporal para el primer acceso.
-        </p>
-        <label className="campo" htmlFor="alta-nombre">
-          Nombre
-          <input
-            id="alta-nombre"
-            autoComplete="name"
-            required
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-          />
-        </label>
-        <label className="campo" htmlFor="alta-email">
-          Correo de acceso
-          <input
-            id="alta-email"
-            type="email"
-            autoComplete="username"
-            aria-describedby="ayuda-alta"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label className="campo" htmlFor="alta-puesto">
-          Puesto
-          <input
-            id="alta-puesto"
-            autoComplete="organization-title"
-            value={puesto}
-            onChange={(e) => setPuesto(e.target.value)}
-          />
-        </label>
-        <label className="campo" htmlFor="alta-area">
-          Área
-          <input
-            id="alta-area"
-            value={area}
-            onChange={(e) => setArea(e.target.value)}
-          />
-        </label>
-        <label className="campo" htmlFor="alta-fecha">
-          Fecha de ingreso
-          <input
-            id="alta-fecha"
-            type="date"
-            value={fechaIngreso}
-            onChange={(e) => setFechaIngreso(e.target.value)}
-          />
-        </label>
-        {error && (
-          <p className="login__error" role="alert">
-            {mensajeDeError(error)}
-          </p>
-        )}
-        <button
-          type="submit"
-          className="boton boton--primario"
-          disabled={fase === 'enviando'}
-        >
-          Crear empleado
-        </button>
+    <div className="employee-onboarding">
+      <SectionHeader eyebrow="Gestión de personas" title="Registrar empleado" description="Crea el perfil y la cuenta de acceso de una nueva persona. Los datos se organizan para facilitar una revisión clara antes de guardar." />
+      <form className="employee-form" aria-labelledby="alta-titulo" onSubmit={manejarEnvio} aria-busy={fase === 'enviando'}>
+        <h2 id="alta-titulo" className="visualmente-oculto">Registrar empleado</h2>
+        <p className="employee-form__intro" id="ayuda-alta">El sistema creará también la cuenta de acceso con una credencial temporal para el primer acceso. Los datos laborales marcados como opcionales pueden completarse ahora o posteriormente.</p>
+        <div className="employee-form__sections">
+          <fieldset className="form-section"><legend><span>01</span><div><strong>Datos de identidad</strong><small>Información principal de la persona</small></div></legend>
+            <div className="form-section__fields"><FormField id="alta-nombre" label="Nombre" required><Input id="alta-nombre" autoComplete="name" required value={nombre} onChange={(e) => setNombre(e.target.value)} invalid={Boolean(error && error.estado === 422)} /></FormField><FormField id="alta-email" label="Correo de acceso" required><Input id="alta-email" type="email" autoComplete="username" aria-describedby="ayuda-alta" required value={email} onChange={(e) => setEmail(e.target.value)} invalid={Boolean(error && (error.estado === 409 || error.estado === 422))} /></FormField></div>
+          </fieldset>
+          <fieldset className="form-section"><legend><span>02</span><div><strong>Información laboral</strong><small>Contexto inicial de la cuenta</small></div></legend>
+            <div className="form-section__fields form-section__fields--laboral"><FormField id="alta-puesto" label="Puesto"><Input id="alta-puesto" autoComplete="organization-title" value={puesto} onChange={(e) => setPuesto(e.target.value)} /></FormField><FormField id="alta-area" label="Área"><Input id="alta-area" value={area} onChange={(e) => setArea(e.target.value)} /></FormField><FormField id="alta-fecha" label="Fecha de ingreso"><Input id="alta-fecha" type="date" value={fechaIngreso} onChange={(e) => setFechaIngreso(e.target.value)} /></FormField></div>
+          </fieldset>
+        </div>
+        {error && <Alert tone="error">{mensajeDeError(error)}</Alert>}
+        <div className="employee-form__actions"><span>Los campos con * son obligatorios.</span><Button type="submit" loading={fase === 'enviando'}><UserPlus aria-hidden="true" /> {fase === 'enviando' ? 'Creando empleado…' : 'Crear empleado'}</Button></div>
       </form>
     </div>
   )

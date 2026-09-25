@@ -1,64 +1,71 @@
-// Layout principal de la aplicación (Style Guide §7, §10, §11, §29;
-// componente base §31).
-//
-// Estructura: navegación lateral + (header + contenido). Es el ÚNICO shell:
-// las pantallas solo aportan su título y su contenido, de modo que la
-// navegación es predecible y consistente (§3.2).
-//
-// Si no se reciben secciones no se dibuja la barra lateral: nunca se inventa
-// navegación para roles o pantallas que no la tienen.
-
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 
-export default function Layout({
-  titulo,
-  cuenta,
-  secciones = [],
-  activa,
-  onSeleccionar,
-  onCerrarSesion,
-  children,
-}) {
+export default function Layout({ titulo, cuenta, rol, secciones = [], activa, onSeleccionar, onCerrarSesion, children }) {
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [esMobile, setEsMobile] = useState(false)
+  const botonMenuRef = useRef(null)
+  const panelRef = useRef(null)
+  useEffect(() => {
+    if (!window.matchMedia) return undefined
+    const consulta = window.matchMedia('(max-width: 900px)')
+    const actualizar = () => {
+      setEsMobile(consulta.matches)
+      if (!consulta.matches) setMenuAbierto(false)
+    }
+    actualizar()
+    consulta.addEventListener?.('change', actualizar)
+    return () => consulta.removeEventListener?.('change', actualizar)
+  }, [])
+
   const conNavegacion = secciones.length > 0
 
-  // En mobile la navegación es un drawer (§7): Escape lo cierra (§22).
+  function cerrarMenu(devolverFoco = true) {
+    setMenuAbierto(false)
+    if (devolverFoco) window.requestAnimationFrame(() => botonMenuRef.current?.focus())
+  }
+
   useEffect(() => {
     if (!menuAbierto) return undefined
+    const primerControl = panelRef.current?.querySelector('button, a')
+    primerControl?.focus()
     function alPresionarTecla(evento) {
-      if (evento.key === 'Escape') setMenuAbierto(false)
+      if (evento.key === 'Escape') cerrarMenu()
+      if (evento.key === 'Tab' && panelRef.current) {
+        const controles = [...panelRef.current.querySelectorAll('button:not([disabled]), a[href]')]
+        if (!controles.length) return
+        const primero = controles[0]
+        const ultimo = controles[controles.length - 1]
+        if (evento.shiftKey && document.activeElement === primero) { evento.preventDefault(); ultimo.focus() }
+        if (!evento.shiftKey && document.activeElement === ultimo) { evento.preventDefault(); primero.focus() }
+      }
     }
-    window.addEventListener('keydown', alPresionarTecla)
-    return () => window.removeEventListener('keydown', alPresionarTecla)
+    document.addEventListener('keydown', alPresionarTecla)
+    document.body.classList.add('drawer-open')
+    return () => {
+      document.removeEventListener('keydown', alPresionarTecla)
+      document.body.classList.remove('drawer-open')
+    }
   }, [menuAbierto])
 
   function seleccionar(id) {
     onSeleccionar(id)
-    setMenuAbierto(false)
+    cerrarMenu(false)
   }
 
   return (
-    <div className="layout">
-      {conNavegacion && (
-        <Sidebar
-          secciones={secciones}
-          activa={activa}
-          onSeleccionar={seleccionar}
-          abierto={menuAbierto}
-        />
-      )}
-      <div className="layout__principal">
-        <Header
-          titulo={titulo}
-          cuenta={cuenta}
-          mostrarMenu={conNavegacion}
-          menuAbierto={menuAbierto}
-          onAlternarMenu={() => setMenuAbierto((abierto) => !abierto)}
-          onCerrarSesion={onCerrarSesion}
-        />
-        <main className="app__contenido">{children}</main>
+    <div className="app-shell">
+      {conNavegacion && <Sidebar secciones={secciones} activa={activa} onSeleccionar={seleccionar} />}
+      <div className="app-shell__main">
+        <Header titulo={titulo} cuenta={cuenta} rol={rol} mostrarMenu={conNavegacion} menuAbierto={menuAbierto} onAlternarMenu={() => menuAbierto ? cerrarMenu() : setMenuAbierto(true)} botonMenuRef={botonMenuRef} onCerrarSesion={onCerrarSesion} />
+        {esMobile && (
+          <div className={`shell-drawer${menuAbierto ? ' shell-drawer--open' : ''}`} ref={panelRef} aria-hidden={!menuAbierto}>
+            <button className="shell-drawer__overlay" type="button" onClick={() => cerrarMenu()} aria-label="Cerrar navegación" tabIndex={menuAbierto ? 0 : -1} />
+            <div className="shell-drawer__panel"><Sidebar secciones={secciones} activa={activa} onSeleccionar={seleccionar} mobile abierto={menuAbierto} /></div>
+          </div>
+        )}
+        <main className="app-content" id="contenido-principal">{children}</main>
       </div>
     </div>
   )

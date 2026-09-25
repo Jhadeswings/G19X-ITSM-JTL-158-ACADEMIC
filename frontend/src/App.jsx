@@ -108,6 +108,7 @@ function App() {
     return (
       <Layout
         titulo={activaRh.titulo}
+        rol="RH"
         secciones={SECCIONES_RH}
         activa={activaRh.id}
         onSeleccionar={setSeccion}
@@ -130,6 +131,7 @@ function App() {
     <Layout
       titulo={activa.titulo}
       cuenta={cuenta}
+      rol="EMPLEADO"
       secciones={SECCIONES_EMPLEADO}
       activa={seccion}
       onSeleccionar={setSeccion}

@@ -1,0 +1,32 @@
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0,1fr); }
+.app-shell__main { min-width: 0; }
+.product-sidebar { position: sticky; top: 0; z-index: 20; height: 100vh; display: flex; flex-direction: column; overflow: hidden; color: #d8e7e4; background: var(--color-brand-deep); }
+.product-sidebar::after { content: ''; position: absolute; right: 0; bottom: 0; width: 3px; height: 28%; background: var(--color-accent); }
+.product-sidebar__brand { display: flex; flex-direction: column; gap: 18px; padding: 30px 26px 24px; border-bottom: 1px solid rgba(255,255,255,.09); }
+.product-sidebar__brand > span { color: #8eb0ab; font-size: 10px; font-weight: 650; letter-spacing: .15em; text-transform: uppercase; }
+.product-sidebar__nav { flex: 1; padding: 26px 15px; }
+.product-sidebar__label { margin: 0 11px 12px; color: #779e99; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.product-sidebar__nav ul { display: flex; flex-direction: column; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.product-sidebar__link { position: relative; width: 100%; min-height: 44px; display: flex; align-items: center; gap: 13px; padding: 0 12px; color: #b9cfcb; background: transparent; border: 0; border-radius: 7px; font: 520 14px/1.2 inherit; text-align: left; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
+.product-sidebar__link:hover { color: #fff; background: rgba(255,255,255,.06); }
+.product-sidebar__link svg { width: 18px; height: 18px; stroke-width: 1.7; }
+.product-sidebar__link--active { color: #fff; background: rgba(168,205,199,.13); font-weight: 700; }
+.product-sidebar__link--active i { position: absolute; right: 10px; width: 5px; height: 5px; background: var(--color-accent); border-radius: 50%; }
+.product-sidebar__context { display: flex; gap: 12px; margin: 0 16px 22px; padding: 16px; color: #a7c0bc; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.07); border-radius: 9px; }
+.product-sidebar__context svg { flex: 0 0 auto; width: 18px; color: var(--color-accent); }
+.product-sidebar__context div { display: flex; flex-direction: column; gap: 3px; }
+.product-sidebar__context strong { color: #e6efed; font-size: 12px; }
+.product-sidebar__context span { font-size: 11px; line-height: 1.45; }
+.app-header { position: sticky; top: 0; z-index: 15; height: var(--header-height); display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 clamp(24px, 3.3vw, 48px); background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line-soft); }
+.app-header__context { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.app-header__eyebrow { margin: 0 0 2px; color: #899499; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.app-header__title { margin: 0; font-size: 19px; line-height: 1.2; letter-spacing: -.018em; }
+.app-header__menu { display: none; }
+.app-header__session { display: flex; align-items: center; gap: 10px; }
+.account-chip { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 5px 13px; border-left: 1px solid var(--line-soft); }
+.account-chip > svg { width: 18px; color: var(--color-primary); }
+.account-chip > span { display: flex; flex-direction: column; min-width: 0; }
+.account-chip small { color: #899499; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+.account-chip strong { max-width: 180px; overflow: hidden; color: #3b484e; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.app-content { width: min(100%, var(--content-width)); margin: 0 auto; padding: clamp(32px, 4vw, 58px); }
+.shell-drawer { display: none; }

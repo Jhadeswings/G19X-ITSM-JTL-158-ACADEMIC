@@ -1,32 +1,17 @@
-// Cambio obligatorio de contraseña del primer acceso (PRD §3.3).
-//
-// Usa ÚNICAMENTE el endpoint existente POST /api/v1/auth/password/change con
-// el token de la propia sesión. La política de contraseña (PRD §3.5) la valida
-// el backend: aquí solo se informa al usuario y se evita enviar un formulario
-// incompleto. Mientras must_change_password = true el backend bloquea el resto
-// de endpoints (403), por lo que esta pantalla no ofrece ninguna otra acción.
-// Un 401 cierra la sesión y vuelve al inicio de sesión (ET §31).
-//
-// Los errores se muestran con lenguaje descriptivo y neutral, sin detalles
-// técnicos ni excepciones (Style Guide §13.6/§25).
-
 import { useState } from 'react'
+import { ArrowRight, KeyRound, LogOut } from 'lucide-react'
 import { cambiarPassword } from '../api/autenticacion.js'
+import Alert from './ui/Alert.jsx'
+import { Button } from './ui/Button.jsx'
+import { Input } from './ui/Input.jsx'
+import BrandMark from './BrandMark.jsx'
+import ContextualNetwork from './ContextualNetwork.jsx'
 
-/** Mensaje comprensible por estado HTTP (nunca detalles técnicos). */
 function mensajeDeError(error) {
-  if (error?.estado === 400) {
-    return error.message || 'No fue posible cambiar la contraseña.'
-  }
-  if (error?.estado === 422) {
-    return 'La nueva contraseña no cumple los requisitos indicados.'
-  }
-  if (error?.estado === 403) {
-    return 'Tu cuenta no puede cambiar la contraseña en este momento.'
-  }
-  return (
-    error?.message || 'No fue posible cambiar tu contraseña. Inténtalo de nuevo.'
-  )
+  if (error?.estado === 400) return error.message || 'No fue posible cambiar la contraseña.'
+  if (error?.estado === 422) return 'La nueva contraseña no cumple los requisitos indicados.'
+  if (error?.estado === 403) return 'Tu cuenta no puede cambiar la contraseña en este momento.'
+  return error?.message || 'No fue posible cambiar tu contraseña. Inténtalo de nuevo.'
 }
 
 export default function CambioContrasena({ token, alCambiar, alCerrarSesion }) {
@@ -38,21 +23,16 @@ export default function CambioContrasena({ token, alCambiar, alCerrarSesion }) {
   async function manejarEnvio(evento) {
     evento.preventDefault()
     setError(null)
-
     if (nueva !== repetir) {
       setError('Las dos contraseñas no coinciden. Vuelve a escribirlas.')
       return
     }
-
     setEnviando(true)
     try {
       await cambiarPassword(token, nueva)
       alCambiar?.()
     } catch (e) {
-      if (e?.estado === 401) {
-        alCerrarSesion?.()
-        return
-      }
+      if (e?.estado === 401) { alCerrarSesion?.(); return }
       setError(mensajeDeError(e))
     } finally {
       setEnviando(false)
@@ -60,57 +40,44 @@ export default function CambioContrasena({ token, alCambiar, alCerrarSesion }) {
   }
 
   return (
-    <main className="login">
-      <h1>Primer acceso</h1>
-      <form className="login__tarjeta" onSubmit={manejarEnvio}>
-        <h2>Define tu nueva contraseña</h2>
-        <p className="seccion__intro" id="ayuda-password">
-          Tu contraseña actual es temporal. Define una nueva para continuar.
-          Mínimo 8 caracteres y al menos un número.
-        </p>
-        <label className="campo" htmlFor="password-nueva">
-          Nueva contraseña
-          <input
-            id="password-nueva"
-            type="password"
-            autoComplete="new-password"
-            aria-describedby="ayuda-password"
-            required
-            value={nueva}
-            onChange={(e) => setNueva(e.target.value)}
-          />
-        </label>
-        <label className="campo" htmlFor="password-repetir">
-          Repite la nueva contraseña
-          <input
-            id="password-repetir"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={repetir}
-            onChange={(e) => setRepetir(e.target.value)}
-          />
-        </label>
-        {error && (
-          <p className="login__error" role="alert">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          className="boton boton--primario"
-          disabled={enviando}
-        >
-          {enviando ? 'Guardando…' : 'Guardar contraseña'}
-        </button>
-        <button
-          type="button"
-          className="boton boton--fantasma"
-          onClick={() => alCerrarSesion?.()}
-        >
-          Cerrar sesión
-        </button>
-      </form>
+    <main className="onboarding-layout">
+      <section className="onboarding-context" aria-labelledby="onboarding-title">
+        <BrandMark inverse />
+        <div className="onboarding-context__step" aria-hidden="true"><span>01</span><i /></div>
+        <div className="onboarding-context__copy">
+          <p className="eyebrow eyebrow--light">Primer acceso</p>
+          <h1 className="visualmente-oculto">Primer acceso</h1>
+          <h2 id="onboarding-title">Crea tu contraseña. Tu recorrido comienza aquí.</h2>
+          <p>Un paso breve para proteger tu cuenta antes de entrar a tu espacio de desarrollo.</p>
+        </div>
+        <ContextualNetwork className="onboarding-context__network" label="Red conceptual de primer acceso" />
+      </section>
+      <section className="onboarding-action" aria-labelledby="create-password-title">
+        <div className="onboarding-action__inner">
+          <div className="onboarding-action__icon"><KeyRound aria-hidden="true" /></div>
+          <p className="eyebrow eyebrow--accent">Cuenta y seguridad</p>
+          <h2 id="create-password-title">Crea tu contraseña</h2>
+          <p className="onboarding-action__intro">Tu credencial actual es temporal. Define una nueva para continuar con acceso completo.</p>
+          <form className="auth-form" onSubmit={manejarEnvio} aria-busy={enviando}>
+            <div className="field-control">
+              <label htmlFor="password-nueva">Nueva contraseña</label>
+              <Input id="password-nueva" type="password" autoComplete="new-password" aria-describedby="ayuda-password" required value={nueva} onChange={(e) => setNueva(e.target.value)} invalid={Boolean(error)} />
+              <small id="ayuda-password">Mínimo 8 caracteres y al menos un número.</small>
+            </div>
+            <div className="field-control">
+              <label htmlFor="password-repetir">Repite la nueva contraseña</label>
+              <Input id="password-repetir" type="password" autoComplete="new-password" required value={repetir} onChange={(e) => setRepetir(e.target.value)} invalid={Boolean(error)} />
+            </div>
+            {error && <Alert tone="error">{error}</Alert>}
+            <Button type="submit" size="large" loading={enviando} className="auth-form__submit">
+              {enviando ? 'Guardando…' : 'Guardar contraseña'} {!enviando && <ArrowRight aria-hidden="true" />}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => alCerrarSesion?.()}>
+              <LogOut aria-hidden="true" /> Cerrar sesión
+            </Button>
+          </form>
+        </div>
+      </section>
     </main>
   )
 }

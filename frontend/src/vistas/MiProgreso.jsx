@@ -10,6 +10,7 @@
 // promedios, fortalezas ni oportunidades, y no persiste nada.
 
 import { useCallback, useEffect, useState } from 'react'
+import { ArrowDown, Compass } from 'lucide-react'
 import { obtenerProgreso } from '../api/progreso.js'
 import { COMO_SE_OBTIENEN, NOMBRES_COMPETENCIAS } from '../textos.js'
 import AIRecommendation from '../componentes/AIRecommendation.jsx'
@@ -61,16 +62,21 @@ export default function MiProgreso({ token, alSesionExpirada }) {
   const { experiencia } = actual
 
   return (
-    <div className="mi-progreso">
-      {/* 1. ¿Cómo voy? */}
-      <section id="como-voy" className="seccion" aria-labelledby="t-como-voy">
+    <div className="growth-experience">
+      <div className="growth-intro">
+        <p className="eyebrow eyebrow--accent">Tu espacio de crecimiento</p>
+        <p>Una lectura clara de tu desarrollo, basada en evidencia y explicada con transparencia.</p>
+        <a href="#competencias">Explorar competencias <ArrowDown aria-hidden="true" /></a>
+      </div>
+      <section id="como-voy" className="growth-current" aria-labelledby="t-como-voy">
         <h2 id="t-como-voy">¿Cómo voy?</h2>
         <p className="seccion__intro">
           Este es tu resultado actual: cinco competencias calculadas por el
           sistema a partir de tus participaciones y capacitaciones
           registradas.
         </p>
-        <div className="contexto">
+        <div className="growth-current__context">
+          <div className="growth-current__label"><Compass aria-hidden="true" /> Experiencia · información contextual</div>
           <p className="contexto__titulo">Tu experiencia (información contextual)</p>
           <p className="contexto__texto">
             {experiencia.anios_antiguedad !== null &&
@@ -86,8 +92,8 @@ export default function MiProgreso({ token, alSesionExpirada }) {
       </section>
 
       {/* 2. Competencias */}
-      <section id="competencias" className="seccion" aria-labelledby="t-competencias">
-        <h2 id="t-competencias">Competencias</h2>
+      <section id="competencias" className="growth-section" aria-labelledby="t-competencias">
+        <div className="growth-section__heading"><div><p className="eyebrow">Resultado actual</p><h2 id="t-competencias">Competencias</h2></div><p>Cinco lecturas comparables. Cada una conserva su contexto y evidencia.</p></div>
         <div className="competencias">
           {actual.competencias.map((competencia) => (
             <CompetenciaCard key={competencia.clave} competencia={competencia} />
@@ -98,7 +104,7 @@ export default function MiProgreso({ token, alSesionExpirada }) {
       {/* 3. ¿Cómo se obtienen? */}
       <section
         id="como-se-obtienen"
-        className="seccion"
+        className="growth-section growth-section--criteria"
         aria-labelledby="t-como-se-obtienen"
       >
         <h2 id="t-como-se-obtienen">¿Cómo se obtienen?</h2>
@@ -113,7 +119,7 @@ export default function MiProgreso({ token, alSesionExpirada }) {
       </section>
 
       {/* 4. Fortalezas */}
-      <section id="fortalezas" className="seccion" aria-labelledby="t-fortalezas">
+      <section id="fortalezas" className="growth-section" aria-labelledby="t-fortalezas">
         <h2 id="t-fortalezas">Fortalezas</h2>
         <p className="seccion__intro">
           Competencias con nivel 4 o 5, calculadas por reglas del sistema.
@@ -122,7 +128,7 @@ export default function MiProgreso({ token, alSesionExpirada }) {
       </section>
 
       {/* 5. Oportunidades */}
-      <section id="oportunidades" className="seccion" aria-labelledby="t-oportunidades">
+      <section id="oportunidades" className="growth-section" aria-labelledby="t-oportunidades">
         <h2 id="t-oportunidades">Oportunidades de desarrollo</h2>
         <p className="seccion__intro">
           Competencias en nivel 1 o 2, calculadas por reglas del sistema.
@@ -131,13 +137,13 @@ export default function MiProgreso({ token, alSesionExpirada }) {
       </section>
 
       {/* 6. Recomendación IA — bloque secundario, separado del dato */}
-      <section id="recomendacion" className="seccion" aria-labelledby="t-recomendacion">
+      <section id="recomendacion" className="growth-section growth-section--ia" aria-labelledby="t-recomendacion">
         <h2 id="t-recomendacion">Recomendación de desarrollo</h2>
         <AIRecommendation recomendacion={ia} />
       </section>
 
       {/* 7. Transparencia de datos */}
-      <section id="transparencia" className="seccion" aria-labelledby="t-transparencia">
+      <section id="transparencia" className="growth-section" aria-labelledby="t-transparencia">
         <h2 id="t-transparencia">Transparencia de datos</h2>
         <DataTransparencyPanel />
       </section>

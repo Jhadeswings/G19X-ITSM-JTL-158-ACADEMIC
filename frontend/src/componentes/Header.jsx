@@ -1,48 +1,16 @@
-// Header del shell (Style Guide §11; componente base §31).
-//
-// Contiene: acceso al menú en mobile (§7), el título de la sección (responde
-// "¿dónde estoy?"), la cuenta autenticada cuando está disponible y la acción
-// principal (cerrar sesión). El título es el único <h1> de la pantalla.
-//
-// Breadcrumb: no se incluye porque la navegación de Empleado es de un solo
-// nivel (§10/§11: el breadcrumb aporta en jerarquías del tipo
-// "Empleados / Juan Pérez"). Se agregará cuando exista una vista de detalle.
-//
-// No se inventa identidad: si la cuenta no está disponible, no se muestra.
+import { LogOut, Menu, UserRound } from 'lucide-react'
+import { Button } from './ui/Button.jsx'
 
-export default function Header({
-  titulo,
-  cuenta,
-  mostrarMenu = false,
-  menuAbierto = false,
-  onAlternarMenu,
-  onCerrarSesion,
-}) {
+export default function Header({ titulo, cuenta, rol, mostrarMenu = false, menuAbierto = false, onAlternarMenu, onCerrarSesion, botonMenuRef }) {
   return (
-    <header className="app__header">
-      <div className="app__izquierda">
-        {mostrarMenu && (
-          <button
-            type="button"
-            className="boton boton--fantasma layout__menu"
-            aria-expanded={menuAbierto}
-            aria-controls="navegacion-empleado"
-            onClick={onAlternarMenu}
-          >
-            Menú
-          </button>
-        )}
-        <h1 className="app__titulo">{titulo}</h1>
+    <header className="app-header">
+      <div className="app-header__context">
+        {mostrarMenu && <Button ref={botonMenuRef} variant="ghost" size="icon" className="app-header__menu" aria-label="Abrir navegación" aria-expanded={menuAbierto} aria-controls="navegacion-movil" onClick={onAlternarMenu}><Menu aria-hidden="true" /></Button>}
+        <div><p className="app-header__eyebrow">Espacio de talento</p><h1 className="app-header__title">{titulo}</h1></div>
       </div>
-      <div className="app__acciones">
-        {cuenta && <span className="app__cuenta">{cuenta}</span>}
-        <button
-          type="button"
-          className="boton boton--fantasma"
-          onClick={onCerrarSesion}
-        >
-          Cerrar sesión
-        </button>
+      <div className="app-header__session">
+        {cuenta ? <div className="account-chip"><UserRound aria-hidden="true" /><span><small>Sesión activa · {rol}</small><strong>{cuenta}</strong></span></div> : <span className="account-chip app-header__role"><UserRound aria-hidden="true" /><span><small>Sesión activa · {rol}</small><strong>Tu espacio</strong></span></span>}
+        <Button variant="ghost" onClick={onCerrarSesion}><LogOut aria-hidden="true" /><span className="app-header__logout-text">Cerrar sesión</span></Button>
       </div>
     </header>
   )

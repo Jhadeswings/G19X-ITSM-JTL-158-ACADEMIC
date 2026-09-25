@@ -11,6 +11,8 @@
 // desaparecer o convertir la vista en error: el resultado oficial del
 // sistema se muestra con normalidad y no depende de la IA.
 
+import { Sparkles } from 'lucide-react'
+
 export default function AIRecommendation({ recomendacion }) {
   if (!recomendacion) {
     return (
@@ -26,8 +28,8 @@ export default function AIRecommendation({ recomendacion }) {
   }
   return (
     <aside className="ia" aria-label="Recomendación de desarrollo generada por IA">
-      <p className="ia__badge">Sugerencia</p>
-      <h3 className="ia__titulo">✦ Una idea para el desarrollo</h3>
+      <div className="ia__label"><Sparkles aria-hidden="true" /> Sugerencia de apoyo</div>
+      <h3 className="ia__titulo">Una idea para el desarrollo</h3>
       <p className="ia__texto">{recomendacion.recommendation}</p>
       {recomendacion.actions?.length > 0 && (
         <ul className="ia__acciones">

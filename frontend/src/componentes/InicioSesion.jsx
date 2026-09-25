@@ -1,8 +1,11 @@
-// Inicio de sesión mínimo (PRD §3): email + contraseña contra el
-// backend. Mensajes de error comprensibles, sin detalles técnicos.
-
 import { useState } from 'react'
+import { ArrowRight, LockKeyhole, Mail } from 'lucide-react'
 import { iniciarSesion } from '../api/autenticacion.js'
+import Alert from './ui/Alert.jsx'
+import { Button } from './ui/Button.jsx'
+import { Input } from './ui/Input.jsx'
+import BrandMark from './BrandMark.jsx'
+import ContextualNetwork from './ContextualNetwork.jsx'
 
 export default function InicioSesion({ onExito }) {
   const [email, setEmail] = useState('')
@@ -29,45 +32,50 @@ export default function InicioSesion({ onExito }) {
   }
 
   return (
-    <main className="login">
-      <h1>Sistema de Identificación de Talento de Alto Potencial</h1>
-      <form className="login__tarjeta" onSubmit={manejarEnvio}>
-        <h2>Inicia sesión</h2>
-        <label className="campo" htmlFor="email">
-          Correo de acceso
-          <input
-            id="email"
-            type="email"
-            autoComplete="username"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label className="campo" htmlFor="password">
-          Contraseña
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        {error && (
-          <p className="login__error" role="alert">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          className="boton boton--primario"
-          disabled={enviando}
-        >
-          {enviando ? 'Ingresando…' : 'Ingresar'}
-        </button>
-      </form>
+    <main className="auth-layout">
+      <section className="auth-identity" aria-labelledby="login-message-title">
+        <BrandMark inverse />
+        <div className="auth-identity__message">
+          <p className="eyebrow eyebrow--light">Crecimiento conectado</p>
+          <h1 id="login-message-title">La evidencia de hoy construye el desarrollo de mañana.</h1>
+          <p>Un espacio para comprender capacidades, contexto y oportunidades de crecimiento.</p>
+        </div>
+        <div className="auth-principles" aria-label="Principios de la plataforma">
+          <span>Evidencia</span><span>Contexto</span><span>Desarrollo</span>
+        </div>
+        <ContextualNetwork className="auth-identity__network" />
+      </section>
+
+      <section className="auth-access" aria-labelledby="access-title">
+        <div className="auth-access__inner">
+          <div className="auth-access__heading">
+            <p className="eyebrow eyebrow--accent">Acceso seguro</p>
+            <h2 id="access-title">Inicia sesión</h2>
+            <p>Continúa a tu espacio de talento.</p>
+          </div>
+          <form className="auth-form" onSubmit={manejarEnvio} aria-busy={enviando}>
+            <div className="field-control">
+              <label htmlFor="email">Correo de acceso</label>
+              <div className="field-control__input">
+                <Mail aria-hidden="true" />
+                <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} invalid={Boolean(error)} />
+              </div>
+            </div>
+            <div className="field-control">
+              <label htmlFor="password">Contraseña</label>
+              <div className="field-control__input">
+                <LockKeyhole aria-hidden="true" />
+                <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} invalid={Boolean(error)} />
+              </div>
+            </div>
+            {error && <Alert tone="error">{error}</Alert>}
+            <Button type="submit" size="large" loading={enviando} className="auth-form__submit">
+              {enviando ? 'Ingresando…' : 'Ingresar'} {!enviando && <ArrowRight aria-hidden="true" />}
+            </Button>
+          </form>
+          <p className="auth-access__help">¿Necesitas ayuda para acceder? Contacta a RH.</p>
+        </div>
+      </section>
     </main>
   )
 }
