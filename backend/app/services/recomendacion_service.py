@@ -21,6 +21,7 @@ oportunidades de la respuesta salen del engine, y el bloque IA viaja
 separado y con procedencia explícita (Style Guide §3.6).
 """
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.schemas.recomendacion_ia import (
@@ -74,19 +75,36 @@ class RecommendationService:
     def obtener(
         self, empleado_id: int, orchestrator: AIOrchestrator
     ) -> RecomendacionIAOut:
-        """Resultado actual (reglas) + sugerencia IA separada y explícita."""
+        """Resultado actual (reglas) + sugerencia IA separada y explícita.
+
+        Si la IA no está disponible (orquestador sin proveedores o todos
+        caídos ⇒ 502 interno), el resultado del engine se devuelve igual y
+        ``recomendacion_ia`` queda en ``None``: la recomendación es
+        secundaria (PRD §17) y su fallo no degrada el resultado oficial.
+        Cualquier otro error (p. ej. empleado inexistente) sigue
+        propagándose tal cual.
+        """
         obtener_empleado(self.db, empleado_id)  # 404 si no existe
         actual = CompetencyEngine(self.db).calculate(empleado_id)
 
-        salida, proveedor = orchestrator.generar_recomendacion(
-            self._contexto_minimo(actual)
-        )
+        try:
+            salida, proveedor = orchestrator.generar_recomendacion(
+                self._contexto_minimo(actual)
+            )
+        except HTTPException as error:
+            if error.status_code != status.HTTP_502_BAD_GATEWAY:
+                raise
+            salida, proveedor = None, None  # IA no disponible ⇒ bloque en None
 
         return RecomendacionIAOut(
             resultado_actual=actual,  # bloque A: dato del sistema, inmutable por IA
-            recomendacion_ia=RecomendacionIABloqueOut(  # bloque B: sugerencia
-                proveedor=proveedor,
-                recommendation=salida.recommendation,
-                actions=salida.actions,
+            recomendacion_ia=(  # bloque B: sugerencia, o None si no hay IA
+                None
+                if salida is None
+                else RecomendacionIABloqueOut(
+                    proveedor=proveedor,
+                    recommendation=salida.recommendation,
+                    actions=salida.actions,
+                )
             ),
         )

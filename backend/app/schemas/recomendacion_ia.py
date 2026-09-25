@@ -115,7 +115,12 @@ class RecomendacionIAOut(BaseModel):
       preservado, experiencia como contexto, fortalezas y oportunidades
       derivadas por reglas §17.4). La IA no puede modificarlos.
     - ``recomendacion_ia``: bloque B, sugerencia generada por el LLM.
+      Puede ser ``None`` cuando la IA no está disponible (sin proveedores
+      configurados o todos caídos): el bloque A se entrega igualmente y el
+      cliente presenta el bloque B como no disponible. La IA es secundaria
+      (PRD §17) y su fallo NUNCA elimina el resultado oficial ni se
+      sustituye por una recomendación inventada.
     """
 
     resultado_actual: ResultadoActualDTO
-    recomendacion_ia: RecomendacionIABloqueOut
+    recomendacion_ia: RecomendacionIABloqueOut | None = None

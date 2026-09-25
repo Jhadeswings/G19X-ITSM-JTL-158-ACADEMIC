@@ -7,7 +7,8 @@ RBAC (Empleado 200 / RH 403 / sin token 401), derivación de empleado_id
 del token (anti-IDOR e inyección), origen de datos (ResultadoActual del
 engine, DI preservado, histórico no altera, datos actuales sí cambian),
 privacidad del prompt (sin PII/resolvio_problema/texto libre/otros
-empleados), fallback Groq → Gemini → 502, salida inválida ⇒ fallo de
+empleados), fallback Groq → Gemini → degradación controlada (IA no
+disponible ⇒ bloque en null), salida inválida ⇒ fallo de
 proveedor, separación dato/sugerencia y cero persistencia/auditoría.
 """
 
@@ -429,7 +430,7 @@ class TestDerivadaYNoPersistente:
 
 
 class TestProveedoresYFallback:
-    """Tests 18–21: Groq → Gemini → 502; salida inválida = fallo."""
+    """Tests 18–21: Groq → Gemini → degradación; salida inválida = fallo."""
 
     def test_groq_exitoso(self, client, token_empleado, monkeypatch):
         parchear_orchestrator(monkeypatch, ProveedorFalso("groq", SALIDA_VALIDA))
@@ -445,19 +446,31 @@ class TestProveedoresYFallback:
         datos = consultar(client, token_empleado).json()
         assert datos["recomendacion_ia"]["proveedor"] == "gemini"
 
-    def test_ambos_fallan_502(self, client, token_empleado, monkeypatch):
+    def test_ambos_fallan_engine_ok_ia_null(
+        self, client, token_empleado, monkeypatch
+    ):
+        """Ambos proveedores caídos ⇒ 200 con engine OK e IA no disponible.
+
+        El fallo de IA NUNCA elimina el resultado oficial ni devuelve un
+        error 502 al cliente; el bloque IA queda en ``None`` y jamás se
+        inventa una recomendación sustituta.
+        """
         parchear_orchestrator(
             monkeypatch,
             ProveedorFalso("groq", fallar=True),
             ProveedorFalso("gemini", fallar=True),
         )
         respuesta = consultar(client, token_empleado)
-        assert respuesta.status_code == 502
-        detalle = respuesta.json()["detail"].lower()
-        # Sin stack traces, clases ni detalles internos de proveedores.
-        assert "proveedor" in detalle or "recomendación" in detalle
-        assert "traceback" not in detalle
-        assert "exception" not in detalle
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        # Bloque A intacto: resultado oficial calculado por el engine.
+        assert len(datos["resultado_actual"]["competencias"]) == 5
+        # Bloque B explícitamente no disponible.
+        assert datos["recomendacion_ia"] is None
+        # Sin stack traces, clases ni detalles internos de proveedores,
+        # y sin recomendación inventada en ningún campo de la respuesta.
+        assert "recommendation" not in json.dumps(datos)
+        assert "traceback" not in json.dumps(datos).lower()
 
     def test_json_invalido_de_groq_cae_a_gemini(
         self, client, token_empleado, monkeypatch
@@ -470,21 +483,54 @@ class TestProveedoresYFallback:
         datos = consultar(client, token_empleado).json()
         assert datos["recomendacion_ia"]["proveedor"] == "gemini"
 
-    def test_salida_invalida_de_gemini_502(
+    def test_salida_invalida_de_gemini_degrada_a_ia_null(
         self, client, token_empleado, monkeypatch
     ):
+        """Salida fuera de contrato en el último proveedor ⇒ 200 + IA null."""
         parchear_orchestrator(
             monkeypatch,
             ProveedorFalso("groq", fallar=True),
             ProveedorFalso("gemini", '{"winner": "alguien"}'),
         )
-        assert consultar(client, token_empleado).status_code == 502
-
-    def test_sin_claves_configuradas_502_sin_inventar(self, client, token_empleado):
-        """Fábrica real sin claves (entorno de tests): 502 controlado.
-        Nunca se hardcodea una recomendación sustituta."""
         respuesta = consultar(client, token_empleado)
-        assert respuesta.status_code == 502
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert len(datos["resultado_actual"]["competencias"]) == 5
+        assert datos["recomendacion_ia"] is None
+
+
+class TestDegradacionIA:
+    """Engine OK + IA disponible / engine OK + IA no disponible.
+
+    Caso central del desacople: el resultado oficial del engine SIEMPRE
+    se entrega; la recomendación IA es secundaria (PRD §17) y puede
+    faltar sin que la vista ni la API terminen en error.
+    """
+
+    def test_engine_ok_ia_disponible(self, client, token_empleado, monkeypatch):
+        """Con proveedor funcional el contrato exitoso NO cambia."""
+        parchear_orchestrator(monkeypatch, ProveedorFalso("groq", SALIDA_VALIDA))
+        respuesta = consultar(client, token_empleado)
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert len(datos["resultado_actual"]["competencias"]) == 5
+        bloque_ia = datos["recomendacion_ia"]
+        assert bloque_ia is not None
+        assert bloque_ia["origen"] == "IA"
+        assert bloque_ia["proveedor"] == "groq"
+        assert bloque_ia["recommendation"]
+        assert bloque_ia["actions"]
+
+    def test_engine_ok_ia_no_disponible(self, client, token_empleado):
+        """Fábrica real sin claves (entorno de la suite): 200 con engine OK
+        y ``recomendacion_ia`` en ``None``. Nunca se hardcodea una
+        recomendación sustituta."""
+        respuesta = consultar(client, token_empleado)
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert len(datos["resultado_actual"]["competencias"]) == 5
+        assert datos["recomendacion_ia"] is None
+        assert "recommendation" not in json.dumps(datos)
 
 
 class TestSeparacionDatoSugerencia:

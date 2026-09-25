@@ -5,9 +5,25 @@
 // datos calculados, con procedencia visible y descargo: no es
 // diagnóstico, ranking ni juicio, y no modifica el resultado oficial.
 // El contenido llega del backend; el frontend no genera ni persiste nada.
+//
+// Si el backend envía `recomendacion_ia: null` (IA no disponible), el
+// bloque muestra un estado controlado de "no disponible" en lugar de
+// desaparecer o convertir la vista en error: el resultado oficial del
+// sistema se muestra con normalidad y no depende de la IA.
 
 export default function AIRecommendation({ recomendacion }) {
-  if (!recomendacion) return null
+  if (!recomendacion) {
+    return (
+      <aside className="ia" aria-label="Recomendación de desarrollo no disponible">
+        <h3 className="ia__titulo">Recomendación no disponible</h3>
+        <p className="ia__texto">
+          La sugerencia con IA no está disponible en este momento. Tu
+          resultado oficial calculado por el sistema no depende de ella y
+          se muestra con normalidad.
+        </p>
+      </aside>
+    )
+  }
   return (
     <aside className="ia" aria-label="Recomendación de desarrollo generada por IA">
       <p className="ia__badge">Sugerencia</p>

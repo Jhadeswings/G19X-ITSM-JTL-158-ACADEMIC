@@ -112,3 +112,96 @@ describe('MiProgreso — fortalezas y oportunidades (solo backend)', () => {
     expect(screen.getByText('5 · Alto')).toBeInTheDocument()
   })
 })
+
+describe('MiProgreso — recomendación IA (bloque secundario)', () => {
+  it('con IA disponible muestra la sugerencia con procedencia explícita', async () => {
+    vi.mocked(obtenerProgreso).mockResolvedValue(crearRespuesta())
+    render(<MiProgreso token="t" />)
+    await waitFor(() =>
+      screen.getByRole('heading', { name: 'Competencias' }),
+    )
+
+    expect(
+      screen.getByRole('complementary', {
+        name: 'Recomendación de desarrollo generada por IA',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Generada con IA \(groq\)/)).toBeInTheDocument()
+    expect(screen.queryByText('Recomendación no disponible')).not.toBeInTheDocument()
+  })
+
+  it('con IA no disponible muestra el estado controlado y conserva el resultado', async () => {
+    // Contrato degradado del backend: engine OK + recomendacion_ia: null.
+    vi.mocked(obtenerProgreso).mockResolvedValue(
+      crearRespuesta({ recomendacion_ia: null }),
+    )
+    render(<MiProgreso token="t" />)
+    await waitFor(() =>
+      screen.getByRole('heading', { name: 'Competencias' }),
+    )
+
+    // El resultado oficial se muestra con normalidad (5 competencias).
+    expect(screen.getAllByRole('article')).toHaveLength(5)
+    expect(screen.getByText('5 · Alto')).toBeInTheDocument()
+
+    // La sección sigue presente y el bloque IA muestra su estado controlado.
+    expect(
+      screen.getByRole('heading', {
+        level: 2,
+        name: 'Recomendación de desarrollo',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Recomendación no disponible')).toBeInTheDocument()
+    expect(
+      screen.getByRole('complementary', {
+        name: 'Recomendación de desarrollo no disponible',
+      }),
+    ).toBeInTheDocument()
+
+    // Sin procedencia inventada: nada de proveedor ni texto IA fabricado.
+    expect(screen.queryByText(/Generada con IA/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/groq/)).not.toBeInTheDocument()
+
+    // La vista NO cae en EstadoError por la ausencia de IA.
+    expect(
+      screen.queryByRole('heading', { name: 'No pudimos cargar tu progreso' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe('MiProgreso — errores reales de API (distintos de IA no disponible)', () => {
+  it('un error 500 muestra EstadoError con reintento, sin datos inventados', async () => {
+    vi.mocked(obtenerProgreso).mockRejectedValue(
+      Object.assign(
+        new Error('Ocurrió un problema inesperado. Inténtalo de nuevo más tarde.'),
+        { estado: 500 },
+      ),
+    )
+    render(<MiProgreso token="t" />)
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'No pudimos cargar tu progreso',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Intentar de nuevo' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Competencias' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Recomendación no disponible')).not.toBeInTheDocument()
+  })
+
+  it('un 401 cierra la sesión en lugar de mostrar la vista', async () => {
+    vi.mocked(obtenerProgreso).mockRejectedValue(
+      Object.assign(new Error('Credenciales inválidas.'), { estado: 401 }),
+    )
+    const alSesionExpirada = vi.fn()
+    render(<MiProgreso token="t" alSesionExpirada={alSesionExpirada} />)
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('heading', { name: 'Competencias' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'No pudimos cargar tu progreso' }),
+    ).not.toBeInTheDocument()
+  })
+})

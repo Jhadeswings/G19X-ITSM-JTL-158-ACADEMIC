@@ -40,7 +40,9 @@ def mi_recomendacion(
       experiencia como contexto, fortalezas y oportunidades por reglas.
     - Bloque ``recomendacion_ia``: sugerencia breve + acciones, con
       ``origen: "IA"`` y proveedor. Nunca resultado oficial.
-    - Proveedores no configurados o ambos caídos ⇒ 502 controlado.
+    - Proveedores no configurados o ambos caídos ⇒ 200 con el resultado
+      del engine y ``recomendacion_ia: null``: la IA es secundaria
+      (PRD §17) y su fallo no elimina el resultado oficial.
     """
     return RecommendationService(db).obtener(
         empleado_id_propio(cuenta), construir_orchestrator()

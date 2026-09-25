@@ -7,6 +7,13 @@ export const CALC = 'CALCULABLE'
 export function crearRespuesta({
   fortalezas = ['liderazgo'],
   oportunidades = ['comunicacion'],
+  recomendacion_ia = {
+    origen: 'IA',
+    proveedor: 'groq',
+    recommendation:
+      'Una idea para el desarrollo: practicar la comunicación con públicos distintos puede ayudar a ampliar tu experiencia.',
+    actions: ['Explicar un tema a un público distinto en tu próximo proyecto.'],
+  },
 } = {}) {
   return {
     resultado_actual: {
@@ -61,12 +68,6 @@ export function crearRespuesta({
       fortalezas,
       oportunidades,
     },
-    recomendacion_ia: {
-      origen: 'IA',
-      proveedor: 'groq',
-      recommendation:
-        'Una idea para el desarrollo: practicar la comunicación con públicos distintos puede ayudar a ampliar tu experiencia.',
-      actions: ['Explicar un tema a un público distinto en tu próximo proyecto.'],
-    },
+    recomendacion_ia,
   }
 }

@@ -652,14 +652,28 @@ modificarlos) y `recomendacion_ia` (con `origen: "IA"` constante,
 `proveedor`, `recommendation` y `actions`). El texto IA jamás se
 presenta como resultado oficial.
 
+Degradación de la IA (PRD §17: la IA es secundaria):
+`recomendacion_ia` puede ser `null` cuando el orquestador no tiene
+proveedores o todos fallaron. En ese caso la respuesta es 200 con el
+`resultado_actual` del engine intacto y el cliente presenta el bloque B
+como "no disponible". El fallo de IA NUNCA convierte la respuesta en
+502 ni se sustituye por una recomendación inventada.
+`interpretar_busqueda` (Fase 8) NO cambia: `/rh/talent-search/interpret` sigue
+resolviendo 502 cuando no hay interpretación posible, porque allí la IA
+ES la respuesta.
+
 ## 50. Orquestación, fallback y migraciones
 
 Generalización limpia de `AIOrchestrator` sin romper `/interpret`
 (Fase 8): el bucle de fallback común vive en `_ejecutar_con_fallback`
-(ET §38: Groq → Gemini → 502 controlado; sin claves configuradas el
-resultado es el mismo 502: nunca se inventa ni hardcodea una
-recomendación). `interpretar_busqueda` conserva su comportamiento
-exacto (sigue llamando `proveedor.interpretar`); el nuevo
+(ET §38: Groq → Gemini → 502 interno controlado; sin claves configuradas
+el resultado es el mismo 502: nunca se inventa ni hardcodea una
+recomendación). En `GET /me/progress/recommendation` ese 502 se captura
+en `RecommendationService` y la respuesta es 200 con
+`recomendacion_ia: null` (decisión de desacople: ver §49).
+`interpretar_busqueda` conserva su comportamiento
+exacto (sigue llamando `proveedor.interpretar` y responde 502 cuando no
+hay interpretación); el nuevo
 `generar_recomendacion(contexto)` usa `proveedor.generar(system,
 prompt)` con instrucciones propias (`INSTRUCCIONES_RECOMENDACION`).
 Los adaptadores Groq/Gemini, la configuración, LangChain y la validación
