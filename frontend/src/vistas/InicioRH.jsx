@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BriefcaseBusiness, ClipboardCheck, Users } from 'lucide-react'
-import { obtenerAtencionRequerida, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../api/dashboardRh.js'
+import { obtenerAtencionRequerida, obtenerDistribucionCompetencia, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../api/dashboardRh.js'
+import { NOMBRES_COMPETENCIAS } from '../textos.js'
 import MetricCard from '../componentes/MetricCard.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
@@ -20,10 +21,24 @@ function listaMotivos(motivos = []) {
   return motivos.map((motivo) => MOTIVOS[motivo] || motivo)
 }
 
+const COMPETENCIAS_DISTRIBUCION = [
+  'desempeno_tecnico',
+  'liderazgo',
+  'trabajo_equipo',
+  'aprendizaje',
+  'comunicacion',
+]
+
+function formatearPorcentaje(valor) {
+  return `${String(valor)} %`
+}
+
 export default function InicioRH({ token, onSesionExpirada, onVerEmpleados }) {
   const [empleados, setEmpleados] = useState({ fase: 'cargando', total: null, error: null })
   const [proyectos, setProyectos] = useState({ fase: 'cargando', total: null, error: null })
   const [atencion, setAtencion] = useState({ fase: 'cargando', total: null, items: [], error: null })
+  const [competencia, setCompetencia] = useState(COMPETENCIAS_DISTRIBUCION[0])
+  const [distribucion, setDistribucion] = useState({ fase: 'cargando', datos: null, error: null })
 
   const manejarError = useCallback((error, setEstado) => {
     if (error?.estado === 401) { onSesionExpirada?.(); return }
@@ -45,9 +60,29 @@ export default function InicioRH({ token, onSesionExpirada, onVerEmpleados }) {
     obtenerAtencionRequerida(token).then((respuesta) => setAtencion({ fase: 'listo', total: respuesta.total, items: respuesta.items || [], error: null })).catch((error) => manejarError(error, setAtencion))
   }, [token, manejarError])
 
+  const cargarDistribucion = useCallback((codigo) => {
+    // Corrección parpadeo: en recargas se conservan los datos anteriores
+    // mientras llega la nueva respuesta (no se borran con datos: null).
+    setDistribucion((actual) => ({ fase: 'cargando', datos: actual.datos, error: null }))
+    // Una sola competencia a la vez: la respuesta llega calculada por
+    // backend y el frontend solo la presenta (sin recalcular porcentajes).
+    obtenerDistribucionCompetencia(token, codigo)
+      .then((respuesta) => setDistribucion({ fase: 'listo', datos: respuesta, error: null }))
+      .catch((error) => manejarError(error, setDistribucion))
+  }, [token, manejarError])
+
+  const cambiarCompetencia = useCallback((evento) => {
+    setCompetencia(evento.target.value)
+  }, [])
+
+  const reintentarDistribucion = useCallback(() => {
+    cargarDistribucion(competencia)
+  }, [cargarDistribucion, competencia])
+
   useEffect(() => { cargarEmpleados() }, [cargarEmpleados])
   useEffect(() => { cargarProyectos() }, [cargarProyectos])
   useEffect(() => { cargarAtencion() }, [cargarAtencion])
+  useEffect(() => { cargarDistribucion(competencia) }, [cargarDistribucion, competencia])
 
   const metricas = [
     { label: 'Empleados activos', icon: Users, estado: empleados, cargar: cargarEmpleados, descripcion: 'Personas con una cuenta activa en el catálogo.' },
@@ -80,6 +115,49 @@ export default function InicioRH({ token, onSesionExpirada, onVerEmpleados }) {
           {atencion.total > 6 && <p className="attention-panel__note">Mostrando 6 de {atencion.total} empleados. La consulta completa está disponible en la respuesta de atención requerida.</p>}
           {onVerEmpleados && <Button variant="secondary" onClick={onVerEmpleados}>Ver empleados</Button>}
         </>}
+      </section>
+      <section className="distribution-panel" aria-labelledby="distribucion-rh-title">
+        <div className="distribution-panel__heading">
+          <div>
+            <p className="eyebrow">Lectura por competencia</p>
+            <h2 id="distribucion-rh-title">Distribución de competencias</h2>
+            <p className="distribution-panel__description">Una competencia a la vez. Los valores mostrados son los calculados por el sistema.</p>
+          </div>
+          <label className="distribution-panel__selector">
+            <span className="visualmente-oculto">Competencia</span>
+            <select value={competencia} onChange={cambiarCompetencia} aria-label="Competencia">
+              {COMPETENCIAS_DISTRIBUCION.map((codigo) => (
+                <option key={codigo} value={codigo}>{NOMBRES_COMPETENCIAS[codigo] || codigo}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {distribucion.fase === 'cargando' && !distribucion.datos && <div className="distribution-panel__loading" aria-busy="true">Cargando distribución de {NOMBRES_COMPETENCIAS[competencia] || competencia}…</div>}
+        {distribucion.fase === 'cargando' && distribucion.datos && <span className="visualmente-oculto" role="status">Actualizando distribución…</span>}
+        {distribucion.fase === 'error' && <EstadoError titulo={distribucion.datos ? `No pudimos actualizar la distribución de ${(NOMBRES_COMPETENCIAS[competencia] || competencia).toLowerCase()}` : `No pudimos cargar la distribución de ${(NOMBRES_COMPETENCIAS[competencia] || competencia).toLowerCase()}`} onReintentar={reintentarDistribucion} />}
+        {distribucion.datos && (
+          <div className="distribution-panel__body" aria-busy={distribucion.fase === 'cargando'}>
+            <p className="distribution-panel__evaluables">
+              <span className="distribution-panel__evaluables-valor">{distribucion.datos.evaluables}</span>
+              <span>empleados evaluables en {NOMBRES_COMPETENCIAS[distribucion.datos.competency_code] || distribucion.datos.competency_code}</span>
+            </p>
+            {distribucion.datos.evaluables === 0 ? (
+              <EstadoVacio titulo="Aún no hay empleados evaluables en esta competencia." descripcion="Cuando exista evidencia suficiente, aquí verás la distribución de niveles." />
+            ) : (
+              <dl className="distribution-list">
+                <div className="distribution-list__item">
+                  <dt>Niveles 1–2</dt>
+                  <dd>{distribucion.datos.nivel_1_2_count} ({formatearPorcentaje(distribucion.datos.nivel_1_2_percentage)})</dd>
+                </div>
+                <div className="distribution-list__item">
+                  <dt>Niveles 3–5</dt>
+                  <dd>{distribucion.datos.nivel_3_5_count} ({formatearPorcentaje(distribucion.datos.nivel_3_5_percentage)})</dd>
+                </div>
+              </dl>
+            )}
+            <p className="distribution-panel__di">Datos insuficientes: {distribucion.datos.datos_insuficientes} (se muestran por separado y no forman parte de los porcentajes).</p>
+          </div>
+        )}
       </section>
     </div>
   )

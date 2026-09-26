@@ -28,4 +28,24 @@
 .attention-panel__note { margin: 0 0 16px; color: var(--ink-soft); font-size: 12px; }
 .attention-panel > .estado-vacio { margin: 0; }
 .attention-panel > .ui-button { margin-top: 2px; }
+.distribution-panel { padding: clamp(24px, 3vw, 32px); background: #fff; border: 1px solid var(--line-soft); border-radius: 13px; }
+.distribution-panel__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+.distribution-panel__heading h2 { margin: 0; font-size: 24px; letter-spacing: -.03em; }
+.distribution-panel__heading .eyebrow { margin-bottom: 8px; }
+.distribution-panel__description { margin: 8px 0 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.5; }
+.distribution-panel__selector select { min-height: 40px; padding: 8px 12px; color: var(--color-text-primary); background: #f7f9f8; border: 1px solid #e7ecea; border-radius: 8px; font-size: 13px; }
+.distribution-panel__loading { padding: 28px 0; color: var(--color-text-secondary); }
+.distribution-panel__body { display: flex; flex-direction: column; gap: 16px; }
+.distribution-panel__evaluables { display: flex; align-items: baseline; gap: 10px; margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+.distribution-panel__evaluables-valor { color: var(--color-brand-deep); font-size: 30px; font-weight: 650; letter-spacing: -.04em; line-height: 1; }
+.distribution-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; }
+.distribution-list__item { min-width: 0; padding: 14px 16px; background: #f7f9f8; border: 1px solid #e7ecea; border-radius: 8px; }
+.distribution-list__item dt { color: var(--color-text-secondary); font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.distribution-list__item dd { margin: 8px 0 0; color: var(--color-text-primary); font-size: 16px; font-weight: 650; }
+.distribution-panel__di { margin: 0; color: var(--ink-soft); font-size: 12px; }
+.distribution-panel > .estado-vacio { margin: 0; }
+@media (max-width: 720px) {
+  .distribution-panel__heading { flex-direction: column; }
+  .distribution-list { grid-template-columns: minmax(0, 1fr); }
+}
 @keyframes pulso { 50% { opacity: .5; } }

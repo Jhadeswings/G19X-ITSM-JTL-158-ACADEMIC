@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { solicitar } from '../clienteApi.js'
-import { obtenerAtencionRequerida, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../dashboardRh.js'
+import { obtenerAtencionRequerida, obtenerDistribucionCompetencia, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../dashboardRh.js'
 
 vi.mock('../clienteApi.js', () => ({ solicitar: vi.fn() }))
 
@@ -23,5 +23,20 @@ describe('Dashboard RH — clientes de datos', () => {
     vi.mocked(solicitar).mockResolvedValue({ total: 1, items: [] })
     await obtenerAtencionRequerida('token-rh')
     expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/attention-required', { token: 'token-rh' })
+  })
+
+  it('consulta la distribución de una sola competencia sin recalcular', async () => {
+    vi.mocked(solicitar).mockResolvedValue({
+      competency_code: 'liderazgo',
+      evaluables: 2,
+      datos_insuficientes: 1,
+      nivel_1_2_count: 1,
+      nivel_1_2_percentage: '50.00',
+      nivel_3_5_count: 1,
+      nivel_3_5_percentage: '50.00',
+    })
+    const respuesta = await obtenerDistribucionCompetencia('token-rh', 'liderazgo')
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/gaps?competency_code=liderazgo', { token: 'token-rh' })
+    expect(respuesta.nivel_1_2_percentage).toBe('50.00')
   })
 })

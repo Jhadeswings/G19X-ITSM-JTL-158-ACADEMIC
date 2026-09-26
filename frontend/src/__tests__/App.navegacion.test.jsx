@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { limpiarSesion, obtenerSesion } from '../api/autenticacion.js'
 import { obtenerCuenta } from '../api/cuenta.js'
 import { obtenerProgreso } from '../api/progreso.js'
-import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequerida } from '../api/dashboardRh.js'
+import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequerida, obtenerDistribucionCompetencia } from '../api/dashboardRh.js'
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
 import App from '../App.jsx'
 import { SECCIONES_EMPLEADO, SECCIONES_RH } from '../navegacion.js'
@@ -23,7 +23,7 @@ vi.mock('../api/autenticacion.js', () => ({
 
 vi.mock('../api/cuenta.js', () => ({ obtenerCuenta: vi.fn() }))
 vi.mock('../api/progreso.js', () => ({ obtenerProgreso: vi.fn() }))
-vi.mock('../api/dashboardRh.js', () => ({ obtenerAtencionRequerida: vi.fn(), obtenerEmpleadosActivos: vi.fn(), obtenerProyectosActivos: vi.fn() }))
+vi.mock('../api/dashboardRh.js', () => ({ obtenerAtencionRequerida: vi.fn(), obtenerDistribucionCompetencia: vi.fn(), obtenerEmpleadosActivos: vi.fn(), obtenerProyectosActivos: vi.fn() }))
 vi.mock('../api/empleados.js', async () => {
   const original = await vi.importActual('../api/empleados.js')
   return { ...original, listarEmpleados: vi.fn() }
@@ -41,6 +41,7 @@ beforeEach(() => {
   vi.mocked(obtenerEmpleadosActivos).mockReset()
   vi.mocked(obtenerProyectosActivos).mockReset()
   vi.mocked(obtenerAtencionRequerida).mockReset()
+  vi.mocked(obtenerDistribucionCompetencia).mockReset()
   vi.mocked(listarEmpleados).mockReset()
   vi.mocked(listarEmpleados).mockResolvedValue({
     total: 12,
@@ -59,6 +60,15 @@ beforeEach(() => {
   vi.mocked(obtenerEmpleadosActivos).mockResolvedValue({ total: 12, items: [] })
   vi.mocked(obtenerProyectosActivos).mockResolvedValue({ total: 4, items: [] })
   vi.mocked(obtenerAtencionRequerida).mockResolvedValue({ total: 0, items: [] })
+  vi.mocked(obtenerDistribucionCompetencia).mockResolvedValue({
+    competency_code: 'desempeno_tecnico',
+    evaluables: 0,
+    datos_insuficientes: 0,
+    nivel_1_2_count: 0,
+    nivel_1_2_percentage: '0.00',
+    nivel_3_5_count: 0,
+    nivel_3_5_percentage: '0.00',
+  })
 })
 
 function navegacion() {

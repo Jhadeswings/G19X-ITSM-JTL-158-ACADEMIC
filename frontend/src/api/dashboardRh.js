@@ -19,3 +19,15 @@ export function obtenerProyectosActivos(token) {
 export function obtenerAtencionRequerida(token) {
   return solicitar('/api/v1/rh/attention-required', { token })
 }
+
+/**
+ * Distribución de niveles de UNA competencia (PRD §15).
+ *
+ * Una sola competencia por consulta: `competency_code` es uno de los
+ * cinco códigos oficiales. Los conteos y porcentajes llegan calculados
+ * por backend; el frontend solo presenta la respuesta sin recalcular.
+ * `datos_insuficientes` va por separado y no entra al denominador.
+ */
+export function obtenerDistribucionCompetencia(token, competencyCode) {
+  return solicitar(`/api/v1/rh/gaps?competency_code=${encodeURIComponent(competencyCode)}`, { token })
+}

@@ -13,7 +13,7 @@ import {
 } from '../api/autenticacion.js'
 import { obtenerProgreso } from '../api/progreso.js'
 import { obtenerCuenta } from '../api/cuenta.js'
-import { obtenerAtencionRequerida, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../api/dashboardRh.js'
+import { obtenerAtencionRequerida, obtenerDistribucionCompetencia, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../api/dashboardRh.js'
 import App from '../App.jsx'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
 
@@ -27,7 +27,7 @@ vi.mock('../api/autenticacion.js', () => ({
 }))
 
 vi.mock('../api/progreso.js', () => ({ obtenerProgreso: vi.fn() }))
-vi.mock('../api/dashboardRh.js', () => ({ obtenerAtencionRequerida: vi.fn(), obtenerEmpleadosActivos: vi.fn(), obtenerProyectosActivos: vi.fn() }))
+vi.mock('../api/dashboardRh.js', () => ({ obtenerAtencionRequerida: vi.fn(), obtenerDistribucionCompetencia: vi.fn(), obtenerEmpleadosActivos: vi.fn(), obtenerProyectosActivos: vi.fn() }))
 
 // La cuenta del header (§11) se mockea resuelta para no depender de la red.
 vi.mock('../api/cuenta.js', () => ({
@@ -50,10 +50,20 @@ beforeEach(() => {
   vi.mocked(obtenerEmpleadosActivos).mockReset()
   vi.mocked(obtenerProyectosActivos).mockReset()
   vi.mocked(obtenerAtencionRequerida).mockReset()
+  vi.mocked(obtenerDistribucionCompetencia).mockReset()
   vi.mocked(obtenerCuenta).mockResolvedValue({ email: 'persona@empresa.dev' })
   vi.mocked(obtenerEmpleadosActivos).mockResolvedValue({ total: 12, items: [] })
   vi.mocked(obtenerProyectosActivos).mockResolvedValue({ total: 4, items: [] })
   vi.mocked(obtenerAtencionRequerida).mockResolvedValue({ total: 0, items: [] })
+  vi.mocked(obtenerDistribucionCompetencia).mockResolvedValue({
+    competency_code: 'desempeno_tecnico',
+    evaluables: 0,
+    datos_insuficientes: 0,
+    nivel_1_2_count: 0,
+    nivel_1_2_percentage: '0.00',
+    nivel_3_5_count: 0,
+    nivel_3_5_percentage: '0.00',
+  })
 })
 
 /** Llena el formulario de acceso y envía las credenciales. */
