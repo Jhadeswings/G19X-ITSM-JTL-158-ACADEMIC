@@ -143,9 +143,14 @@ export default function AltaEmpleado({ token, alSesionExpirada }) {
   return (
     <div className="employee-onboarding">
       <SectionHeader eyebrow="Gestión de personas" title="Registrar empleado" description="Crea el perfil y la cuenta de acceso de una nueva persona. Los datos se organizan para facilitar una revisión clara antes de guardar." />
+      {/* Aviso informativo: bloque independiente sobre el formulario, no
+          dentro de él. Separa visualmente el mensaje de la primera sección
+          (Style Guide §6: bloques con espacio claro entre sí). El `id` se
+          conserva porque el campo de correo lo referencia con
+          `aria-describedby="ayuda-alta"`. */}
+      <p className="employee-form__intro" id="ayuda-alta">El sistema creará también la cuenta de acceso con una credencial temporal para el primer acceso. Los datos laborales marcados como opcionales pueden completarse ahora o posteriormente.</p>
       <form className="employee-form" aria-labelledby="alta-titulo" onSubmit={manejarEnvio} aria-busy={fase === 'enviando'}>
         <h2 id="alta-titulo" className="visualmente-oculto">Registrar empleado</h2>
-        <p className="employee-form__intro" id="ayuda-alta">El sistema creará también la cuenta de acceso con una credencial temporal para el primer acceso. Los datos laborales marcados como opcionales pueden completarse ahora o posteriormente.</p>
         <div className="employee-form__sections">
           <fieldset className="form-section"><legend><span>01</span><div><strong>Datos de identidad</strong><small>Información principal de la persona</small></div></legend>
             <div className="form-section__fields"><FormField id="alta-nombre" label="Nombre" required><Input id="alta-nombre" autoComplete="name" required value={nombre} onChange={(e) => setNombre(e.target.value)} invalid={Boolean(error && error.estado === 422)} /></FormField><FormField id="alta-email" label="Correo de acceso" required><Input id="alta-email" type="email" autoComplete="username" aria-describedby="ayuda-alta" required value={email} onChange={(e) => setEmail(e.target.value)} invalid={Boolean(error && (error.estado === 409 || error.estado === 422))} /></FormField></div>

@@ -1,0 +1,58 @@
+/* Catálogo de empleados RH (Style Guide §14.1 tabla, §14.2 paginación,
+   §14.4 filtros, §7 adaptación, §26 lista de empleados).
+   Reutiliza los tokens y las primitivas del checkpoint del dashboard: sin
+   paleta nueva, sin otro sistema de botones y sin tarjetas por fila. */
+
+/* --- Filtros (§14.4: solo filtros relevantes, activos y "Limpiar") ------ */
+.empleados { display: flex; flex-direction: column; gap: 22px; }
+.empleados-filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 22px; padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.empleados-filtros__grupo { display: flex; flex-wrap: wrap; gap: 8px; }
+.empleados-filtros__area { display: flex; flex-direction: column; gap: 8px; min-width: 210px; }
+.empleados-filtros__area .ui-input { min-height: 36px; }
+.empleados-filtros__activos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -8px 0 0; color: var(--ink-soft); font-size: 12px; }
+.empleados-filtros__activos span { padding: 4px 9px; color: var(--color-brand-deep); background: var(--color-primary-soft); border: 1px solid #c7ddda; border-radius: 999px; font-weight: 700; }
+.empleados__volver { display: flex; }
+
+/* --- Tabla (§14.1): filas de 56–64 px, hover discreto, no tipo Excel ----- */
+.tabla-envoltura { overflow: hidden; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.tabla { width: 100%; border-collapse: collapse; }
+.tabla__th { padding: 16px 20px; color: var(--color-text-secondary); background: #f7f9f8; border-bottom: 1px solid var(--line-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.tabla__th--right { text-align: right; }
+.tabla__th--center { text-align: center; }
+.tabla__th--fila { color: var(--color-text-primary); background: transparent; font-size: 15px; font-weight: 650; letter-spacing: -.01em; text-transform: none; }
+.tabla td { height: 60px; padding: 14px 20px; color: var(--color-text-primary); border-bottom: 1px solid var(--line-soft); font-size: 14px; }
+.tabla tbody tr { transition: background 160ms ease; }
+.tabla tbody tr:hover { background: #f7f9f8; }
+.tabla tbody tr:last-child td,
+.tabla tbody tr:last-child th { border-bottom: 0; }
+
+/* --- Paginación (§14.2: "Mostrando 1–20 de 42  ← 1 2 3 →") -------------- */
+.paginacion { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.paginacion__resumen { margin: 0; color: var(--ink-soft); font-size: 13px; }
+.paginacion__resumen strong { color: var(--color-text-primary); font-weight: 700; }
+.paginacion__controles { display: flex; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.paginacion__boton { display: grid; place-items: center; min-width: 38px; height: 38px; padding: 0 10px; color: var(--color-text-secondary); background: #fff; border: 1px solid #d6ddda; border-radius: 8px; font-size: 13px; font-weight: 650; transition: border-color 160ms ease, color 160ms ease; }
+.paginacion__boton:hover:not(:disabled) { color: var(--color-brand-deep); border-color: var(--color-primary); }
+.paginacion__boton:disabled { opacity: .5; cursor: not-allowed; }
+.paginacion__boton--actual { color: #fff; background: var(--color-brand-deep); border-color: var(--color-brand-deep); }
+.paginacion__boton svg { width: 16px; height: 16px; }
+
+/* --- Adaptación a pantallas estrechas (§7): sin overflow horizontal ----- */
+@media (max-width: 760px) {
+  .tabla, .tabla tbody, .tabla tr, .tabla td, .tabla th { display: block; }
+  .tabla thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+  .tabla tbody tr { padding: 16px 18px; border-bottom: 1px solid var(--line-soft); }
+  .tabla tbody tr:last-child { border-bottom: 0; }
+  .tabla td, .tabla__th--fila { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; height: auto; padding: 4px 0; border: 0; font-size: 14px; }
+  .tabla td::before, .tabla__th--fila::before { flex: 0 0 auto; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; content: attr(data-label); }
+  .tabla__th--fila { font-size: 16px; }
+  .tabla__th--fila::before { display: none; }
+  .paginacion { justify-content: center; }
+  .paginacion__resumen { width: 100%; text-align: center; }
+}
+@media (max-width: 640px) {
+  .empleados-filtros { padding: 16px; }
+  .empleados-filtros__area { width: 100%; min-width: 0; }
+  .empleados-filtros__grupo { width: 100%; }
+  .empleados-filtros__grupo .ui-button { flex: 1 1 auto; }
+}

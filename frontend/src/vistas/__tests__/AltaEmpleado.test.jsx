@@ -73,6 +73,32 @@ describe('AltaEmpleado — formulario', () => {
     expect(screen.getByRole('form')).toBeInTheDocument()
   })
 
+  it('separa el aviso informativo del formulario sin cambiar su contenido', () => {
+    render(<AltaEmpleado token="token-rh" alSesionExpirada={vi.fn()} />)
+
+    const aviso = screen.getByText(/creará también la cuenta de acceso/)
+    const formulario = screen.getByRole('form')
+
+    // El aviso es un bloque propio ANTES del formulario, no una región de él:
+    // así el espaciado entre ambos lo controla el CSS, no el relleno interno.
+    expect(formulario).not.toContainElement(aviso)
+    expect(aviso.compareDocumentPosition(formulario) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Texto intacto.
+    expect(aviso).toHaveTextContent(
+      'El sistema creará también la cuenta de acceso con una credencial temporal para el primer acceso. Los datos laborales marcados como opcionales pueden completarse ahora o posteriormente.',
+    )
+  })
+
+  it('mantiene la asociación accesible entre el correo y el aviso', () => {
+    render(<AltaEmpleado token="token-rh" alSesionExpirada={vi.fn()} />)
+
+    const correo = screen.getByLabelText('Correo de acceso')
+    const ayuda = document.getElementById('ayuda-alta')
+
+    expect(correo).toHaveAttribute('aria-describedby', 'ayuda-alta')
+    expect(ayuda).toHaveTextContent(/credencial temporal/)
+  })
+
   it('envía el payload del contrato actual con el token de la sesión', async () => {
     vi.mocked(crearEmpleado).mockResolvedValue(CREADO)
     const alSesionExpirada = vi.fn()

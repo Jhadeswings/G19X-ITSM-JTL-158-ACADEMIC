@@ -10,6 +10,7 @@ import './estilos/alta.css'
 import './estilos/progreso.css'
 import './estilos/responsive.css'
 import './estilos/dashboard.css'
+import './estilos/empleados.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

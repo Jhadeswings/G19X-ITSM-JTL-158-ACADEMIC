@@ -1,10 +1,22 @@
 .employee-onboarding { max-width: 1120px; margin: 0 auto; }
+/* Aviso informativo: bloque propio SOBRE el formulario. El borde inferior
+   que tenía dentro del form se elimina porque ya no divide dos regiones del
+   mismo bloque; ahora separa el aviso del formulario mediante `margin-bottom`
+   y la misma escala de espaciado del resto (32/24/18 px). Sin posiciones
+   absolutas ni valores fuera de la escala. */
+.employee-form__intro { margin: 0 0 24px; padding: 20px 24px; color: var(--color-text-secondary); background: #f8faf9; border: 1px solid var(--line-soft); border-radius: 12px; line-height: 1.6; }
 .employee-form { background: #fff; border: 1px solid var(--line-soft); border-radius: 14px; box-shadow: var(--shadow-float); overflow: hidden; }
-.employee-form__intro { margin: 0; padding: 20px 32px; color: var(--color-text-secondary); background: #f8faf9; border-bottom: 1px solid var(--line-soft); line-height: 1.6; }
 .employee-form__sections { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
-.form-section { min-width: 0; margin: 0; padding: 32px; border: 0; }
+/* El `legend` se pinta en el área del borde del `fieldset`: el navegador NO
+   aplica el `padding-top` del fieldset por encima de él (lo deja debajo), así
+   que la fila "01/02" quedaba a 1 px del borde superior de la tarjeta y el
+   formulario parecía recortado por arriba. El aire superior se declara en el
+   propio `legend` y el `fieldset` conserva el resto del padding: la composición
+   vertical se corrige SIN aumentar la altura de la tarjeta (el mismo aire de
+   32 px pasa de estar debajo del encabezado a estar encima). */
+.form-section { min-width: 0; margin: 0; padding: 0 32px 32px; border: 0; }
 .form-section + .form-section { border-left: 1px solid var(--line-soft); }
-.form-section legend { display: flex; align-items: center; gap: 13px; width: 100%; padding: 0; margin-bottom: 26px; }
+.form-section legend { display: flex; align-items: center; gap: 13px; width: 100%; padding: 32px 0 0; margin-bottom: 26px; }
 .form-section legend > span { display: grid; place-items: center; width: 34px; height: 34px; color: var(--color-brand-deep); background: var(--color-primary-soft); border-radius: 50%; font-size: 11px; font-weight: 800; }
 .form-section legend div { display: flex; flex-direction: column; }
 .form-section legend strong { font-size: 15px; }

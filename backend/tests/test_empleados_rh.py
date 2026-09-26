@@ -123,6 +123,141 @@ class TestListarYPaginacion:
         ).status_code == 403
 
 
+class TestFiltroArea:
+    """Filtro ``area``: coincidencia EXACTA normalizada (PRD §20.1).
+
+    El parámetro y la columna se comparan con la MISMA transformación
+    (minúsculas, ``trim`` y espacios internos colapsados). Un área con acento
+    —"Tecnología"— debe poder filtrarse por su propio valor, el filtro NO
+    puede volverse una búsqueda parcial y el acento es significativo (no se
+    elimina): "Tecnología" y "Tecnologia" son áreas distintas.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _areas(self, db):
+        from tests.helpers import crear_cuenta, crear_empleado
+
+        self.casos = {}
+        for nombre, area in (
+            ("Empleado tecnologia", "Tecnología"),
+            ("Empleado marketing", "Marketing"),
+            ("Empleado datos", "Datos"),
+        ):
+            empleado = crear_empleado(db, nombre=nombre)
+            empleado.area = area
+            db.commit()
+            crear_cuenta(
+                db, rol="EMPLEADO", email=f"{nombre.replace(' ', '')}@empresa.dev",
+                empleado=empleado,
+            )
+            self.casos[area] = empleado.id
+
+    def _filtrar(self, client, token, area: str):
+        respuesta = client.get(
+            f"{URL_RH_EMPLEADOS}",
+            params={"area": area},
+            headers=cabecera(token),
+        )
+        assert respuesta.status_code == 200, respuesta.text
+        return respuesta.json()
+
+    def test_area_con_acento_exacta(self, client, token_rh):
+        datos = self._filtrar(client, token_rh, "Tecnología")
+        assert datos["total"] == 1
+        assert datos["items"][0]["area"] == "Tecnología"
+
+    def test_area_sin_acento_sigue_funcionando(self, client, token_rh):
+        datos = self._filtrar(client, token_rh, "Marketing")
+        assert datos["total"] == 1
+        assert datos["items"][0]["area"] == "Marketing"
+
+    def test_area_ignora_mayusculas_y_espacios(self, client, token_rh):
+        for variante in ("marketing", "MARKETING", "  Marketing  "):
+            datos = self._filtrar(client, token_rh, variante)
+            assert datos["total"] == 1, variante
+
+    def test_area_ignora_mayusculas_conservando_el_acento(self, client, token_rh):
+        for variante in ("tecnología", "TECNOLOGÍA", "  Tecnología  "):
+            datos = self._filtrar(client, token_rh, variante)
+            assert datos["total"] == 1, variante
+
+    def test_area_sin_acento_no_coincide(self, client, token_rh):
+        """Comportamiento actual: el acento es significativo (sin ``unaccent``).
+
+        La búsqueda general insensible a acentos será un bloque arquitectónico
+        independiente; aquí la coincidencia sigue siendo EXACTA.
+        """
+        for variante in ("Tecnologia", "tecnologia"):
+            datos = self._filtrar(client, token_rh, variante)
+            assert datos["total"] == 0, variante
+            assert datos["items"] == [], variante
+
+    def test_area_desconocida_devuelve_cero(self, client, token_rh):
+        datos = self._filtrar(client, token_rh, "Finanzas")
+        assert datos["total"] == 0
+        assert datos["items"] == []
+
+    @pytest.mark.parametrize("parcial", ["Tec", "Tecnolog", "colog", "Mark"])
+    def test_no_es_busqueda_parcial(self, client, token_rh, parcial):
+        """El filtro sigue siendo coincidencia EXACTA: un fragmento no basta."""
+        assert self._filtrar(client, token_rh, parcial)["total"] == 0
+
+    def test_area_vacia_no_filtra(self, client, token_rh):
+        datos = self._filtrar(client, token_rh, "")
+        assert datos["total"] >= 3
+
+    def test_area_solo_espacios_equivale_a_sin_filtro(self, client, token_rh):
+        """Un área que queda vacía al normalizar NO se vuelve un filtro vacío."""
+        sin_filtro = self._filtrar(client, token_rh, "")
+        solo_espacios = self._filtrar(client, token_rh, "   ")
+
+        assert solo_espacios["total"] == sin_filtro["total"]
+        assert solo_espacios["total"] >= 3
+
+    def test_espacios_internos_consistentes(self, client, token_rh, db):
+        """El colapso de espacios internos es simétrico en parámetro y columna.
+
+        RH pudo guardar un área con espacios repetidos; como ambos lados se
+        colapsan igual, todas las variantes equivalentes encuentran el registro.
+        """
+        from tests.helpers import crear_cuenta, crear_empleado
+
+        empleado = crear_empleado(db, nombre="Empleado espacios")
+        empleado.area = "Recursos  Humanos"  # dos espacios internos almacenados
+        db.commit()
+        crear_cuenta(
+            db, rol="EMPLEADO", email="espacios@empresa.dev", empleado=empleado
+        )
+
+        for variante in (
+            "Recursos  Humanos",  # idéntico a lo almacenado
+            "  Recursos Humanos  ",  # espacios exteriores y uno interno
+            "recursos   humanos",  # otras mayúsculas y más espacios internos
+        ):
+            datos = self._filtrar(client, token_rh, variante)
+            assert datos["total"] == 1, variante
+            assert datos["items"][0]["id"] == empleado.id
+
+    def test_el_rh_que_consulta_no_aparece_en_su_propio_filtro(self, client, token_rh, db):
+        """RH no es Empleado: el filtro no lo incluye aunque su cuenta exista.
+
+        El catálogo es de empleados; la cuenta de RH existe sin ``empleado_id``
+        (PRD §3.2) y por tanto nunca debe sumar filas al filtro por área.
+        """
+        from sqlalchemy import select
+
+        from app.models.cuenta_acceso import CuentaAcceso
+        from app.models.empleado import Empleado
+
+        rh = db.scalar(
+            select(CuentaAcceso).where(CuentaAcceso.rol == "RH")
+        )
+        assert rh is not None
+        assert rh.empleado_id is None
+        # Y el área sigue devolviendo solo al empleado de "Tecnología".
+        assert self._filtrar(client, token_rh, "Tecnología")["total"] == 1
+
+
 class TestConsultarYModificar:
     def _empleado_id(self, db) -> int:
         from tests.helpers import crear_cuenta, crear_empleado

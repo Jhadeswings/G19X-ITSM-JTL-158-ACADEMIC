@@ -38,7 +38,9 @@
   .app-content { padding: 28px 18px 48px; }
   .section-header { align-items: flex-start; flex-direction: column; }
   .section-header__title { font-size: 31px; }
-  .employee-form__intro, .form-section { padding: 24px 18px; }
+  .form-section { padding: 0 18px 24px; }
+  .form-section legend { padding-top: 24px; }
+  .employee-form__intro { padding: 20px 18px; margin-bottom: 18px; }
   .employee-form__actions { align-items: stretch; flex-direction: column; padding: 18px; }
   .employee-form__actions .ui-button { width: 100%; }
   .employee-success { margin-top: 0; padding: 34px 20px; }

@@ -9,8 +9,9 @@
 //   1. sin sesión → InicioSesion;
 //   2. credencial temporal → CambioContrasena (PRD §3.3: el backend bloquea
 //      el resto de endpoints mientras must_change_password = true), sin shell;
-//   3. rol RH → shell con las ocho secciones del Style Guide §10; solo
-//      "Empleados" es funcional en esta etapa (alta, PRD §3.3);
+//   3. rol RH → shell con las ocho secciones del Style Guide §10; "Empleados"
+//      es un catálogo con el alta integrada como subvista interna
+//      (listado ↕ alta, PRD §20.1 + §3.3);
 //   4. Empleado con contraseña definitiva → shell de Empleado con las seis
 //      secciones del Style Guide §10; solo "Mi progreso" es funcional (§21.2).
 
@@ -32,7 +33,7 @@ import {
   SECCION_RH_INICIAL,
 } from './navegacion.js'
 import InicioRH from './vistas/InicioRH.jsx'
-import AltaEmpleado from './vistas/AltaEmpleado.jsx'
+import Empleados from './vistas/Empleados.jsx'
 import MiProgreso from './vistas/MiProgreso.jsx'
 import SeccionTemporal from './vistas/SeccionTemporal.jsx'
 
@@ -122,7 +123,7 @@ function App() {
             onVerEmpleados={() => setSeccion('empleados')}
           />
         ) : activaRh.id === 'empleados' ? (
-          <AltaEmpleado token={sesion.token} alSesionExpirada={cerrarSesion} />
+          <Empleados token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : (
           <SeccionTemporal titulo={activaRh.titulo} />
         )}

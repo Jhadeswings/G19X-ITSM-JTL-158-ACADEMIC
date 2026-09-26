@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { limpiarSesion, obtenerSesion } from '../api/autenticacion.js'
 import { obtenerCuenta } from '../api/cuenta.js'
 import { obtenerProgreso } from '../api/progreso.js'
-import { obtenerAtencionRequerida, obtenerEmpleadosActivos, obtenerProyectosActivos } from '../api/dashboardRh.js'
+import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequerida } from '../api/dashboardRh.js'
+import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
 import App from '../App.jsx'
 import { SECCIONES_EMPLEADO, SECCIONES_RH } from '../navegacion.js'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
@@ -23,6 +24,10 @@ vi.mock('../api/autenticacion.js', () => ({
 vi.mock('../api/cuenta.js', () => ({ obtenerCuenta: vi.fn() }))
 vi.mock('../api/progreso.js', () => ({ obtenerProgreso: vi.fn() }))
 vi.mock('../api/dashboardRh.js', () => ({ obtenerAtencionRequerida: vi.fn(), obtenerEmpleadosActivos: vi.fn(), obtenerProyectosActivos: vi.fn() }))
+vi.mock('../api/empleados.js', async () => {
+  const original = await vi.importActual('../api/empleados.js')
+  return { ...original, listarEmpleados: vi.fn() }
+})
 
 const EMPLEADO = { token: 'token-empleado', rol: 'EMPLEADO', mustChangePassword: false }
 const EMPLEADO_TEMPORAL = { token: 'token-temporal', rol: 'EMPLEADO', mustChangePassword: true }
@@ -36,6 +41,16 @@ beforeEach(() => {
   vi.mocked(obtenerEmpleadosActivos).mockReset()
   vi.mocked(obtenerProyectosActivos).mockReset()
   vi.mocked(obtenerAtencionRequerida).mockReset()
+  vi.mocked(listarEmpleados).mockReset()
+  vi.mocked(listarEmpleados).mockResolvedValue({
+    total: 12,
+    pagina: 1,
+    por_pagina: POR_PAGINA_DEFECTO,
+    items: [
+      { id: 1, nombre: 'Ana López', puesto: 'Analista', area: 'TI', activo: true },
+      { id: 2, nombre: 'Luis Pérez', puesto: 'Desarrollador', area: 'Datos', activo: false },
+    ],
+  })
   vi.mocked(obtenerCuenta).mockResolvedValue({
     email: 'persona@empresa.dev',
     empleado_nombre: 'Ana López',
@@ -290,7 +305,7 @@ describe('Shell de RH — navegación', () => {
     expect(obtenerProgreso).not.toHaveBeenCalled()
   })
 
-  it('volver a Empleados recupera el formulario de alta', async () => {
+  it('volver a Empleados recupera el catálogo de empleados', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
     await screen.findByRole('heading', { name: 'Empleados activos' })
@@ -298,12 +313,32 @@ describe('Shell de RH — navegación', () => {
     abrir('Mentoría')
     abrir('Empleados')
 
-    expect(
-      screen.getByRole('button', { name: 'Crear empleado' }),
-    ).toBeInTheDocument()
+    // La sección ahora es un catálogo: el alta se entra con una acción propia.
+    expect(screen.getByRole('button', { name: 'Registrar empleado' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Crear empleado' })).not.toBeInTheDocument()
     expect(
       within(navegacion()).getByRole('button', { name: 'Empleados' }),
     ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('"Ver empleados" lleva al listado, no al formulario de alta', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    vi.mocked(obtenerAtencionRequerida).mockResolvedValue({
+      total: 1,
+      items: [{ empleado_id: 1, nombre: 'Ana López', motivos: ['PERFIL_INCOMPLETO'] }],
+    })
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver empleados' }))
+
+    // El header y el SectionHeader de la vista titulan la sección (mismo
+    // patrón que InicioRH), así que se verifican las dos coincidencias.
+    expect(
+      (await screen.findAllByRole('heading', { level: 1, name: 'Empleados' })).length,
+    ).toBeGreaterThan(0)
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Registrar empleado' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Crear empleado' })).not.toBeInTheDocument()
   })
 
   it('el cierre de sesión sigue funcionando desde el shell de RH', async () => {

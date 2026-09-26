@@ -19,7 +19,6 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.normalizacion import normalizar_nombre
 from app.core.security import hash_password, validar_politica_password
 from app.models.cuenta_acceso import CuentaAcceso
 from app.models.empleado import Empleado
@@ -30,6 +29,41 @@ logger = logging.getLogger(__name__)
 
 MAX_POR_PAGINA = 100
 POR_PAGINA_DEFECTO = 20
+
+
+def _normalizar_para_comparacion(texto: str | None) -> str:
+    """Normaliza un valor de área para compararlo con la columna.
+
+    Transformación: minúsculas, sin espacios exteriores y con los espacios
+    internos colapsados. Es EXACTAMENTE la misma que ``_area_normalizada_sql``
+    aplica sobre la columna, de modo que ambos lados de la comparación son
+    simétricos.
+
+    Se mantiene la igualdad EXACTA (no hay ``contains`` ni búsqueda parcial) y
+    el acento es significativo: "Tecnología" coincide con "Tecnología" en
+    cualquier combinación de mayúsculas y espacios, pero no con "Tecnologia".
+
+    Por qué NO se usa aquí ``normalizar_nombre`` (§7, que además descompone
+    Unicode y elimina diacríticos): la columna conserva los acentos tal cual
+    los escribió RH, así que aplicarlo solo al parámetro dejaba el filtro vacío.
+    Desacoplar ambos lados no exige ``unaccent`` ni migración de esquema.
+    """
+    if not texto:
+        return ""
+    return " ".join(texto.strip().lower().split())
+
+
+def _area_normalizada_sql():
+    """Expresión SQL equivalente a ``_normalizar_para_comparacion``.
+
+    ``regexp_replace`` pertenece al núcleo de PostgreSQL (no requiere ninguna
+    extensión): colapsa cualquier secuencia de espacios en un único espacio y
+    el ``trim`` exterior elimina el que queda en los extremos. Así la columna
+    recibe la MISMA transformación que el parámetro, sin volver la comparación
+    parcial ni insensible a acentos.
+    """
+    colapsada = func.regexp_replace(func.lower(Empleado.area), r"\s+", " ", "g")
+    return func.trim(colapsada)
 
 
 def generar_credencial_temporal() -> str:
@@ -125,8 +159,11 @@ def listar_empleados(
     filtros = []
     if activo is not None:
         filtros.append(Empleado.activo.is_(activo))
-    if area:
-        filtros.append(func.lower(func.trim(Empleado.area)) == normalizar_nombre(area))
+    # Un área que queda vacía al normalizar ("" o solo espacios) equivale a NO
+    # filtrar, igual que el frontend, que omite el parámetro cuando queda vacío.
+    area_normalizada = _normalizar_para_comparacion(area)
+    if area_normalizada:
+        filtros.append(_area_normalizada_sql() == area_normalizada)
 
     consulta = select(Empleado).options(joinedload(Empleado.cuenta))
     if filtros:
