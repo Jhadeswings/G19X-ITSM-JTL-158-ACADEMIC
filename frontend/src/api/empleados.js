@@ -26,6 +26,23 @@ export async function crearEmpleado(token, datos) {
   })
 }
 
+// Detalle de un empleado por RH (PRD §20.1; Especificación Técnica §31).
+//
+// Usa EXCLUSIVAMENTE el endpoint existente GET /api/v1/rh/employees/{id},
+// que devuelve el EmpleadoOut del backend sin transformar.
+
+/**
+ * Consulta un empleado por su identificador.
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} empleadoId identificador del empleado (`empleado.id`).
+ * @returns {Promise<object>} EmpleadoOut del backend, sin transformar.
+ */
+export async function obtenerEmpleado(token, empleadoId) {
+  return solicitar(`/api/v1/rh/employees/${encodeURIComponent(empleadoId)}`, {
+    token,
+  })
+}
+
 // Listado administrativo de empleados (PRD §20.1; ET §31, §40).
 //
 // Usa EXCLUSIVAMENTE los parámetros que el backend ya acepta: `pagina`,

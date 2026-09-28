@@ -3,7 +3,12 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { solicitar } from '../clienteApi.js'
-import { crearEmpleado, listarEmpleados, POR_PAGINA_DEFECTO } from '../empleados.js'
+import {
+  crearEmpleado,
+  listarEmpleados,
+  obtenerEmpleado,
+  POR_PAGINA_DEFECTO,
+} from '../empleados.js'
 
 vi.mock('../clienteApi.js', () => ({ solicitar: vi.fn() }))
 
@@ -193,5 +198,43 @@ describe('empleados — listado por RH', () => {
     vi.mocked(solicitar).mockRejectedValue(error)
 
     await expect(listarEmpleados('token-rh', {})).rejects.toBe(error)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Detalle (PRD §20.1): GET /api/v1/rh/employees/{id}, sin transformar.
+// ---------------------------------------------------------------------------
+describe('empleados — detalle por RH', () => {
+  it('construye la URL con el empleadoId y envía el token', async () => {
+    vi.mocked(solicitar).mockResolvedValue({ id: 7 })
+
+    await obtenerEmpleado('token-rh', 7)
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/employees/7', {
+      token: 'token-rh',
+    })
+  })
+
+  it('devuelve los datos del backend sin transformarlos', async () => {
+    const respuesta = {
+      id: 7,
+      nombre: 'Ana López',
+      puesto: 'Analista de datos',
+      area: 'TI',
+      fecha_ingreso: '2024-03-01',
+      activo: true,
+      cuenta: { email: 'ana@empresa.dev', rol: 'EMPLEADO' },
+    }
+    vi.mocked(solicitar).mockResolvedValue(respuesta)
+
+    await expect(obtenerEmpleado('token-rh', 7)).resolves.toEqual(respuesta)
+  })
+
+  it('propaga el error del endpoint con su estado HTTP', async () => {
+    const error = Object.assign(new Error('no encontrado'), { estado: 404 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(obtenerEmpleado('token-rh', 999)).rejects.toBe(error)
   })
 })

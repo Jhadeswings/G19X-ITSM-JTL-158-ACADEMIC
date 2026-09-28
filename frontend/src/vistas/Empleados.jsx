@@ -1,10 +1,12 @@
 // Sección RH → Empleados (PRD §20.1; Style Guide §14.1, §14.2, §14.4, §26;
 // Especificación Técnica §31, §40).
 //
-// La sección tiene DOS subvistas internas —LISTADO y ALTA— y UNA sola entrada
+// La sección tiene TRES subvistas internas —LISTADO, ALTA y PERFIL— y UNA sola entrada
 // en la navegación lateral: el Style Guide §10 fija ocho secciones de RH y
 // esta es la de Empleados. El alta no abre modal (§21: nada de modales para
-// tareas simples realizables en página).
+// tareas simples realizables en página). El perfil se abre desde una fila del
+// listado con el `empleado.id` directo y muestra solo la información básica
+// del EmpleadoOut (GET /api/v1/rh/employees/{id}).
 //
 // Contrato: se usa EXCLUSIVAMENTE GET /api/v1/rh/employees con los parámetros
 // que el backend ya acepta (pagina, por_pagina, activo, area). NO hay filtrado
@@ -30,6 +32,7 @@ import { Button } from '../componentes/ui/Button.jsx'
 import Pagination from '../componentes/ui/Pagination.jsx'
 import Table from '../componentes/ui/Table.jsx'
 import AltaEmpleado from './AltaEmpleado.jsx'
+import PerfilEmpleado from './PerfilEmpleado.jsx'
 
 // Columnas EXACTAS del PRD §20.1. Las competencias quedan fuera de la tabla
 // principal (Style Guide §26) y el correo no es columna principal.
@@ -61,6 +64,7 @@ function consultaInicial() {
 
 export default function Empleados({ token, alSesionExpirada }) {
   const [vista, setVista] = useState('listado')
+  const [empleadoId, setEmpleadoId] = useState(null)
   const [pagina, setPagina] = useState(1)
   const [estado, setEstado] = useState('todos')
   const [area, setArea] = useState('')
@@ -99,10 +103,24 @@ export default function Empleados({ token, alSesionExpirada }) {
     setVista('alta')
   }
 
+  // El perfil se abre con el `empleado.id` directo de la fila: la consulta
+  // del detalle vive en PerfilEmpleado (una sola petición por apertura).
+  function abrirPerfil(id) {
+    setEmpleadoId(id)
+    setVista('perfil')
+  }
+
   function volverAlListado() {
     setVista('listado')
     setPagina(1)
     cargar()
+  }
+
+  // Volver desde el perfil conserva el listado ya cargado: no se recarga ni
+  // se reconstruye la sección, solo se cambia la subvista interna.
+  function volverDesdePerfil() {
+    setVista('listado')
+    setEmpleadoId(null)
   }
 
   function cambiarEstado(nuevoEstado) {
@@ -116,6 +134,19 @@ export default function Empleados({ token, alSesionExpirada }) {
     setPagina(1)
   }
 
+
+  if (vista === 'perfil' && empleadoId !== null && empleadoId !== undefined) {
+    return (
+      <div className="empleados">
+        <PerfilEmpleado
+          token={token}
+          empleadoId={empleadoId}
+          alVolver={volverDesdePerfil}
+          alSesionExpirada={alSesionExpirada}
+        />
+      </div>
+    )
+  }
 
   if (vista === 'alta') {
     return (
@@ -229,7 +260,9 @@ export default function Empleados({ token, alSesionExpirada }) {
             {items.map((empleado) => (
               <tr key={empleado.id}>
                 <th scope="row" className="tabla__th tabla__th--fila" data-label="Empleado">
-                  {empleado.nombre}
+                  <Button variant="ghost" size="small" onClick={() => abrirPerfil(empleado.id)}>
+                    {empleado.nombre}
+                  </Button>
                 </th>
                 <td data-label="Puesto">{empleado.puesto || SIN_DATO}</td>
                 <td data-label="Área">{empleado.area || SIN_DATO}</td>
