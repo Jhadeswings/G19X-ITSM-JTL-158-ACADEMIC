@@ -50,6 +50,9 @@
   .growth-current { padding: 28px 20px; }
   .competencias { grid-template-columns: 1fr; }
   .competencia { min-height: 240px; }
+  /* Evidencia: en móvil cada dato ya apila etiqueta → valor; se conserva
+     el aire entre datos y el wrapping natural de etiquetas largas. */
+  .competencia__evidencia { gap: 12px; }
   .growth-section--criteria, .growth-section--ia, .transparencia, .categorias { padding: 22px 18px; }
   .como-se-obtienen__fila { grid-template-columns: 1fr; gap: 7px; }
   .transparencia__lista { grid-template-columns: 1fr; }

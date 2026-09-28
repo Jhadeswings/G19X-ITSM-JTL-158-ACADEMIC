@@ -65,13 +65,15 @@ describe('MiProgreso — competencias (dato del sistema)', () => {
     expect(screen.queryByText('0 ·')).not.toBeInTheDocument()
   })
 
-  it('muestra la evidencia recibida del backend tal cual', async () => {
+  it('muestra la evidencia recibida del backend en lista de datos', async () => {
     vi.mocked(obtenerProgreso).mockResolvedValue(crearRespuesta())
     render(<MiProgreso token="t" />)
     await waitFor(() =>
       screen.getByRole('heading', { name: 'Competencias' }),
     )
-    expect(screen.getByText(/coordinó tareas: 3/)).toBeInTheDocument()
+    const tarjeta = screen.getByRole('article', { name: /Liderazgo/ })
+    expect(within(tarjeta).getByText('coordinó tareas')).toBeInTheDocument()
+    expect(within(tarjeta).getAllByText('3')).toHaveLength(2)
   })
 })
 

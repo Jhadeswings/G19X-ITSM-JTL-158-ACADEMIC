@@ -150,6 +150,10 @@ body {
   color: var(--color-text-secondary);
 }
 
+/* La lista de datos de `CompetenciaCard` define su propia jerarquía en
+   `estilos/progreso.css` (importado después): aquí solo se conserva el
+   margen heredado para no duplicar el bloque. */
+
 /* ¿Cómo se obtienen? */
 .como-se-obtienen {
   margin: 0;
