@@ -7,6 +7,7 @@ import {
   crearEmpleado,
   listarEmpleados,
   obtenerEmpleado,
+  obtenerResultadoActual,
   POR_PAGINA_DEFECTO,
 } from '../empleados.js'
 
@@ -236,5 +237,98 @@ describe('empleados — detalle por RH', () => {
     vi.mocked(solicitar).mockRejectedValue(error)
 
     await expect(obtenerEmpleado('token-rh', 999)).rejects.toBe(error)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Resultado actual (PRD §9/§20.2; ET §31): GET /rh/employees/{id}/result.
+// Solo lectura: sin transformación, sin ramas por estado del empleado.
+// ---------------------------------------------------------------------------
+describe('empleados — resultado actual por RH', () => {
+  const RESULTADO = {
+    empleado_id: 7,
+    competencias: [
+      { clave: 'desempeno_tecnico', estado: 'CALCULABLE', nivel: 5, valor: '100.00', etiqueta: 'Alto', evidencia: {} },
+      { clave: 'liderazgo', estado: 'CALCULABLE', nivel: 3, valor: '60.00', etiqueta: 'En crecimiento', evidencia: {} },
+      { clave: 'trabajo_equipo', estado: 'CALCULABLE', nivel: 5, valor: '100.00', etiqueta: 'Alto', evidencia: {} },
+      { clave: 'comunicacion', estado: 'CALCULABLE', nivel: 5, valor: '100.00', etiqueta: 'Alto', evidencia: {} },
+      { clave: 'aprendizaje', estado: 'CALCULABLE', nivel: 3, valor: '2.80', etiqueta: 'En crecimiento', evidencia: {} },
+    ],
+    experiencia: {
+      fecha_ingreso: '2024-03-01',
+      anios_antiguedad: '2.55',
+      proyectos_unicos: 3,
+    },
+    fortalezas: ['desempeno_tecnico', 'trabajo_equipo', 'comunicacion'],
+    oportunidades: [],
+  }
+
+  it('llama a GET /api/v1/rh/employees/{id}/result con el token de la sesión', async () => {
+    vi.mocked(solicitar).mockResolvedValue(RESULTADO)
+
+    await obtenerResultadoActual('token-rh', 7)
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/employees/7/result', {
+      token: 'token-rh',
+    })
+  })
+
+  it('construye la URL con el empleadoId y sin parámetros extra', async () => {
+    vi.mocked(solicitar).mockResolvedValue(RESULTADO)
+
+    await obtenerResultadoActual('token-rh', 42)
+
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toBe('/api/v1/rh/employees/42/result')
+    expect(ruta).not.toContain('?')
+    expect(opciones).toEqual({ token: 'token-rh' })
+    expect(opciones.metodo).toBeUndefined()
+  })
+
+  it('devuelve la respuesta del backend sin transformarla', async () => {
+    vi.mocked(solicitar).mockResolvedValue(RESULTADO)
+
+    await expect(obtenerResultadoActual('token-rh', 7)).resolves.toEqual(RESULTADO)
+  })
+
+  it('conserva los estados DI con nivel nulo sin interpretarlos', async () => {
+    const conDi = {
+      ...RESULTADO,
+      competencias: RESULTADO.competencias.map((competencia) =>
+        competencia.clave === 'comunicacion'
+          ? { clave: 'comunicacion', estado: 'INSUFFICIENT_DATA', nivel: null, valor: null, etiqueta: null, evidencia: {} }
+          : competencia,
+      ),
+    }
+    vi.mocked(solicitar).mockResolvedValue(conDi)
+
+    const respuesta = await obtenerResultadoActual('token-rh', 7)
+
+    const comunicacion = respuesta.competencias.find((c) => c.clave === 'comunicacion')
+    expect(comunicacion.estado).toBe('INSUFFICIENT_DATA')
+    expect(comunicacion.nivel).toBeNull()
+    expect(comunicacion.etiqueta).toBeNull()
+  })
+
+  it('propaga los errores de la capa existente con su estado HTTP', async () => {
+    const error = Object.assign(new Error('no encontrado'), { estado: 404 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(obtenerResultadoActual('token-rh', 999)).rejects.toBe(error)
+  })
+
+  it('propaga un 500 para que la vista muestre su estado de error', async () => {
+    const error = Object.assign(new Error('fallo del servidor'), { estado: 500 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(obtenerResultadoActual('token-rh', 7)).rejects.toBe(error)
+  })
+
+  it('propaga un 401 sin transformarlo (la vista decide la sesión expirada)', async () => {
+    const error = Object.assign(new Error('Credenciales inválidas.'), { estado: 401 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(obtenerResultadoActual('token-rh', 7)).rejects.toBe(error)
   })
 })

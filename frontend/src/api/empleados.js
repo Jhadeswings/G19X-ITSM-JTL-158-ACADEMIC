@@ -43,6 +43,32 @@ export async function obtenerEmpleado(token, empleadoId) {
   })
 }
 
+// Resultado actual vigente de un empleado (PRD §9/§20.2; ET §31, §42).
+//
+// Usa EXCLUSIVAMENTE el endpoint existente GET /api/v1/rh/employees/{id}/result,
+// que devuelve el ResultadoActualDTO del backend sin transformar: cinco
+// competencias con `estado` (CALCULABLE | INSUFFICIENT_DATA), `nivel` nulo
+// cuando es DI, experiencia como contexto, fortalezas y oportunidades.
+//
+// Es una lectura DINÁMICA del estado actual (nunca un snapshot histórico)
+// y no se persiste nada. Aquí no se calcula ni se interpreta nada: el
+// backend es el único dueño de las reglas (ET §13). Sin ramas por estado
+// del empleado: el contrato es neutral respecto a `activo` (solo 404 si el
+// empleado no existe).
+
+/**
+ * Consulta el resultado actual de un empleado (RH).
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} empleadoId identificador del empleado (`empleado.id`).
+ * @returns {Promise<object>} ResultadoActualDTO del backend, sin transformar.
+ */
+export async function obtenerResultadoActual(token, empleadoId) {
+  return solicitar(
+    `/api/v1/rh/employees/${encodeURIComponent(empleadoId)}/result`,
+    { token },
+  )
+}
+
 // Listado administrativo de empleados (PRD §20.1; ET §31, §40).
 //
 // Usa EXCLUSIVAMENTE los parámetros que el backend ya acepta: `pagina`,

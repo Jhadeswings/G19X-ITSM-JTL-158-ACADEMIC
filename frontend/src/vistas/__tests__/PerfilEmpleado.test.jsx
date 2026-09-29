@@ -15,7 +15,7 @@
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listarEmpleados, obtenerEmpleado, POR_PAGINA_DEFECTO } from '../../api/empleados.js'
+import { listarEmpleados, obtenerEmpleado, obtenerResultadoActual, POR_PAGINA_DEFECTO } from '../../api/empleados.js'
 import {
   listarEvaluacionesEmpleado,
   POR_PAGINA_DEFECTO as POR_PAGINA_EVALUACIONES,
@@ -30,6 +30,7 @@ vi.mock('../../api/empleados.js', async () => {
     listarEmpleados: vi.fn(),
     crearEmpleado: vi.fn(),
     obtenerEmpleado: vi.fn(),
+    obtenerResultadoActual: vi.fn(),
   }
 })
 
@@ -161,11 +162,65 @@ function tarjeta(titulo) {
   return within(screen.getByRole('heading', { name: titulo }).closest('section'))
 }
 
+// Resultado actual vigente (ResultadoActualDTO). A propósito usa `estado` y
+// `etiqueta` — NO `status` como el snapshot histórico — e incluye campos que
+// el bloque NO debe mostrar (valor, evidencia, experiencia, fortalezas,
+// oportunidades) para poder verificar que se ignoran.
+const RESULTADO_ACTUAL = {
+  empleado_id: 1,
+  competencias: [
+    { clave: 'desempeno_tecnico', estado: 'CALCULABLE', nivel: 5, valor: '100.00', evidencia: { proyectos_completados: 3 }, etiqueta: 'Alto' },
+    { clave: 'liderazgo', estado: 'CALCULABLE', nivel: 4, valor: '80.00', evidencia: { participaciones: 3 }, etiqueta: 'Consolidado' },
+    { clave: 'trabajo_equipo', estado: 'CALCULABLE', nivel: 3, valor: '60.00', evidencia: { participaciones: 3 }, etiqueta: 'En crecimiento' },
+    { clave: 'comunicacion', estado: 'CALCULABLE', nivel: 2, valor: '40.00', evidencia: { participaciones: 3 }, etiqueta: 'En desarrollo' },
+    { clave: 'aprendizaje', estado: 'CALCULABLE', nivel: 1, valor: '1.40', evidencia: { proyectos_unicos: 1 }, etiqueta: 'Inicial' },
+  ],
+  experiencia: {
+    fecha_ingreso: '2024-03-01',
+    anios_antiguedad: '2.55',
+    proyectos_unicos: 3,
+  },
+  fortalezas: ['desempeno_tecnico', 'liderazgo'],
+  oportunidades: ['comunicacion', 'aprendizaje'],
+}
+
+/** Resultado actual con UNA competencia en DI (parcial). */
+function resultadoActualDiParcial() {
+  return {
+    ...RESULTADO_ACTUAL,
+    competencias: RESULTADO_ACTUAL.competencias.map((competencia) =>
+      competencia.clave === 'comunicacion'
+        ? { clave: 'comunicacion', estado: 'INSUFFICIENT_DATA', nivel: null, valor: null, evidencia: {}, etiqueta: null }
+        : competencia,
+    ),
+  }
+}
+
+/** Resultado actual con las CINCO competencias en DI (total). */
+function resultadoActualDiTotal() {
+  return {
+    ...RESULTADO_ACTUAL,
+    competencias: RESULTADO_ACTUAL.competencias.map((competencia) => ({
+      ...competencia,
+      estado: 'INSUFFICIENT_DATA',
+      nivel: null,
+      valor: null,
+      evidencia: {},
+      etiqueta: null,
+    })),
+  }
+}
+
+let respuestaResultado = () => Promise.resolve(RESULTADO_ACTUAL)
+
 beforeEach(() => {
   respuestaUltima = () => Promise.resolve(paginaEvaluacion())
   respuestaHistorial = () => Promise.resolve(paginaHistorial())
+  respuestaResultado = () => Promise.resolve(RESULTADO_ACTUAL)
   vi.mocked(listarEmpleados).mockReset()
   vi.mocked(obtenerEmpleado).mockReset()
+  vi.mocked(obtenerResultadoActual).mockReset()
+  vi.mocked(obtenerResultadoActual).mockImplementation(() => respuestaResultado())
   vi.mocked(listarEvaluacionesEmpleado).mockReset()
   vi.mocked(listarEvaluacionesEmpleado).mockImplementation((_token, _id, opciones = {}) =>
     opciones?.porPagina === 1 ? respuestaUltima() : respuestaHistorial(),
@@ -212,10 +267,10 @@ describe('PerfilEmpleado — información básica', () => {
 
     await screen.findByText('Información básica')
 
-    // La última evaluación histórica SÍ existe ahora; lo que sigue prohibido
-    // es adelantar resultado actual, evolución, fortalezas/oportunidades,
-    // recomendación IA o un 9-Box "actual" independiente.
-    expect(screen.queryByText(/resultado actual/i)).not.toBeInTheDocument()
+    // La última evaluación histórica SÍ existe ahora, y Resultado actual es
+    // el bloque aprobado de esta fase; lo que sigue prohibido es adelantar
+    // evolución, fortalezas/oportunidades, recomendación IA o un 9-Box
+    // "actual" independiente.
     expect(screen.queryByText(/evoluci/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/fortalezas/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/oportunidades/i)).not.toBeInTheDocument()
@@ -647,5 +702,257 @@ describe('PerfilEmpleado — historial de evaluaciones', () => {
     expect(
       screen.queryByText('No pudimos cargar el historial de evaluaciones'),
     ).not.toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Resultado actual (PRD §9/§20.2; ET §42): bloque compacto con las cinco
+// competencias del estado PRESENTE. Distinto del snapshot de "Última
+// evaluación": aquí `estado`/`etiqueta`, nunca `status`. Sin evidencia,
+// experiencia, 9-Box, IA ni indicadores ajenos al contrato.
+// ---------------------------------------------------------------------------
+describe('PerfilEmpleado — resultado actual', () => {
+  it('consulta el resultado actual exactamente una vez con token y empleadoId', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'Resultado actual' }),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(obtenerResultadoActual).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(obtenerResultadoActual).mock.calls[0]).toEqual(['token-rh', 1])
+  })
+
+  it('muestra su estado de carga propio sin bloquear la información básica', async () => {
+    respuestaResultado = () => new Promise(() => {})
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Información básica')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Resultado actual' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Cargando resultado actual…')).toBeInTheDocument()
+    // El resto del perfil no depende de esta consulta pendiente.
+    expect(screen.getByText('Última evaluación')).toBeInTheDocument()
+  })
+
+  it('muestra las cinco competencias en el orden contractual del backend', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Nivel 5 · Alto')).toBeInTheDocument()
+
+    const nombres = tarjeta('Resultado actual')
+      .getAllByRole('term')
+      .map((nodo) => nodo.textContent)
+    expect(nombres).toEqual([
+      'Desempeño técnico',
+      'Liderazgo',
+      'Trabajo en equipo',
+      'Comunicación',
+      'Capacidad de aprendizaje',
+    ])
+  })
+
+  it('muestra "Nivel X · Etiqueta" para cada competencia CALCULABLE', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Nivel 5 · Alto')).toBeInTheDocument()
+    const seccion = tarjeta('Resultado actual')
+    for (const lectura of [
+      'Nivel 5 · Alto',
+      'Nivel 4 · Consolidado',
+      'Nivel 3 · En crecimiento',
+      'Nivel 2 · En desarrollo',
+      'Nivel 1 · Inicial',
+    ]) {
+      expect(seccion.getByText(lectura)).toBeInTheDocument()
+    }
+    expect(seccion.queryByText('— Datos insuficientes')).not.toBeInTheDocument()
+  })
+
+
+  it('muestra DI parcial como texto neutro sin convertirlo en 0', async () => {
+    respuestaResultado = () => Promise.resolve(resultadoActualDiParcial())
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Nivel 5 · Alto')).toBeInTheDocument()
+    const seccion = tarjeta('Resultado actual')
+    expect(seccion.getAllByText('— Datos insuficientes')).toHaveLength(1)
+    // Las competencias calculables siguen mostrando su lectura completa.
+    expect(seccion.getByText('Nivel 1 · Inicial')).toBeInTheDocument()
+    expect(seccion.getByText('Nivel 4 · Consolidado')).toBeInTheDocument()
+    expect(seccion.queryByText('Nivel 0')).not.toBeInTheDocument()
+    expect(seccion.queryByText(/0 ·/)).not.toBeInTheDocument()
+    // DI neutro: jamás un estado de error dentro del bloque.
+    expect(
+      seccion.queryByText('No pudimos cargar el resultado actual'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('muestra las cinco competencias en DI cuando todas carecen de evidencia', async () => {
+    respuestaResultado = () => Promise.resolve(resultadoActualDiTotal())
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Información básica')).toBeInTheDocument()
+    const seccion = tarjeta('Resultado actual')
+    expect(seccion.getAllByText('— Datos insuficientes')).toHaveLength(5)
+    expect(seccion.queryByText(/Nivel/)).not.toBeInTheDocument()
+    expect(seccion.queryByText('Nivel 0')).not.toBeInTheDocument()
+    // DI total es estado válido: la tarjeta existe y no es un error.
+    expect(
+      screen.queryByText('No pudimos cargar el resultado actual'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Última evaluación')).toBeInTheDocument()
+  })
+
+  it('muestra error propio y el reintento repite únicamente su consulta', async () => {
+    let fallos = 0
+    respuestaResultado = () =>
+      fallos++ === 0
+        ? Promise.reject(Object.assign(new Error('fallo del servidor'), { estado: 500 }))
+        : Promise.resolve(RESULTADO_ACTUAL)
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(
+      await screen.findByText('No pudimos cargar el resultado actual'),
+    ).toBeInTheDocument()
+    // Las demás secciones siguen intactas durante el error.
+    expect(screen.getByText('Información básica')).toBeInTheDocument()
+    expect(screen.getByText('2026-Q3')).toBeInTheDocument()
+
+    const evaluacionesAntes =
+      llamadasDe(1).length + llamadasDe(POR_PAGINA_EVALUACIONES).length
+    const basicasAntes = vi.mocked(obtenerEmpleado).mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+
+    expect(await screen.findByText('Nivel 5 · Alto')).toBeInTheDocument()
+    expect(obtenerResultadoActual).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(obtenerResultadoActual).mock.calls[1]).toEqual(['token-rh', 1])
+    // El retry NO reejecuta información básica ni evaluaciones.
+    expect(
+      llamadasDe(1).length + llamadasDe(POR_PAGINA_EVALUACIONES).length,
+    ).toBe(evaluacionesAntes)
+    expect(vi.mocked(obtenerEmpleado).mock.calls.length).toBe(basicasAntes)
+  })
+
+
+  it('cierra la sesión ante un 401 sin mostrar un estado de error', async () => {
+    const alSesionExpirada = vi.fn()
+    respuestaResultado = () =>
+      Promise.reject(Object.assign(new Error('Credenciales inválidas.'), { estado: 401 }))
+
+    render(
+      <PerfilEmpleado
+        token="token-rh"
+        empleadoId={1}
+        alVolver={() => {}}
+        alSesionExpirada={alSesionExpirada}
+      />,
+    )
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByText('No pudimos cargar el resultado actual'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Información básica')).toBeInTheDocument()
+  })
+
+  it('queda antes de Última evaluación sin bloquear las otras secciones', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Nivel 5 · Alto')).toBeInTheDocument()
+    expect(screen.getByText('Información básica')).toBeInTheDocument()
+    expect(screen.getByText('2026-Q3')).toBeInTheDocument()
+    expect(screen.getByText('Historial de evaluaciones')).toBeInTheDocument()
+
+    const encabezados = screen.getAllByRole('heading').map((h) => h.textContent)
+    expect(encabezados.indexOf('Resultado actual')).toBeGreaterThan(
+      encabezados.indexOf('Información básica'),
+    )
+    expect(encabezados.indexOf('Resultado actual')).toBeLessThan(
+      encabezados.indexOf('Última evaluación'),
+    )
+  })
+
+  it('no muestra evidencia, "¿Cómo se obtiene?" ni valor/porcentaje en el bloque', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Nivel 5 · Alto')).toBeInTheDocument()
+    const seccion = tarjeta('Resultado actual')
+
+    expect(seccion.queryByText(/evidencia/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/Cómo se obtiene/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/%/)).not.toBeInTheDocument()
+    // `valor` y contadores de `evidencia` llegan en el DTO pero no se pintan.
+    for (const crudo of [
+      '100.00',
+      '80.00',
+      '60.00',
+      '40.00',
+      '1.40',
+      'proyectos_completados',
+      'participaciones',
+      'proyectos_unicos',
+    ]) {
+      expect(seccion.queryByText(crudo)).not.toBeInTheDocument()
+    }
+  })
+
+  it('no muestra experiencia, fortalezas, oportunidades ni 9-Box en el bloque', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Nivel 5 · Alto')).toBeInTheDocument()
+    const seccion = tarjeta('Resultado actual')
+
+    expect(seccion.queryByText(/experiencia/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/antigüedad/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/fortalezas/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/oportunidades/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/9-Box/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText('2024-03-01')).not.toBeInTheDocument()
+    expect(seccion.queryByText('2.55')).not.toBeInTheDocument()
+    // Fuera del bloque, el 9-Box del snapshot histórico sí continúa presente.
+    expect(screen.getByText('9-Box histórico')).toBeInTheDocument()
+  })
+
+  it('no muestra IA, recomendaciones, ranking, score global ni "de 5"', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Nivel 5 · Alto')).toBeInTheDocument()
+    const seccion = tarjeta('Resultado actual')
+
+    expect(seccion.queryByText(/recomendaci/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/\bIA\b/)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/ranking/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/score/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/promedio/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/de 5/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/porcentaje/i)).not.toBeInTheDocument()
   })
 })

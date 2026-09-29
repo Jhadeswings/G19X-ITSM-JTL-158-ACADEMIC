@@ -63,12 +63,14 @@
    superficie blanca, borde suave y radio 12 px. Sin paleta nueva. */
 .perfil-empleado { display: flex; flex-direction: column; gap: 22px; }
 .perfil-empleado__basica,
+.perfil-empleado__resultado,
 .perfil-empleado__evaluacion,
 .perfil-empleado__historial { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 
 /* Título de tarjeta: pequeño, en mayúsculas y secundario (como .tabla__th),
    para que el jerárquico siga siendo el nombre del empleado del header. */
 .perfil-empleado__basica > h2,
+.perfil-empleado__resultado > h2,
 .perfil-empleado__evaluacion > h2,
 .perfil-empleado__historial > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 
@@ -77,6 +79,17 @@
 .perfil-empleado__lista { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 32px; margin: 0; }
 .perfil-empleado__lista dt { margin: 0 0 4px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .perfil-empleado__lista dd { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 600; letter-spacing: -.005em; line-height: 1.45; overflow-wrap: anywhere; }
+
+/* Resultado actual: SOLO este bloque distribuye sus cinco competencias en
+   cuadrícula (5 → 3 → 1) para no dejar el hueco del patrón 2+2+1. Hereda
+   tipografía, gap y demás de .perfil-empleado__lista; ningún otro bloque
+   usa el modificador. */
+.perfil-empleado__lista--resultado { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* Intermedio: mismo breakpoint que .competencias (responsive.css §1180). */
+@media (max-width: 1180px) {
+  .perfil-empleado__lista--resultado { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
 .perfil-empleado__nota { margin: -6px 0 16px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
 .perfil-empleado__subtitulo { margin: 20px 0 10px; color: var(--color-brand-deep); font-size: 13px; font-weight: 700; }
@@ -100,9 +113,11 @@
 @media (max-width: 760px) {
   .perfil-empleado { gap: 16px; }
   .perfil-empleado__basica,
+  .perfil-empleado__resultado,
   .perfil-empleado__evaluacion,
   .perfil-empleado__historial { padding: 18px; }
   .perfil-empleado__lista { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .perfil-empleado__lista--resultado { grid-template-columns: minmax(0, 1fr); }
   .perfil-empleado__lista dd { font-size: 14px; }
   .perfil-empleado__nota { margin-top: 0; }
   .perfil-historial { gap: 14px; }

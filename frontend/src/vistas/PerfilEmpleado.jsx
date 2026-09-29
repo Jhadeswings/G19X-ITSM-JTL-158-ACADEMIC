@@ -1,20 +1,25 @@
-// Perfil individual RH: información básica + última evaluación (PRD §20.2;
-// Style Guide §6, §7, §10, §26).
+// Perfil individual RH: información básica + resultado actual + última
+// evaluación + historial (PRD §20.2; Style Guide §6, §7, §10, §26).
 //
 // Subvista interna de la sección Empleados, con el mismo patrón listado ↕
 // alta: sin ruta nueva ni router. Usa EXCLUSIVAMENTE endpoints existentes:
 // - GET /api/v1/rh/employees/{id} → información básica (EmpleadoOut);
+// - GET /api/v1/rh/employees/{id}/result → resultado actual vigente
+//   (ResultadoActualDTO: cálculo DINÁMICO del estado presente, §18);
 // - GET /api/v1/rh/employees/{id}/evaluations?pagina=1&por_pagina=1 →
 //   última evaluación oficial (items[0] del historial ordenado por periodo
 //   DESC; no existe endpoint `latest`).
 //
-// Las competencias y el 9-Box mostrados son los del SNAPSHOT histórico
-// (EvaluacionOut): nunca se recalculan en el frontend ni se sustituyen por el
-// resultado actual. Mientras los demás bloques del perfil no existan, esta
-// sección va después de Información básica (orden relativo del PRD §20.2).
+// "Resultado actual" (dinámico) se presenta ANTES de "Última evaluación"
+// (snapshot) para distinguirlos visualmente (PRD §9; ET §42). Las
+// competencias y el 9-Box de "Última evaluación" y del historial son los del
+// SNAPSHOT histórico (EvaluacionOut): nunca se recalculan en el frontend ni
+// se sustituyen por el resultado actual. Mientras los demás bloques del
+// perfil no existan, esta sección va después de Información básica (orden
+// relativo del PRD §20.2).
 
 import { useCallback, useEffect, useState } from 'react'
-import { obtenerEmpleado } from '../api/empleados.js'
+import { obtenerEmpleado, obtenerResultadoActual } from '../api/empleados.js'
 import {
   listarEvaluacionesEmpleado,
   POR_PAGINA_DEFECTO,
@@ -75,6 +80,24 @@ function lecturaCompetencia(competencia) {
   return `Nivel ${competencia.nivel}`
 }
 
+/** Estado calculable del resultado actual (campo `estado` del DTO). */
+const CALCULABLE = 'CALCULABLE'
+
+/**
+ * Lectura de UNA competencia del RESULTADO ACTUAL: "Nivel X · Etiqueta"
+ * o "— Datos insuficientes".
+ *
+ * Separada de `lecturaCompetencia()` a propósito: el snapshot histórico usa
+ * `status` y no trae `etiqueta`, mientras que el ResultadoActualDTO usa
+ * `estado` y sí la trae. DI jamás se convierte en 0 ni en error (§14).
+ */
+function lecturaResultadoActual(competencia) {
+  if (competencia.estado !== CALCULABLE || competencia.nivel == null) {
+    return '— Datos insuficientes'
+  }
+  return `Nivel ${competencia.nivel} · ${competencia.etiqueta}`
+}
+
 /** True cuando el snapshot 9-Box quedó vacío por Datos insuficientes. */
 function sinNineBox(nineBox) {
   return (
@@ -87,6 +110,7 @@ function sinNineBox(nineBox) {
 
 export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionExpirada }) {
   const [consulta, setConsulta] = useState(consultaInicial)
+  const [resultado, setResultado] = useState(consultaInicial)
   const [evaluacion, setEvaluacion] = useState(consultaInicial)
   const [historial, setHistorial] = useState(consultaInicial)
   const [paginaHistorial, setPaginaHistorial] = useState(1)
@@ -154,6 +178,29 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
     setPaginaHistorial(1)
     cargarHistorial(1)
   }, [cargarHistorial])
+
+  // Consulta INDEPENDIENTE (resultado actual): su carga, error o 401 jamás
+  // bloquean ni destruyen la información básica, la última evaluación ni el
+  // historial. Solo lectura: sin cálculos ni ramas por estado del empleado.
+  const cargarResultado = useCallback(() => {
+    setResultado(consultaInicial())
+    obtenerResultadoActual(token, empleadoId)
+      .then((datos) => setResultado({ fase: 'listo', datos, error: null }))
+      .catch((error) => {
+        // 401: el backend ya decidió que la sesión no sirve (ET §32).
+        if (error?.estado === 401) {
+          alSesionExpirada?.()
+          return
+        }
+        // 404 y cualquier otro fallo: error de consulta con reintento propio,
+        // sin reglas especiales (el endpoint solo 404 si no existe).
+        setResultado({ fase: 'error', datos: null, error })
+      })
+  }, [token, empleadoId, alSesionExpirada])
+
+  useEffect(() => {
+    cargarResultado()
+  }, [cargarResultado])
 
   const { fase, datos, error } = consulta
   const ultima = evaluacion.datos?.items?.[0] ?? null
@@ -239,6 +286,47 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
                 </dd>
               </div>
             </dl>
+          </section>
+
+          {/* Resultado actual (PRD §9/§20.2; ET §42): cálculo DINÁMICO del
+              estado presente, colocado ANTES de la evaluación histórica.
+              Solo nombre + lectura por competencia: sin evidencia, sin
+              experiencia, sin 9-Box y sin indicadores nuevos. */}
+          <section
+            className="perfil-empleado__resultado"
+            aria-labelledby="perfil-resultado-titulo"
+          >
+            <h2 id="perfil-resultado-titulo">Resultado actual</h2>
+            <p className="perfil-empleado__nota">
+              Cálculo dinámico con el estado actual del empleado. No
+              corresponde a un periodo ni se guarda como registro.
+            </p>
+
+            {resultado.fase === 'cargando' && (
+              <EstadoCarga texto="Cargando resultado actual…" />
+            )}
+
+            {resultado.fase === 'error' && (
+              <EstadoError
+                titulo="No pudimos cargar el resultado actual"
+                mensaje="Ocurrió un problema al obtener el resultado vigente del empleado."
+                onReintentar={cargarResultado}
+              />
+            )}
+
+            {resultado.fase === 'listo' && (
+              <dl className="perfil-empleado__lista perfil-empleado__lista--resultado">
+                {(resultado.datos?.competencias ?? []).map((competencia) => (
+                  <div key={competencia.clave}>
+                    <dt>
+                      {NOMBRES_COMPETENCIAS[competencia.clave] ||
+                        competencia.clave}
+                    </dt>
+                    <dd>{lecturaResultadoActual(competencia)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           </section>
 
           {/* Última evaluación (PRD §20.2): snapshot histórico, read-only. */}
