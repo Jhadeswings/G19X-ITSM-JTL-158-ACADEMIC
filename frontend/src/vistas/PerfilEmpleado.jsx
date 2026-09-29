@@ -24,7 +24,8 @@ import {
   listarEvaluacionesEmpleado,
   POR_PAGINA_DEFECTO,
 } from '../api/evaluaciones.js'
-import { NOMBRES_COMPETENCIAS } from '../textos.js'
+import { NOMBRES_COMPETENCIAS, ETIQUETAS_EVIDENCIA } from '../textos.js'
+import { entradasOrdenadas } from '../componentes/evidenciaCompetencias.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
@@ -96,6 +97,36 @@ function lecturaResultadoActual(competencia) {
     return '— Datos insuficientes'
   }
   return `Nivel ${competencia.nivel} · ${competencia.etiqueta}`
+}
+
+/**
+ * Evidencia breve de UNA competencia del bloque "Competencias" (SG §15.1).
+ *
+ * Solo presentación: `entradasOrdenadas()` decide qué claves se muestran y en
+ * qué jerarquía, y aquí se pinta cada dato con la etiqueta que el sistema ya
+ * define en `ETIQUETAS_EVIDENCIA`. No se calculan reglas, no se derivan
+ * frases, no se reconstruyen fórmulas y no se inventan mínimos: los valores
+ * se muestran tal cual llegan. Los campos sin etiqueta (score, componentes A/B
+ * y año calendario) quedan fuera por contrato del módulo compartido.
+ */
+function EvidenciaCompetencia({ competencia }) {
+  const entradas = entradasOrdenadas(competencia.clave, competencia.evidencia)
+  if (entradas.length === 0) return null
+  return (
+    <dl className="perfil-competencia__evidencia">
+      {entradas.map(({ clave, valor, jerarquia }) => (
+        <div
+          key={clave}
+          className={
+            `perfil-competencia__dato perfil-competencia__dato--${jerarquia}`
+          }
+        >
+          <dt>{ETIQUETAS_EVIDENCIA[clave]}</dt>
+          <dd>{valor}</dd>
+        </div>
+      ))}
+    </dl>
+  )
 }
 
 /** True cuando el snapshot 9-Box quedó vacío por Datos insuficientes. */
@@ -328,6 +359,57 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
               </dl>
             )}
           </section>
+
+          {/* Competencias (SG §15.1): la EVIDENCIA BREVE que sustenta los
+              resultados de "Resultado actual", que muestra el resumen vigente.
+              Es una decisión de producto para el MVP, no una frase literal del
+              PRD: nombre, nivel/etiqueta y evidencia por competencia.
+
+              Reutiliza el MISMO `resultado` ya cargado por Resultado actual:
+              sin consulta, sin carga y sin error propios. Solo se lee
+              `competencias[]`: sin experiencia, fortalezas, oportunidades,
+              9-Box, IA, score global ni porcentajes. La evidencia se pinta con
+              markup propio del Perfil RH (nada de clases `competencia__*` ni
+              de `ResumenEvidencia`). */}
+          {resultado.fase === 'listo' && (resultado.datos?.competencias ?? []).length > 0 && (
+            <section
+              className="perfil-empleado__competencias"
+              aria-labelledby="perfil-competencias-titulo"
+            >
+              <h2 id="perfil-competencias-titulo">Competencias</h2>
+              <p className="perfil-empleado__nota">
+                Evidencia que sustenta cada competencia del resultado actual.
+              </p>
+
+              <div className="perfil-competencias">
+                {resultado.datos.competencias.map((competencia) => (
+                  <article
+                    key={competencia.clave}
+                    className="perfil-competencia"
+                    aria-label={NOMBRES_COMPETENCIAS[competencia.clave] || competencia.clave}
+                  >
+                    <div className="perfil-competencia__cabecera">
+                      <h3 className="perfil-competencia__nombre">
+                        {NOMBRES_COMPETENCIAS[competencia.clave] ||
+                          competencia.clave}
+                      </h3>
+                      <p
+                        className={
+                          'perfil-competencia__nivel' +
+                          (competencia.estado === CALCULABLE
+                            ? ''
+                            : ' perfil-competencia__nivel--di')
+                        }
+                      >
+                        {lecturaResultadoActual(competencia)}
+                      </p>
+                    </div>
+                    <EvidenciaCompetencia competencia={competencia} />
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Última evaluación (PRD §20.2): snapshot histórico, read-only. */}
           <section

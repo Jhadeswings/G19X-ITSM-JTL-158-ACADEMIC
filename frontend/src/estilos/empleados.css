@@ -64,6 +64,7 @@
 .perfil-empleado { display: flex; flex-direction: column; gap: 22px; }
 .perfil-empleado__basica,
 .perfil-empleado__resultado,
+.perfil-empleado__competencias,
 .perfil-empleado__evaluacion,
 .perfil-empleado__historial { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 
@@ -71,6 +72,7 @@
    para que el jerárquico siga siendo el nombre del empleado del header. */
 .perfil-empleado__basica > h2,
 .perfil-empleado__resultado > h2,
+.perfil-empleado__competencias > h2,
 .perfil-empleado__evaluacion > h2,
 .perfil-empleado__historial > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 
@@ -90,6 +92,38 @@
 @media (max-width: 1180px) {
   .perfil-empleado__lista--resultado { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* Competencias (SG §15.1): la evidencia breve de cada competencia dentro de
+   la tarjeta del Perfil RH. Densidad media (Style Guide §24): lista de datos
+   en dos columnas, NO las tarjetas altas de CompetencyCard: cada competencia es
+   un bloque interno con línea superior sutil y datos en "líder punteado".
+   sin track/barra de nivel y sin índice 01–05. Solo se pintan los campos que
+   traen etiqueta en ETIQUETAS_EVIDENCIA; la jerarquía principal/secundaria/
+   excluido llega desde `entradasOrdenadas` y solo ordena: no inventa datos. */
+.perfil-competencias { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+/* La quinta competencia cierra el grid en fila completa: su evidencia es más
+   larga y forzarla a media columna dejaría huecos artificiales. */
+.perfil-competencias > .perfil-competencia:last-child { grid-column: 1 / -1; }
+.perfil-competencia { min-width: 0; padding: 16px 0 18px; border-top: 1px solid var(--line-soft); }
+/* Sin borde en la primera fila: la tarjeta ya separa con su propio padding. */
+.perfil-competencias > .perfil-competencia:nth-child(-n + 2) { padding-top: 4px; border-top: 0; }
+.perfil-competencia__cabecera { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.perfil-competencia__nombre { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 600; letter-spacing: -.005em; line-height: 1.45; }
+.perfil-competencia__nivel { margin: 0; color: var(--color-brand-deep); font-size: 13px; font-weight: 750; white-space: nowrap; }
+/* Datos insuficientes: neutro, nunca rojo ni un 0 (ET §14; SG §15.3). */
+.perfil-competencia__nivel--di { color: var(--ink-soft); font-weight: 600; }
+.perfil-competencia__evidencia { margin: 10px 0 0; }
+/* Una fila por dato: etiqueta + líder punteado + valor a la derecha. */
+.perfil-competencia__dato { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 2px 0; }
+.perfil-competencia__dato dt { display: flex; align-items: baseline; gap: 6px; flex: 1 1 auto; min-width: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.perfil-competencia__dato dt::after { content: ''; flex: 1 1 auto; min-width: 16px; border-bottom: 1px dotted var(--line-soft); }
+.perfil-competencia__dato dd { flex: 0 0 auto; margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Referencia/contexto y excluido: menor peso, mismo color de negocio. */
+.perfil-competencia__dato--secundario dt { color: var(--ink-soft); font-size: 11px; }
+.perfil-competencia__dato--secundario dd { font-size: 12px; font-weight: 600; }
+.perfil-competencia__dato--excluido { padding-top: 4px; }
+.perfil-competencia__dato--excluido dt { color: var(--ink-soft); font-size: 11px; }
+.perfil-competencia__dato--excluido dd { color: var(--ink-soft); font-size: 12px; font-weight: 600; }
 
 .perfil-empleado__nota { margin: -6px 0 16px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
 .perfil-empleado__subtitulo { margin: 20px 0 10px; color: var(--color-brand-deep); font-size: 13px; font-weight: 700; }
@@ -114,10 +148,16 @@
   .perfil-empleado { gap: 16px; }
   .perfil-empleado__basica,
   .perfil-empleado__resultado,
+  .perfil-empleado__competencias,
   .perfil-empleado__evaluacion,
   .perfil-empleado__historial { padding: 18px; }
   .perfil-empleado__lista { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .perfil-empleado__lista--resultado { grid-template-columns: minmax(0, 1fr); }
+  /* Competencias: una columna legible en móvil (sin tocar responsive.css). */
+  .perfil-competencias { grid-template-columns: minmax(0, 1fr); }
+  .perfil-competencias > .perfil-competencia:last-child { grid-column: auto; }
+  .perfil-competencias > .perfil-competencia:nth-child(-n + 2) { padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .perfil-competencias > .perfil-competencia:first-child { padding-top: 4px; border-top: 0; }
   .perfil-empleado__lista dd { font-size: 14px; }
   .perfil-empleado__nota { margin-top: 0; }
   .perfil-historial { gap: 14px; }
