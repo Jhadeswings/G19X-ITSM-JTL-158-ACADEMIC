@@ -11,65 +11,9 @@
 
 import { ArrowUpRight, CircleHelp } from 'lucide-react'
 import { NOMBRES_COMPETENCIAS, ETIQUETAS_EVIDENCIA } from '../textos.js'
+import { entradasOrdenadas } from './evidenciaCompetencias.js'
 
 const DI = 'INSUFFICIENT_DATA'
-
-// Orden explícito de presentación por competencia. Solo claves que ya
-// tienen etiqueta en `ETIQUETAS_EVIDENCIA`: no se inventan datos ni
-// etiquetas. `valor`, `score`, `componente_*` y `anio_calendario` quedan
-// fuera porque no tienen etiqueta y pertenecen al detalle futuro.
-const ORDEN_EVIDENCIA = {
-  desempeno_tecnico: {
-    principal: ['proyectos_completados', 'proyectos_evaluables'],
-    secundario: ['proyectos_cancelados'],
-    excluido: ['proyectos_en_proceso_excluidos'],
-  },
-  liderazgo: {
-    principal: ['participaciones', 'coordino_tareas_true'],
-    secundario: [],
-    excluido: [],
-  },
-  trabajo_equipo: {
-    principal: ['participaciones', 'en_equipo_true'],
-    secundario: [],
-    excluido: [],
-  },
-  comunicacion: {
-    principal: ['participaciones', 'explico_a_publico_distinto_true'],
-    secundario: [],
-    excluido: [],
-  },
-  aprendizaje: {
-    principal: [
-      'roles_distintos',
-      'proyectos_unicos',
-      'capacitaciones_registradas',
-      'cursos_completados_anio',
-    ],
-    secundario: ['minimo_capacitaciones', 'minimo_proyectos_unicos'],
-    excluido: [],
-  },
-}
-
-/** Ordena la evidencia de forma determinista según la competencia. */
-function entradasOrdenadas(claveCompetencia, evidencia) {
-  const datos = evidencia || {}
-  const orden = ORDEN_EVIDENCIA[claveCompetencia]
-  const niveles = []
-  if (orden) {
-    for (const nivel of ['principal', 'secundario', 'excluido']) {
-      for (const clave of orden[nivel]) {
-        if (Object.hasOwn(datos, clave) && clave in ETIQUETAS_EVIDENCIA) {
-          niveles.push({ clave, valor: datos[clave], jerarquia: nivel })
-        }
-      }
-    }
-    return niveles
-  }
-  return Object.keys(ETIQUETAS_EVIDENCIA)
-    .filter((clave) => Object.hasOwn(datos, clave))
-    .map((clave) => ({ clave, valor: datos[clave], jerarquia: 'principal' }))
-}
 
 /** Evidencia organizada: datos independientes etiqueta → valor destacado.
  *
