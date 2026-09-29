@@ -63,12 +63,14 @@
    superficie blanca, borde suave y radio 12 px. Sin paleta nueva. */
 .perfil-empleado { display: flex; flex-direction: column; gap: 22px; }
 .perfil-empleado__basica,
-.perfil-empleado__evaluacion { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.perfil-empleado__evaluacion,
+.perfil-empleado__historial { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 
 /* Título de tarjeta: pequeño, en mayúsculas y secundario (como .tabla__th),
    para que el jerárquico siga siendo el nombre del empleado del header. */
 .perfil-empleado__basica > h2,
-.perfil-empleado__evaluacion > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.perfil-empleado__evaluacion > h2,
+.perfil-empleado__historial > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 
 /* Datos etiqueta → valor en dos columnas equilibradas. La etiqueta es
    pequeña y secundaria; el valor tiene el contraste y peso principal. */
@@ -80,12 +82,29 @@
 .perfil-empleado__subtitulo { margin: 20px 0 10px; color: var(--color-brand-deep); font-size: 13px; font-weight: 700; }
 .perfil-empleado__evaluacion .estado-vacio { margin: 4px 0; }
 
+/* Historial de evaluaciones: timeline sutil (Style Guide §19: líneas y
+   elementos visuales sutiles). Línea fina + punto por entrada; el punto es
+   decorativo (el periodo textual es el marcador real, nunca el color). */
+.perfil-historial { display: flex; flex-direction: column; gap: 20px; margin: 0; padding: 0; list-style: none; }
+.perfil-historial__entrada { position: relative; margin-left: 5px; padding-left: 24px; border-left: 1px solid var(--line-soft); }
+.perfil-historial__entrada:last-child { border-left-color: transparent; }
+.perfil-historial__entrada::before { content: ''; position: absolute; top: 4px; left: -6px; box-sizing: border-box; width: 11px; height: 11px; background: #fff; border: 2px solid var(--color-primary); border-radius: 50%; }
+.perfil-historial__periodo { margin: 0 0 2px; color: var(--color-brand-deep); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.perfil-historial__fecha { margin: 0 0 12px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.5; }
+.perfil-historial__entrada .perfil-empleado__lista { gap: 10px 24px; }
+.perfil-historial__entrada .perfil-empleado__lista dd { font-size: 14px; }
+.perfil-historial__ninebox { margin: 12px 0 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+.perfil-empleado__historial .paginacion { margin-top: 20px; }
+
 /* Móvil (§7): una sola columna, sin que etiquetas y valores se encimen. */
 @media (max-width: 760px) {
   .perfil-empleado { gap: 16px; }
   .perfil-empleado__basica,
-  .perfil-empleado__evaluacion { padding: 18px; }
+  .perfil-empleado__evaluacion,
+  .perfil-empleado__historial { padding: 18px; }
   .perfil-empleado__lista { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .perfil-empleado__lista dd { font-size: 14px; }
   .perfil-empleado__nota { margin-top: 0; }
+  .perfil-historial { gap: 14px; }
+  .perfil-historial__entrada { padding-left: 20px; }
 }

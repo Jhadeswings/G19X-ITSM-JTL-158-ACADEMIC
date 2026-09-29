@@ -15,7 +15,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { obtenerEmpleado } from '../api/empleados.js'
-import { listarEvaluacionesEmpleado } from '../api/evaluaciones.js'
+import {
+  listarEvaluacionesEmpleado,
+  POR_PAGINA_DEFECTO,
+} from '../api/evaluaciones.js'
 import { NOMBRES_COMPETENCIAS } from '../textos.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
@@ -23,6 +26,7 @@ import EstadoVacio from '../componentes/EstadoVacio.jsx'
 import SectionHeader from '../componentes/SectionHeader.jsx'
 import Badge from '../componentes/ui/Badge.jsx'
 import { Button } from '../componentes/ui/Button.jsx'
+import Pagination from '../componentes/ui/Pagination.jsx'
 
 /** Texto neutro para datos ausentes: nunca un hueco ni un error. */
 const SIN_DATO = '—'
@@ -84,6 +88,8 @@ function sinNineBox(nineBox) {
 export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionExpirada }) {
   const [consulta, setConsulta] = useState(consultaInicial)
   const [evaluacion, setEvaluacion] = useState(consultaInicial)
+  const [historial, setHistorial] = useState(consultaInicial)
+  const [paginaHistorial, setPaginaHistorial] = useState(1)
 
   const cargar = useCallback(() => {
     setConsulta(consultaInicial())
@@ -121,6 +127,33 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
   useEffect(() => {
     cargarEvaluacion()
   }, [cargarEvaluacion])
+
+  // Tercera consulta INDEPENDIENTE (historial paginado): misma ruta, página
+  // completa del contrato (POR_PAGINA_DEFECTO). Su carga, error o vacío
+  // jamás afectan a las otras dos secciones.
+  const cargarHistorial = useCallback(
+    (pagina) => {
+      setHistorial(consultaInicial())
+      listarEvaluacionesEmpleado(token, empleadoId, {
+        pagina,
+        porPagina: POR_PAGINA_DEFECTO,
+      })
+        .then((datos) => setHistorial({ fase: 'listo', datos, error: null }))
+        .catch((error) => {
+          if (error?.estado === 401) {
+            alSesionExpirada?.()
+            return
+          }
+          setHistorial({ fase: 'error', datos: null, error })
+        })
+    },
+    [token, empleadoId, alSesionExpirada],
+  )
+
+  useEffect(() => {
+    setPaginaHistorial(1)
+    cargarHistorial(1)
+  }, [cargarHistorial])
 
   const { fase, datos, error } = consulta
   const ultima = evaluacion.datos?.items?.[0] ?? null
@@ -291,6 +324,95 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
               </>
             )}
           </section>
+
+          {/* Historial de evaluaciones (Style Guide §19 Timeline: líneas y
+              elementos sutiles). Presenta los snapshots TAL CUAL llegan; no
+              deduplica la más reciente (Última evaluación es el detalle
+              destacado, este es el archivo cronológico). Con total=0 la
+              tarjeta no se renderiza: el empty state ya vive en Última
+              evaluación. */}
+          {historial.fase === 'cargando' && (
+            <section
+              className="perfil-empleado__historial"
+              aria-labelledby="perfil-historial-titulo"
+            >
+              <h2 id="perfil-historial-titulo">Historial de evaluaciones</h2>
+              <EstadoCarga texto="Cargando historial de evaluaciones…" />
+            </section>
+          )}
+
+          {historial.fase === 'error' && (
+            <section
+              className="perfil-empleado__historial"
+              aria-labelledby="perfil-historial-titulo"
+            >
+              <h2 id="perfil-historial-titulo">Historial de evaluaciones</h2>
+              <EstadoError
+                titulo="No pudimos cargar el historial de evaluaciones"
+                mensaje="Ocurrió un problema al obtener las evaluaciones oficiales."
+                onReintentar={() => cargarHistorial(paginaHistorial)}
+              />
+            </section>
+          )}
+
+          {historial.fase === 'listo' && (historial.datos?.total ?? 0) > 0 && (
+            <section
+              className="perfil-empleado__historial"
+              aria-labelledby="perfil-historial-titulo"
+            >
+              <h2 id="perfil-historial-titulo">Historial de evaluaciones</h2>
+              <p className="perfil-empleado__nota">
+                Cada entrada es la fotografía oficial generada en su periodo; no
+                se recalcula.
+              </p>
+
+              <ol className="perfil-historial">
+                {(historial.datos.items ?? []).map((entrada) => (
+                  <li key={entrada.id} className="perfil-historial__entrada">
+                    <h3 className="perfil-historial__periodo">
+                      {entrada.periodo || SIN_DATO}
+                    </h3>
+                    <p className="perfil-historial__fecha">
+                      Generada el {fechaLegible(entrada.generado_en)}
+                    </p>
+                    <dl className="perfil-empleado__lista">
+                      {(entrada.competencias ?? []).map((competencia) => (
+                        <div key={competencia.clave}>
+                          <dt>
+                            {NOMBRES_COMPETENCIAS[competencia.clave] ||
+                              competencia.clave}
+                          </dt>
+                          <dd>{lecturaCompetencia(competencia)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="perfil-historial__ninebox">
+                      {sinNineBox(entrada.nine_box)
+                        ? '9-Box — Datos insuficientes.'
+                        : `9-Box — Rendimiento ${
+                            entrada.nine_box.performance_axis ?? SIN_DATO
+                          } · ${entrada.nine_box.etiqueta_performance ?? SIN_DATO} / Potencial ${
+                            entrada.nine_box.potential_axis ?? SIN_DATO
+                          } · ${entrada.nine_box.etiqueta_potencial ?? SIN_DATO} / Celda ${
+                            entrada.nine_box.box_code ?? SIN_DATO
+                          }`}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+
+              <Pagination
+                pagina={historial.datos.pagina ?? paginaHistorial}
+                porPagina={historial.datos.por_pagina ?? POR_PAGINA_DEFECTO}
+                total={historial.datos.total}
+                onCambiarPagina={(nuevaPagina) => {
+                  setPaginaHistorial(nuevaPagina)
+                  cargarHistorial(nuevaPagina)
+                }}
+                etiqueta="evaluaciones"
+              />
+            </section>
+          )}
         </>
       )}
     </div>
