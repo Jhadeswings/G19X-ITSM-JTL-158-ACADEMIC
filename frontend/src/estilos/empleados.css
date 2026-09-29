@@ -65,6 +65,7 @@
 .perfil-empleado__basica,
 .perfil-empleado__resultado,
 .perfil-empleado__competencias,
+.perfil-empleado__experiencia,
 .perfil-empleado__evaluacion,
 .perfil-empleado__historial { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 
@@ -73,6 +74,7 @@
 .perfil-empleado__basica > h2,
 .perfil-empleado__resultado > h2,
 .perfil-empleado__competencias > h2,
+.perfil-empleado__experiencia > h2,
 .perfil-empleado__evaluacion > h2,
 .perfil-empleado__historial > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 
@@ -126,6 +128,17 @@
 .perfil-competencia__dato--excluido dd { color: var(--ink-soft); font-size: 12px; font-weight: 600; }
 
 .perfil-empleado__nota { margin: -6px 0 16px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+
+/* Experiencia (PRD §8): información CONTEXTUAL, no una evaluación. Por eso su
+   peso visual es MENOR que el de una competencia: los datos heredan la tipografía
+   secundaria de `.perfil-empleado__lista dd` y no usan ni el color de marca ni
+   ninguna barra, nivel o semáforo. Mismo patrón `dt`/`dd` y mismas dos columnas
+   del resto del Perfil RH (Style Guide §24, densidad media); a una columna en
+   móvil por la regla ya existente más abajo. Sin clase propia: no hay un
+   sistema de diseño nuevo. */
+.perfil-empleado__experiencia .perfil-empleado__lista { gap: 10px 32px; }
+.perfil-empleado__experiencia .perfil-empleado__lista dt { font-weight: 600; }
+.perfil-empleado__experiencia .perfil-empleado__lista dd { color: var(--color-text-secondary); font-size: 14px; font-weight: 600; }
 .perfil-empleado__subtitulo { margin: 20px 0 10px; color: var(--color-brand-deep); font-size: 13px; font-weight: 700; }
 .perfil-empleado__evaluacion .estado-vacio { margin: 4px 0; }
 
@@ -149,6 +162,7 @@
   .perfil-empleado__basica,
   .perfil-empleado__resultado,
   .perfil-empleado__competencias,
+  .perfil-empleado__experiencia,
   .perfil-empleado__evaluacion,
   .perfil-empleado__historial { padding: 18px; }
   .perfil-empleado__lista { grid-template-columns: minmax(0, 1fr); gap: 14px; }

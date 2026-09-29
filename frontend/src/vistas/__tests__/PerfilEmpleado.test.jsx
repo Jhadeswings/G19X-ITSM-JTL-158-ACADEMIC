@@ -225,6 +225,15 @@ function resultadoActualDiTotal() {
   }
 }
 
+/**
+ * Experiencia (PRD §8) con contexto controlado. Se apoya en el
+ * `RESULTADO_ACTUAL` base: solo cambia el bloque `experiencia`, que es lo que
+ * se quiere variar (antigüedad nula, cero o normal).
+ */
+function resultadoActualConExperiencia(experiencia) {
+  return { ...RESULTADO_ACTUAL, experiencia }
+}
+
 let respuestaResultado = () => Promise.resolve(RESULTADO_ACTUAL)
 
 beforeEach(() => {
@@ -1309,5 +1318,211 @@ describe('PerfilEmpleado — Competencias con datos insuficientes', () => {
     ])
     // Con la evidencia vacía no hay ningún dato que pintar.
     expect(seccion.queryAllByRole('term')).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Experiencia (PRD §8): información CONTEXTUAL, nunca una competencia ni una
+// evaluación. Sin consulta propia: se alimenta del mismo `resultado.datos` que
+// "Resultado actual" y "Competencias", así que aquí no se mockea nada nuevo.
+// ---------------------------------------------------------------------------
+
+describe('PerfilEmpleado — Experiencia', () => {
+  it('existe, con antigüedad y proyectos únicos tal como llegan', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('Experiencia')
+    expect(seccion.getByRole('heading', { name: 'Experiencia' })).toBeInTheDocument()
+
+    // El valor se muestra EXACTO: ni redondeado, ni recalculado en frontend.
+    expect(seccion.getByText('Antigüedad')).toBeInTheDocument()
+    expect(seccion.getByText('2.55 años')).toBeInTheDocument()
+    expect(seccion.getByText('Proyectos únicos')).toBeInTheDocument()
+    expect(seccion.getByText('3')).toBeInTheDocument()
+
+    // No se aceptan las formas redondeadas que un cálculo produciría.
+    expect(seccion.queryByText('3 años')).not.toBeInTheDocument()
+    expect(seccion.queryByText('2 años')).not.toBeInTheDocument()
+    expect(seccion.queryByText('2.6 años')).not.toBeInTheDocument()
+
+    // La nota contextual aprobada (PRD §8: no altera las competencias).
+    expect(
+      seccion.getByText(
+        'La experiencia es información contextual: no modifica las competencias.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('queda entre Competencias y Última evaluación', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    await esperarTarjeta('Experiencia')
+    const encabezados = screen.getAllByRole('heading').map((h) => h.textContent)
+
+    expect(encabezados.indexOf('Resultado actual')).toBeGreaterThan(
+      encabezados.indexOf('Información básica'),
+    )
+    expect(encabezados.indexOf('Competencias')).toBeGreaterThan(
+      encabezados.indexOf('Resultado actual'),
+    )
+    expect(encabezados.indexOf('Experiencia')).toBeGreaterThan(
+      encabezados.indexOf('Competencias'),
+    )
+    expect(encabezados.indexOf('Última evaluación')).toBeGreaterThan(
+      encabezados.indexOf('Experiencia'),
+    )
+  })
+
+  it('no repite la fecha de ingreso: ya está en Información básica', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('Experiencia')
+
+    // Acotado al bloque: arriba la fecha sí debe seguir mostrándose.
+    expect(seccion.queryByText('Fecha de ingreso')).not.toBeInTheDocument()
+    expect(seccion.queryByText('2024-03-01')).not.toBeInTheDocument()
+    expect(screen.getByText('1 de marzo de 2024')).toBeInTheDocument()
+  })
+
+  it('muestra "—" cuando no hay antigüedad, sin convertirla en 0', async () => {
+    respuestaResultado = () =>
+      Promise.resolve(
+        resultadoActualConExperiencia({
+          fecha_ingreso: null,
+          anios_antiguedad: null,
+          proyectos_unicos: 3,
+        }),
+      )
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('Experiencia')
+
+    // Dato ausente: texto neutro, la fila NO desaparece y no es un error.
+    expect(seccion.getByText('Antigüedad')).toBeInTheDocument()
+    expect(seccion.getByText('—')).toBeInTheDocument()
+    expect(seccion.queryByText('0 años')).not.toBeInTheDocument()
+    expect(seccion.queryByText('0.00 años')).not.toBeInTheDocument()
+    expect(seccion.queryByText(/insuficientes/i)).not.toBeInTheDocument()
+    // El resto del bloque sigue intacto.
+    expect(seccion.getByText('3')).toBeInTheDocument()
+  })
+
+  it('muestra "0.00 años" cuando la antigüedad es cero real', async () => {
+    respuestaResultado = () =>
+      Promise.resolve(
+        resultadoActualConExperiencia({
+          fecha_ingreso: '2026-09-28',
+          anios_antiguedad: '0.00',
+          proyectos_unicos: 3,
+        }),
+      )
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('Experiencia')
+
+    // Un cero del backend es un dato real, no un dato faltante.
+    expect(seccion.getByText('0.00 años')).toBeInTheDocument()
+    expect(seccion.queryByText('—')).not.toBeInTheDocument()
+    expect(seccion.queryByText(/insuficientes/i)).not.toBeInTheDocument()
+  })
+
+  it('muestra "0" en proyectos únicos como dato real, no como DI', async () => {
+    respuestaResultado = () =>
+      Promise.resolve(
+        resultadoActualConExperiencia({
+          fecha_ingreso: '2024-03-01',
+          anios_antiguedad: '2.55',
+          proyectos_unicos: 0,
+        }),
+      )
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('Experiencia')
+
+    expect(seccion.getByText('Proyectos únicos')).toBeInTheDocument()
+    expect(seccion.getByText('0')).toBeInTheDocument()
+    // No es DI ni un texto interpretativo nuevo.
+    expect(seccion.queryByText(/insuficientes/i)).not.toBeInTheDocument()
+    expect(seccion.queryByText(/sin experiencia/i)).not.toBeInTheDocument()
+  })
+
+  it('no muestra score, nivel, porcentaje, seniority ni barras', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('Experiencia')
+
+    // Todo acotado al bloque: no son búsquedas globales de palabras genéricas.
+    for (const patron of [/score/i, /nivel/i, /seniority/i, /ranking/i]) {
+      expect(seccion.queryByText(patron)).not.toBeInTheDocument()
+    }
+    expect(seccion.queryByText(/%/)).not.toBeInTheDocument()
+    // Sin barras ni indicadores de progreso (elementos semánticos).
+    expect(seccion.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(seccion.queryByRole('meter')).not.toBeInTheDocument()
+    expect(seccion.queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('no abre una segunda consulta: reutiliza el resultado ya cargado', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    await esperarTarjeta('Experiencia')
+
+    // Experiencia NO pide sus propios datos: sigue habiendo una sola llamada.
+    expect(obtenerResultadoActual).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(obtenerResultadoActual).mock.calls[0]).toEqual(['token-rh', 1])
+  })
+
+  it('no aparece como bloque propio mientras Resultado actual carga', async () => {
+    respuestaResultado = () => new Promise(() => {})
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    await screen.findByText('Cargando resultado actual…')
+    // Sin carga propia: el bloque simplemente aún no existe.
+    expect(
+      screen.queryByRole('heading', { name: 'Experiencia' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Última evaluación')).toBeInTheDocument()
+  })
+
+  it('no contamina el bloque Competencias con los datos de contexto', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    await esperarTarjeta('Experiencia')
+    const competencias = tarjeta('Competencias')
+
+    // La experiencia no se filtra dentro del bloque de evidencia.
+    expect(competencias.queryByText('Antigüedad')).not.toBeInTheDocument()
+    expect(
+      competencias.queryByText(/no modifica las competencias/i),
+    ).not.toBeInTheDocument()
+
+    // "proyectos únicos" SÍ aparece ahí, pero como EVIDENCIA de "Capacidad de
+    // aprendizaje" (mismo dato, distinto significado). Solo se comprueba que no
+    // se añada la fila de contexto "Proyectos únicos".
+    expect(competencias.getByText('proyectos únicos')).toBeInTheDocument()
   })
 })

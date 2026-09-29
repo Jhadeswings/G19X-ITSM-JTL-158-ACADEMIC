@@ -129,6 +129,23 @@ function EvidenciaCompetencia({ competencia }) {
   )
 }
 
+/**
+ * Antigüedad del bloque "Experiencia" (PRD §8; ET §17).
+ *
+ * El valor se muestra TAL COMO LLEGA del backend (`Decimal` serializado con
+ * sus dos decimales): no se redondea, no se recalcula y no se convierte a
+ * meses. Solo se añade la unidad en años para que el número sea legible.
+ *
+ * `null` significa "no hay fecha de ingreso registrada": es un dato ausente,
+ * no un cero y no un error, así que se presenta con el texto neutro `SIN_DATO`
+ * —nunca "0 años" ni una fila oculta. Un `0.00` real (ingreso hoy o futuro) sí
+ * se muestra tal cual.
+ */
+function lecturaAntiguedad(anios) {
+  if (anios == null) return SIN_DATO
+  return `${anios} años`
+}
+
 /** True cuando el snapshot 9-Box quedó vacío por Datos insuficientes. */
 function sinNineBox(nineBox) {
   return (
@@ -408,6 +425,41 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
                   </article>
                 ))}
               </div>
+            </section>
+          )}
+
+          {/* Experiencia (PRD §8; ET §17): información CONTEXTUAL, nunca una
+              competencia ni una evaluación. Solo antigüedad y proyectos únicos.
+
+              Es una decisión de producto para el MVP: la fecha de ingreso NO se
+              repite aquí porque ya está en Información básica (y el backend la
+              envía dos veces con formatos distintos). Tampoco existe
+              ExperienceScore: no hay nivel, porcentaje, barra ni semáforo.
+
+              Reutiliza el MISMO `resultado` ya cargado: sin consulta, sin carga
+              ni error propios. `fecha_ingreso` no se pinta; `proyectos_unicos`
+              se muestra tal cual, incluido el 0, que es un dato real. */}
+          {resultado.fase === 'listo' && resultado.datos?.experiencia && (
+            <section
+              className="perfil-empleado__experiencia"
+              aria-labelledby="perfil-experiencia-titulo"
+            >
+              <h2 id="perfil-experiencia-titulo">Experiencia</h2>
+              <p className="perfil-empleado__nota">
+                La experiencia es información contextual: no modifica las
+                competencias.
+              </p>
+
+              <dl className="perfil-empleado__lista">
+                <div>
+                  <dt>Antigüedad</dt>
+                  <dd>{lecturaAntiguedad(resultado.datos.experiencia.anios_antiguedad)}</dd>
+                </div>
+                <div>
+                  <dt>Proyectos únicos</dt>
+                  <dd>{resultado.datos.experiencia.proyectos_unicos ?? SIN_DATO}</dd>
+                </div>
+              </dl>
             </section>
           )}
 
