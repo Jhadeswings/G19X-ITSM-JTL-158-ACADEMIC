@@ -1,7 +1,12 @@
-"""Router RH: gestión de empleados (Fase 4A).
+"""Router RH: gestión de empleados (Fase 4A) y resultado actual (Fase 13).
 
 Todo protegido con ``require_rh``: la autorización se ejecuta en backend.
 Un Empleado no puede gestionar empleados (403).
+
+- ``GET /rh/employees/{id}/result`` (ET §31) devuelve el ResultadoActual
+  vigente del empleado para el perfil individual de RH (PRD §20.2). Es una
+  lectura DERIVADA del estado actual (nunca del histórico, §18) y el cálculo
+  vive en ``resultado_actual_service``: aquí no hay fórmulas.
 """
 
 from fastapi import APIRouter, Depends, Query, status
@@ -17,7 +22,8 @@ from app.schemas.empleado import (
     EmpleadoUpdateIn,
     EstadoEmpleadoIn,
 )
-from app.services import empleado_service
+from app.schemas.resultado_actual import ResultadoActualDTO
+from app.services import empleado_service, resultado_actual_service
 
 router = APIRouter(
     prefix="/rh/employees", tags=["rh-empleados"], dependencies=[Depends(require_rh)]
@@ -66,6 +72,24 @@ def consultar_empleado(
     return EmpleadoOut.model_validate(
         empleado_service.obtener_empleado(db, empleado_id)
     )
+
+
+@router.get("/{empleado_id}/result", response_model=ResultadoActualDTO)
+def consultar_resultado_actual(
+    empleado_id: int, db: Session = Depends(get_db)
+) -> ResultadoActualDTO:
+    """Resultado actual vigente de un empleado (RH, ET §31, PRD §20.2).
+
+    - Deriva del estado ACTUAL de la base de datos reutilizando el
+      ``CompetencyEngine`` (§13/§18): no consulta el histórico, no se
+      persiste nada y no interviene IA.
+    - ``INSUFFICIENT_DATA`` se preserva tal cual (``nivel`` nulo, §14).
+    - Empleado inexistente ⇒ 404. No se agregan reglas por estado del
+      empleado: ni el PRD ni la Especificación las definen para el
+      ResultadoActual. El ``empleado_id`` viene de la ruta y el cliente no
+      puede enviar niveles, fortalezas ni experiencia.
+    """
+    return resultado_actual_service.obtener_resultado_actual(db, empleado_id)
 
 
 @router.patch("/{empleado_id}", response_model=EmpleadoOut)

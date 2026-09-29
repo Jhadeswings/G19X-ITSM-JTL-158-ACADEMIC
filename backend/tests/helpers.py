@@ -59,6 +59,9 @@ URL_RH_COMPARACION = "/api/v1/rh/employees/compare"
 # Fase 12 (recomendación de desarrollo con IA)
 URL_ME_RECOMENDACION = "/api/v1/me/progress/recommendation"
 
+# Fase 13 (resultado actual vigente por empleado, exclusivo RH)
+URL_RH_EMPLEADO_RESULTADO = "/api/v1/rh/employees/{empleado_id}/result"
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
