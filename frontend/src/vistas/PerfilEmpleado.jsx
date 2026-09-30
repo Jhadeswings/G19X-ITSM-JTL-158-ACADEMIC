@@ -6,6 +6,8 @@
 // - GET /api/v1/rh/employees/{id} → información básica (EmpleadoOut);
 // - GET /api/v1/rh/employees/{id}/result → resultado actual vigente
 //   (ResultadoActualDTO: cálculo DINÁMICO del estado presente, §18);
+// - GET /api/v1/rh/employees/{id}/nine-box → 9-Box vigente (NineBoxDTO,
+//   contrato SEPARADO de /result: ejes y celda del estado actual, ET §20;
 // - GET /api/v1/rh/employees/{id}/evaluations?pagina=1&por_pagina=1 →
 //   última evaluación oficial (items[0] del historial ordenado por periodo
 //   DESC; no existe endpoint `latest`).
@@ -18,8 +20,8 @@
 // perfil no existan, esta sección va después de Información básica (orden
 // relativo del PRD §20.2).
 
-import { useCallback, useEffect, useState } from 'react'
-import { obtenerEmpleado, obtenerResultadoActual } from '../api/empleados.js'
+import { Fragment, useCallback, useEffect, useState } from 'react'
+import { obtenerEmpleado, obtenerNineBox, obtenerResultadoActual } from '../api/empleados.js'
 import {
   listarEvaluacionesEmpleado,
   POR_PAGINA_DEFECTO,
@@ -156,9 +158,25 @@ function sinNineBox(nineBox) {
   )
 }
 
+/**
+ * Estructura FIJA de la matriz 9-Box (Style Guide §16): columnas = Potencial
+ * (Bajo/Medio/Alto) y filas = Desempeño (Alto/Medio/Bajo, de arriba abajo).
+ * El código de cada celda es estático: primer carácter = Desempeño,
+ * segundo = Potencial (A=Alto, M=Medio, B=Bajo). NADA de esto se calcula:
+ * la única decisión de presentación es marcar la celda cuyo código coincide
+ * con el `box_code` que envió el backend.
+ */
+const COLUMNAS_POTENCIAL_9BOX = ['Bajo', 'Medio', 'Alto']
+const FILAS_DESEMPENO_9BOX = [
+  ['Alto', ['AB', 'AM', 'AA']],
+  ['Medio', ['MB', 'MM', 'MA']],
+  ['Bajo', ['BB', 'BM', 'BA']],
+]
+
 export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionExpirada }) {
   const [consulta, setConsulta] = useState(consultaInicial)
   const [resultado, setResultado] = useState(consultaInicial)
+  const [nineBoxVigente, setNineBoxVigente] = useState(consultaInicial)
   const [evaluacion, setEvaluacion] = useState(consultaInicial)
   const [historial, setHistorial] = useState(consultaInicial)
   const [paginaHistorial, setPaginaHistorial] = useState(1)
@@ -249,6 +267,28 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
   useEffect(() => {
     cargarResultado()
   }, [cargarResultado])
+
+  // Consulta INDEPENDIENTE (9-Box vigente, ET §20/§42): su carga, error o 401
+  // jamás bloquean ni destruyen las demás secciones del perfil. Contrato
+  // SEPARADO de /result: aquí no se calcula nada (el backend es el único dueño
+  // de las fórmulas, ET §13) ni se reutiliza el snapshot histórico.
+  const cargarNineBox = useCallback(() => {
+    setNineBoxVigente(consultaInicial())
+    obtenerNineBox(token, empleadoId)
+      .then((datos) => setNineBoxVigente({ fase: 'listo', datos, error: null }))
+      .catch((error) => {
+        // 401: el backend ya decidió que la sesión no sirve (ET §32).
+        if (error?.estado === 401) {
+          alSesionExpirada?.()
+          return
+        }
+        setNineBoxVigente({ fase: 'error', datos: null, error })
+      })
+  }, [token, empleadoId, alSesionExpirada])
+
+  useEffect(() => {
+    cargarNineBox()
+  }, [cargarNineBox])
 
   const { fase, datos, error } = consulta
   const ultima = evaluacion.datos?.items?.[0] ?? null
@@ -462,6 +502,119 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
               </dl>
             </section>
           )}
+
+          {/* 9-Box vigente (PRD §10/§20.2 — orden del perfil; ET §20/§42):
+              ejes y celda derivados del estado ACTUAL, con su PROPIA consulta
+              (contrato separado de /result). Es INDEPENDIENTE del "9-Box
+              histórico" de Última evaluación: aquel es un snapshot que no se
+              recalcula y este se pide bajo demanda. Los ejes llegan como texto
+              (Decimal serializado) y se muestran tal cual: sin parseFloat, sin
+              redondeo ni normalización. DI ⇒ nota neutra, sin celda ni nivel 0
+              (§14); nunca semáforo (SG §16, PRD §10.3). La matriz visual 3×3
+              y sus estilos forman parte de esta misma sección. */}
+          <section
+            className="perfil-empleado__ninebox"
+            aria-labelledby="perfil-ninebox-titulo"
+          >
+            <h2 id="perfil-ninebox-titulo">9-Box</h2>
+
+            {nineBoxVigente.fase === 'cargando' && (
+              <EstadoCarga texto="Cargando 9-Box…" />
+            )}
+
+            {nineBoxVigente.fase === 'error' && (
+              <EstadoError
+                titulo="No pudimos cargar el 9-Box"
+                mensaje="Ocurrió un problema al obtener el 9-Box vigente del empleado."
+                onReintentar={cargarNineBox}
+              />
+            )}
+
+            {nineBoxVigente.fase === 'listo' &&
+              (sinNineBox(nineBoxVigente.datos) ? (
+                <p className="perfil-empleado__nota">Datos insuficientes.</p>
+              ) : (
+                <>
+                  {/* Matriz 3×3 del Style Guide §16: las nueve celdas son
+                      ESTÁTICAS y neutras; solo la celda cuyo código coincide
+                      con el `box_code` del backend se distingue (borde, fondo
+                      suave e indicador "Actual"). Sin semáforo ni juicios
+                      (PRD §10.3). Aquí no se calcula ningún eje. */}
+                  <div className="perfil-ninebox">
+                    <div className="perfil-ninebox__titulos">
+                      <span>Desempeño</span>
+                      <span>Potencial</span>
+                    </div>
+                    <div
+                      className="perfil-ninebox__matriz"
+                      role="group"
+                      aria-label="Matriz 9-Box: filas de Desempeño y columnas de Potencial"
+                    >
+                      <span className="perfil-ninebox__esquina" aria-hidden="true" />
+                      {COLUMNAS_POTENCIAL_9BOX.map((columna) => (
+                        <span
+                          key={columna}
+                          className="perfil-ninebox__encabezado"
+                        >
+                          {columna}
+                        </span>
+                      ))}
+                      {FILAS_DESEMPENO_9BOX.map(([fila, codigos]) => (
+                        <Fragment key={fila}>
+                          <span className="perfil-ninebox__encabezado">{fila}</span>
+                          {codigos.map((codigo) => {
+                            const esActual =
+                              codigo === nineBoxVigente.datos.box_code
+                            return (
+                              <div
+                                key={codigo}
+                                className={
+                                  'perfil-ninebox__celda' +
+                                  (esActual ? ' perfil-ninebox__celda--actual' : '')
+                                }
+                              >
+                                <span className="perfil-ninebox__codigo">
+                                  {codigo}
+                                </span>
+                                {esActual && (
+                                  <span className="perfil-ninebox__actual">
+                                    Actual
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </Fragment>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* La información textual de Desempeño y Potencial tiene
+                      prioridad sobre el color (SG §16): ejes tal cual llegan
+                      (texto Decimal, sin transformar) y celda del contrato. */}
+                  <dl className="perfil-empleado__lista">
+                    <div>
+                      <dt>Rendimiento</dt>
+                      <dd>
+                        {nineBoxVigente.datos.performance_axis ?? SIN_DATO} ·{' '}
+                        {nineBoxVigente.datos.etiqueta_performance ?? SIN_DATO}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Potencial</dt>
+                      <dd>
+                        {nineBoxVigente.datos.potential_axis ?? SIN_DATO} ·{' '}
+                        {nineBoxVigente.datos.etiqueta_potencial ?? SIN_DATO}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Celda</dt>
+                      <dd>{nineBoxVigente.datos.box_code ?? SIN_DATO}</dd>
+                    </div>
+                  </dl>
+                </>
+              ))}
+          </section>
 
           {/* Última evaluación (PRD §20.2): snapshot histórico, read-only. */}
           <section

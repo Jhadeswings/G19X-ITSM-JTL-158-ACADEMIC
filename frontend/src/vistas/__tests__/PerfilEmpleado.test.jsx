@@ -15,7 +15,7 @@
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listarEmpleados, obtenerEmpleado, obtenerResultadoActual, POR_PAGINA_DEFECTO } from '../../api/empleados.js'
+import { listarEmpleados, obtenerEmpleado, obtenerNineBox, obtenerResultadoActual, POR_PAGINA_DEFECTO } from '../../api/empleados.js'
 import {
   listarEvaluacionesEmpleado,
   POR_PAGINA_DEFECTO as POR_PAGINA_EVALUACIONES,
@@ -30,6 +30,7 @@ vi.mock('../../api/empleados.js', async () => {
     listarEmpleados: vi.fn(),
     crearEmpleado: vi.fn(),
     obtenerEmpleado: vi.fn(),
+    obtenerNineBox: vi.fn(),
     obtenerResultadoActual: vi.fn(),
   }
 })
@@ -236,12 +237,42 @@ function resultadoActualConExperiencia(experiencia) {
 
 let respuestaResultado = () => Promise.resolve(RESULTADO_ACTUAL)
 
+// 9-Box vigente (NineBoxDTO, ET §20). A propósito: los ejes son STRINGS
+// (Decimal serializado por el backend, sin rellenar a '5.000'), las etiquetas
+// llegan en minúsculas y el box_code usa el alfabeto A/M/B del Style Guide
+// §16, COHERENTE con los ejes ('5'→alto y '4.5'→alto dan AA). Distinto
+// DELIBERADAMENTE del 9-Box del snapshot (EVALUACION usa B6) para poder
+// verificar que las dos secciones no comparten fuente.
+const NINE_BOX_VIGENTE = {
+  performance_axis: '5',
+  potential_axis: '4.5',
+  box_code: 'AA',
+  etiqueta_performance: 'alto',
+  etiqueta_potencial: 'alto',
+}
+
+/** 9-Box vigente vacío: cualquiera de las cinco competencias en DI (§20.2). */
+function nineBoxVigenteDi() {
+  return {
+    performance_axis: null,
+    potential_axis: null,
+    box_code: null,
+    etiqueta_performance: null,
+    etiqueta_potencial: null,
+  }
+}
+
+let respuestaNineBox = () => Promise.resolve(NINE_BOX_VIGENTE)
+
 beforeEach(() => {
   respuestaUltima = () => Promise.resolve(paginaEvaluacion())
   respuestaHistorial = () => Promise.resolve(paginaHistorial())
   respuestaResultado = () => Promise.resolve(RESULTADO_ACTUAL)
+  respuestaNineBox = () => Promise.resolve(NINE_BOX_VIGENTE)
   vi.mocked(listarEmpleados).mockReset()
   vi.mocked(obtenerEmpleado).mockReset()
+  vi.mocked(obtenerNineBox).mockReset()
+  vi.mocked(obtenerNineBox).mockImplementation(() => respuestaNineBox())
   vi.mocked(obtenerResultadoActual).mockReset()
   vi.mocked(obtenerResultadoActual).mockImplementation(() => respuestaResultado())
   vi.mocked(listarEvaluacionesEmpleado).mockReset()
@@ -290,10 +321,11 @@ describe('PerfilEmpleado — información básica', () => {
 
     await screen.findByText('Información básica')
 
-    // La última evaluación histórica SÍ existe ahora, y Resultado actual es
-    // el bloque aprobado de esta fase; lo que sigue prohibido es adelantar
-    // evolución, fortalezas/oportunidades, recomendación IA o un 9-Box
-    // "actual" independiente.
+    // La última evaluación histórica SÍ existe ahora, y Resultado actual y
+    // el 9-Box vigente (sección "9-Box") son bloques aprobados de esta fase;
+    // lo que sigue prohibido es adelantar evolución, fortalezas/oportunidades
+    // o recomendación IA. El título del bloque es "9-Box" (PRD §20.2),
+    // nunca "9-Box actual".
     expect(screen.queryByText(/evoluci/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/fortalezas/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/oportunidades/i)).not.toBeInTheDocument()
@@ -1524,5 +1556,186 @@ describe('PerfilEmpleado — Experiencia', () => {
     // aprendizaje" (mismo dato, distinto significado). Solo se comprueba que no
     // se añada la fila de contexto "Proyectos únicos".
     expect(competencias.getByText('proyectos únicos')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 9-Box vigente (PRD §10/§20.2 — orden del perfil; ET §20/§42): sección
+// propia entre Experiencia y Última evaluación, con consulta independiente a
+// /nine-box. Los ejes se muestran TAL CUAL llegan (texto Decimal, sin
+// parseFloat ni redondeo) y el 9-Box histórico del snapshot NO se toca:
+// NINE_BOX_VIGENTE usa AA y el snapshot B6 precisamente para verificar que
+// las dos fuentes nunca se mezclan.
+// ---------------------------------------------------------------------------
+describe('PerfilEmpleado — 9-Box vigente', () => {
+  it('consulta el 9-Box vigente exactamente una vez con token y empleadoId', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: '9-Box' }),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(obtenerNineBox).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(obtenerNineBox).mock.calls[0]).toEqual(['token-rh', 1])
+  })
+
+  it('aparece después de Experiencia y antes de Última evaluación', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccionNineBox = (
+      await screen.findByRole('heading', { name: '9-Box' })
+    ).closest('section')
+    const seccionExperiencia = screen
+      .getByRole('heading', { name: 'Experiencia' })
+      .closest('section')
+    const seccionUltima = screen
+      .getByRole('heading', { name: 'Última evaluación' })
+      .closest('section')
+
+    const vaAntes = (a, b) =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    expect(vaAntes(seccionExperiencia, seccionNineBox)).toBe(true)
+    expect(vaAntes(seccionNineBox, seccionUltima)).toBe(true)
+  })
+
+  it('muestra Rendimiento, Potencial y Celda con los valores del endpoint', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('9-Box')
+
+    // Términos del contrato (dt) y valores del endpoint (dd), acotados a la
+    // sección: jsdom no calcula nombre accesible para el rol `term`, así que
+    // se consulta por texto dentro del scope. "Potencial" aparece DOS veces
+    // a propósito: etiqueta del eje de columnas y término dl textual (SG §16:
+    // la información textual tiene prioridad sobre el color). "AA" también:
+    // celda de la matriz y Celda del resumen textual.
+    expect(seccion.getByText('Desempeño')).toBeInTheDocument()
+    expect(seccion.getAllByText('Potencial')).toHaveLength(2)
+    expect(seccion.getByText('Rendimiento')).toBeInTheDocument()
+    expect(seccion.getByText('Celda')).toBeInTheDocument()
+    expect(seccion.getAllByText('AA')).toHaveLength(2)
+    expect(seccion.getByText('Actual')).toBeInTheDocument()
+  })
+
+  it('muestra los ejes exactamente como strings recibidos, sin transformar', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('9-Box')
+
+    // '5' y '4.5' tal cual: nunca 5, 4.5, '5.000' ni '4,5'.
+    expect(seccion.getByText('5 · alto')).toBeInTheDocument()
+    expect(seccion.getByText('4.5 · alto')).toBeInTheDocument()
+    expect(seccion.queryByText('5.000')).not.toBeInTheDocument()
+    expect(seccion.queryByText('4.500')).not.toBeInTheDocument()
+  })
+
+  it('muestra "Datos insuficientes." cuando los cinco campos son null', async () => {
+    respuestaNineBox = () => Promise.resolve(nineBoxVigenteDi())
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('9-Box')
+
+    expect(seccion.getByText('Datos insuficientes.')).toBeInTheDocument()
+  })
+
+  it('con DI no muestra celda, ejes ni nivel 0', async () => {
+    respuestaNineBox = () => Promise.resolve(nineBoxVigenteDi())
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const seccion = await esperarTarjeta('9-Box')
+
+    for (const termino of ['Rendimiento', 'Potencial', 'Celda', 'AA', 'Actual', '0']) {
+      expect(seccion.queryByText(termino)).not.toBeInTheDocument()
+    }
+  })
+
+  it('muestra su estado de carga propio sin ocultar las demás secciones', async () => {
+    respuestaNineBox = () => new Promise(() => {})
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(await screen.findByText('Información básica')).toBeInTheDocument()
+    expect(screen.getByText('Cargando 9-Box…')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Resultado actual' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Experiencia' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Última evaluación' })).toBeInTheDocument()
+  })
+
+  it('muestra error propio con reintento sin romper las otras secciones', async () => {
+    let fallos = 0
+    respuestaNineBox = () =>
+      fallos++ === 0
+        ? Promise.reject(Object.assign(new Error('fallo del servidor'), { estado: 500 }))
+        : Promise.resolve(NINE_BOX_VIGENTE)
+
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    expect(
+      await screen.findByText('No pudimos cargar el 9-Box'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Información básica')).toBeInTheDocument()
+    expect(screen.getByText('2026-Q3')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+
+    expect(await screen.findByText('Actual')).toBeInTheDocument()
+    await waitFor(() => expect(obtenerNineBox).toHaveBeenCalledTimes(2))
+  })
+
+  it('cierra la sesión ante un 401 del 9-Box sin estado de error', async () => {
+    const alSesionExpirada = vi.fn()
+    respuestaNineBox = () =>
+      Promise.reject(Object.assign(new Error('Credenciales inválidas.'), { estado: 401 }))
+
+    render(
+      <PerfilEmpleado
+        token="token-rh"
+        empleadoId={1}
+        alVolver={() => {}}
+        alSesionExpirada={alSesionExpirada}
+      />,
+    )
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByText('No pudimos cargar el 9-Box'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('el 9-Box histórico sigue leyendo el snapshot, no el dato vigente', async () => {
+    render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+
+    const vigente = await esperarTarjeta('9-Box')
+    const ultima = tarjeta('Última evaluación')
+
+    // Cada sección muestra SU fuente: vigente AA (/nine-box — celda de la
+    // matriz y resumen textual), snapshot B6 (items[0].nine_box del historial).
+    // Nunca se mezclan.
+    expect(vigente.getAllByText('AA')).toHaveLength(2)
+    expect(vigente.queryByText('B6')).not.toBeInTheDocument()
+    expect(ultima.getByText('B6')).toBeInTheDocument()
+    expect(ultima.queryByText('AM')).not.toBeInTheDocument()
+    // El snapshot conserva sus ejes propios (3.2 · Fuerte / 4.1 · Alto).
+    expect(ultima.getByText('3.2 · Fuerte')).toBeInTheDocument()
+    expect(ultima.getByText('4.1 · Alto')).toBeInTheDocument()
   })
 })

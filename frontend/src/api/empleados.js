@@ -69,6 +69,35 @@ export async function obtenerResultadoActual(token, empleadoId) {
   )
 }
 
+// 9-Box vigente de un empleado (PRD §10/§20.2; ET §20, §31, §42).
+//
+// Usa EXCLUSIVAMENTE el endpoint existente GET /api/v1/rh/employees/{id}/nine-box,
+// que devuelve el NineBoxDTO del backend sin transformar: `performance_axis`,
+// `potential_axis` y `box_code`, más las etiquetas de presentación
+// `etiqueta_performance`/`etiqueta_potencial`. Los ejes llegan como texto
+// (Decimal serializado por el backend) y se pintan tal cual: no se parsean,
+// no se redondean ni se recalculan.
+//
+// Es un CONTRATO SEPARADO de `/result` a propósito (MB-4B): el 9-Box NO forma
+// parte de ResultadoActualDTO y tampoco sustituye al 9-Box histórico del
+// snapshot de una evaluación. Si cualquiera de las cinco competencias está en
+// INSUFFICIENT_DATA, los cinco campos llegan `null` (§20.2): esa lectura la
+// hace la vista, aquí no se interpreta nada. Sin cálculos ni ramas por estado
+// del empleado: solo 404 si el empleado no existe, como `/result`.
+
+/**
+ * Consulta el 9-Box vigente de un empleado (RH).
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} empleadoId identificador del empleado (`empleado.id`).
+ * @returns {Promise<object>} NineBoxDTO del backend, sin transformar.
+ */
+export async function obtenerNineBox(token, empleadoId) {
+  return solicitar(
+    `/api/v1/rh/employees/${encodeURIComponent(empleadoId)}/nine-box`,
+    { token },
+  )
+}
+
 // Listado administrativo de empleados (PRD §20.1; ET §31, §40).
 //
 // Usa EXCLUSIVAMENTE los parámetros que el backend ya acepta: `pagina`,

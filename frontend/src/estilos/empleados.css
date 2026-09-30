@@ -66,6 +66,7 @@
 .perfil-empleado__resultado,
 .perfil-empleado__competencias,
 .perfil-empleado__experiencia,
+.perfil-empleado__ninebox,
 .perfil-empleado__evaluacion,
 .perfil-empleado__historial { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 
@@ -75,6 +76,7 @@
 .perfil-empleado__resultado > h2,
 .perfil-empleado__competencias > h2,
 .perfil-empleado__experiencia > h2,
+.perfil-empleado__ninebox > h2,
 .perfil-empleado__evaluacion > h2,
 .perfil-empleado__historial > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 
@@ -142,6 +144,28 @@
 .perfil-empleado__subtitulo { margin: 20px 0 10px; color: var(--color-brand-deep); font-size: 13px; font-weight: 700; }
 .perfil-empleado__evaluacion .estado-vacio { margin: 4px 0; }
 
+/* 9-Box vigente (Style Guide §16): matriz 3×3 con celdas mayoritariamente
+   NEUTRAS — sin semáforo, sin rojo/verde/ámbar y sin juicios (PRD §10.3).
+   Columnas = Potencial (Bajo/Medio/Alto), filas = Desempeño (Alto/Medio/Bajo,
+   de arriba abajo); código de celda: primer carácter Desempeño, segundo
+   Potencial. La posición actual se distingue ÚNICAMENTE con borde primario,
+   fondo suave e indicador textual "Actual"; la información textual de los
+   ejes (dl inferior) tiene prioridad sobre el color. Las celdas son
+   estáticas: el código llega calculado desde el backend, aquí no se calcula
+   nada. Clases propias `perfil-ninebox*` para no tocar otros bloques. */
+.perfil-ninebox { display: flex; flex-direction: column; gap: 8px; }
+.perfil-ninebox__titulos { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.perfil-ninebox__titulos span { color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.perfil-ninebox__matriz { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 6px; }
+.perfil-ninebox__encabezado { display: grid; place-items: center; min-height: 24px; color: var(--color-text-secondary); font-size: 11px; font-weight: 700; }
+.perfil-ninebox__esquina { min-height: 24px; }
+.perfil-ninebox__celda { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 62px; background: #fff; border: 1px solid var(--line-soft); border-radius: 8px; }
+.perfil-ninebox__codigo { color: var(--color-text-primary); font-size: 13px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.perfil-ninebox__actual { color: var(--color-brand-deep); font-size: 10px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+/* Único resaltado permitido (SG §16): borde primario + fondo suave. */
+.perfil-ninebox__celda--actual { border: 2px solid var(--color-primary); background: var(--color-primary-soft); }
+.perfil-empleado__ninebox .perfil-empleado__lista { margin-top: 16px; gap: 10px 24px; }
+
 /* Historial de evaluaciones: timeline sutil (Style Guide §19: líneas y
    elementos visuales sutiles). Línea fina + punto por entrada; el punto es
    decorativo (el periodo textual es el marcador real, nunca el color). */
@@ -163,8 +187,20 @@
   .perfil-empleado__resultado,
   .perfil-empleado__competencias,
   .perfil-empleado__experiencia,
+  .perfil-empleado__ninebox,
   .perfil-empleado__evaluacion,
   .perfil-empleado__historial { padding: 18px; }
+  /* 9-Box (SG §16): la matriz SIGUE siendo 3×3 — solo se compacta
+     (celdas más bajas, gaps menores y códigos/indicador más pequeños)
+     para caber sin overflow. Nunca una columna de 3 filas. */
+  .perfil-ninebox { gap: 6px; }
+  .perfil-ninebox__matriz { gap: 4px; }
+  .perfil-ninebox__encabezado,
+  .perfil-ninebox__esquina { min-height: 18px; font-size: 10px; }
+  .perfil-ninebox__celda { min-height: 46px; border-radius: 6px; }
+  .perfil-ninebox__codigo { font-size: 12px; }
+  .perfil-ninebox__actual { font-size: 9px; }
+  .perfil-empleado__ninebox .perfil-empleado__lista { margin-top: 12px; }
   .perfil-empleado__lista { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .perfil-empleado__lista--resultado { grid-template-columns: minmax(0, 1fr); }
   /* Competencias: una columna legible en móvil (sin tocar responsive.css). */

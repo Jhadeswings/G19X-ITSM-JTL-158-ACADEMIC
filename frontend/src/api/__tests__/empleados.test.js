@@ -7,6 +7,7 @@ import {
   crearEmpleado,
   listarEmpleados,
   obtenerEmpleado,
+  obtenerNineBox,
   obtenerResultadoActual,
   POR_PAGINA_DEFECTO,
 } from '../empleados.js'
@@ -330,5 +331,88 @@ describe('empleados — resultado actual por RH', () => {
     vi.mocked(solicitar).mockRejectedValue(error)
 
     await expect(obtenerResultadoActual('token-rh', 7)).rejects.toBe(error)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 9-Box vigente (PRD §10/§20.2; ET §20, §31): GET /rh/employees/{id}/nine-box.
+// Contrato SEPARADO de /result: NineBoxDTO nunca viaja dentro de
+// ResultadoActualDTO. Solo transporte: sin cálculo, sin parsear los ejes
+// (llegan como texto Decimal) y sin interpretar DI (los cinco null).
+// ---------------------------------------------------------------------------
+describe('empleados — 9-Box vigente por RH', () => {
+  const NINE_BOX = {
+    performance_axis: '5',
+    potential_axis: '4.5',
+    box_code: 'AM',
+    etiqueta_performance: 'alto',
+    etiqueta_potencial: 'alto',
+  }
+
+  it('llama a GET /api/v1/rh/employees/{id}/nine-box con el token de la sesión', async () => {
+    vi.mocked(solicitar).mockResolvedValue(NINE_BOX)
+
+    await obtenerNineBox('token-rh', 7)
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/employees/7/nine-box', {
+      token: 'token-rh',
+    })
+  })
+
+  it('construye la URL con el empleadoId y sin parámetros extra', async () => {
+    vi.mocked(solicitar).mockResolvedValue(NINE_BOX)
+
+    await obtenerNineBox('token-rh', 42)
+
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toBe('/api/v1/rh/employees/42/nine-box')
+    expect(ruta).not.toContain('?')
+    expect(opciones).toEqual({ token: 'token-rh' })
+    expect(opciones.metodo).toBeUndefined()
+  })
+
+  it('codifica el empleadoId con encodeURIComponent', async () => {
+    vi.mocked(solicitar).mockResolvedValue(NINE_BOX)
+
+    await obtenerNineBox('token-rh', 'empleado/9?result')
+
+    const ruta = vi.mocked(solicitar).mock.calls[0][0]
+    expect(ruta).toBe(
+      `/api/v1/rh/employees/${encodeURIComponent('empleado/9?result')}/nine-box`,
+    )
+  })
+
+  it('devuelve la respuesta del backend sin transformarla', async () => {
+    vi.mocked(solicitar).mockResolvedValue(NINE_BOX)
+
+    await expect(obtenerNineBox('token-rh', 7)).resolves.toEqual(NINE_BOX)
+  })
+
+  it('conserva el 9-Box vacío de Datos insuficientes sin interpretarlo', async () => {
+    const conDi = {
+      performance_axis: null,
+      potential_axis: null,
+      box_code: null,
+      etiqueta_performance: null,
+      etiqueta_potencial: null,
+    }
+    vi.mocked(solicitar).mockResolvedValue(conDi)
+
+    await expect(obtenerNineBox('token-rh', 7)).resolves.toEqual(conDi)
+  })
+
+  it('propaga los errores de la capa existente con su estado HTTP', async () => {
+    const error = Object.assign(new Error('no encontrado'), { estado: 404 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(obtenerNineBox('token-rh', 999)).rejects.toBe(error)
+  })
+
+  it('propaga un 401 sin transformarlo (la vista decide la sesión expirada)', async () => {
+    const error = Object.assign(new Error('Credenciales inválidas.'), { estado: 401 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(obtenerNineBox('token-rh', 7)).rejects.toBe(error)
   })
 })
