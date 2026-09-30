@@ -7,6 +7,9 @@ Un Empleado no puede gestionar empleados (403).
   vigente del empleado para el perfil individual de RH (PRD §20.2). Es una
   lectura DERIVADA del estado actual (nunca del histórico, §18) y el cálculo
   vive en ``resultado_actual_service``: aquí no hay fórmulas.
+- ``GET /rh/employees/{id}/nine-box`` (ET §20/§31) devuelve el 9-Box vigente
+  del empleado. Es un CONTRATO SEPARADO a propósito: ``ResultadoActualDTO`` no
+  incluye 9-Box y su lectura histórica tampoco se recalcula.
 """
 
 from fastapi import APIRouter, Depends, Query, status
@@ -22,8 +25,13 @@ from app.schemas.empleado import (
     EmpleadoUpdateIn,
     EstadoEmpleadoIn,
 )
+from app.schemas.evaluacion import NineBoxDTO
 from app.schemas.resultado_actual import ResultadoActualDTO
-from app.services import empleado_service, resultado_actual_service
+from app.services import (
+    empleado_service,
+    nine_box_service,
+    resultado_actual_service,
+)
 
 router = APIRouter(
     prefix="/rh/employees", tags=["rh-empleados"], dependencies=[Depends(require_rh)]
@@ -90,6 +98,25 @@ def consultar_resultado_actual(
       puede enviar niveles, fortalezas ni experiencia.
     """
     return resultado_actual_service.obtener_resultado_actual(db, empleado_id)
+
+
+@router.get("/{empleado_id}/nine-box", response_model=NineBoxDTO)
+def consultar_nine_box_actual(
+    empleado_id: int, db: Session = Depends(get_db)
+) -> NineBoxDTO:
+    """9-Box vigente del empleado para el bloque del perfil RH (ET §20/§31).
+
+    - Ejes y celda DERIVADOS del estado actual, nunca del histórico: la
+      lectura del snapshot no se toca (DECISIONES §30).
+    - Contrato SEPARADO de ``/result``: ``ResultadoActualDTO`` no incluye
+      9-Box y aquí no se modifica.
+    - DI en cualquiera de las cinco competencias ⇒ los cinco campos en
+      ``null`` (§20.2). Sin IA y sin score global (§20.3).
+    - Cero fórmulas aquí: compone ``resultado_actual_service`` y el servicio
+      puro ``nine_box`` (§13).
+    - Empleado inexistente ⇒ 404 (mismo comportamiento que ``/result``).
+    """
+    return nine_box_service.obtener_nine_box_actual(db, empleado_id)
 
 
 @router.patch("/{empleado_id}", response_model=EmpleadoOut)

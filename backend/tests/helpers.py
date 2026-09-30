@@ -61,6 +61,7 @@ URL_ME_RECOMENDACION = "/api/v1/me/progress/recommendation"
 
 # Fase 13 (resultado actual vigente por empleado, exclusivo RH)
 URL_RH_EMPLEADO_RESULTADO = "/api/v1/rh/employees/{empleado_id}/result"
+URL_RH_EMPLEADO_NINE_BOX = "/api/v1/rh/employees/{empleado_id}/nine-box"
 
 
 def cabecera(token: str) -> dict:
