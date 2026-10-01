@@ -7,6 +7,7 @@ import { solicitar } from '../clienteApi.js'
 import {
   actualizarSesion,
   cambiarPassword,
+  cambiarPasswordConActual,
   guardarSesion,
   iniciarSesion,
   limpiarSesion,
@@ -136,5 +137,154 @@ describe('autenticacion — cambio de contraseña', () => {
       token: 'token-1',
       cuerpo: { password_nueva: 'nueva123' },
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// MB-6-2 — Cambio VOLUNTARIO de contraseña ("Mi cuenta", PRD §3.3).
+//
+// Con `must_change_password=false` el backend EXIGE `password_actual`
+// (`auth_service.cambiar_password`, 400 si falta o no coincide). Estos tests
+// fijan el TRANSPORTE de ese caso. El flujo de primer acceso, ya cerrado, se
+// comprueba aparte al final: sigue enviando únicamente `password_nueva`.
+// ---------------------------------------------------------------------------
+describe('autenticacion — cambio voluntario de contraseña', () => {
+  const RESPUESTA = { mensaje: 'Contraseña actualizada.' }
+
+  beforeEach(() => {
+    vi.mocked(solicitar).mockResolvedValue(RESPUESTA)
+  })
+
+  it('envía el método POST en la ruta exacta del endpoint existente', async () => {
+    await cambiarPasswordConActual('token-1', 'actual123', 'nueva1234')
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toBe('/api/v1/auth/password/change')
+    expect(opciones.metodo).toBe('POST')
+  })
+
+  it('envía el token de la sesión en la cabecera Authorization', async () => {
+    // `solicitar` es el cliente HTTP compartido: el token viaja siempre ahí y
+    // el backend deriva la identidad de él (ET §31/§32).
+    await cambiarPasswordConActual('token-1', 'actual123', 'nueva1234')
+
+    expect(vi.mocked(solicitar).mock.calls[0][1].token).toBe('token-1')
+  })
+
+  it('envía el body exacto con password_actual y password_nueva', async () => {
+    await cambiarPasswordConActual('token-1', 'actual123', 'nueva1234')
+
+    expect(vi.mocked(solicitar).mock.calls[0][1].cuerpo).toEqual({
+      password_actual: 'actual123',
+      password_nueva: 'nueva1234',
+    })
+  })
+
+  it('no envía ningún identificador de cuenta ni de empleado (§32)', async () => {
+    await cambiarPasswordConActual('token-1', 'actual123', 'nueva1234')
+
+    const cuerpo = vi.mocked(solicitar).mock.calls[0][1].cuerpo
+    expect(Object.keys(cuerpo).sort()).toEqual([
+      'password_actual',
+      'password_nueva',
+    ])
+    expect(cuerpo).not.toHaveProperty('cuenta_id')
+    expect(cuerpo).not.toHaveProperty('empleado_id')
+  })
+
+  it('no valida ni corrige la contraseña: envía la cadena tal cual', async () => {
+    // La política (PRD §3.5) la aplica el esquema del backend con 422. Aquí no
+    // hay reglas de negocio: el transporte no juzga la contraseña.
+    await cambiarPasswordConActual('token-1', 'corta', 'a')
+
+    expect(vi.mocked(solicitar).mock.calls[0][1].cuerpo).toEqual({
+      password_actual: 'corta',
+      password_nueva: 'a',
+    })
+  })
+
+  it('devuelve la respuesta del backend sin transformarla', async () => {
+    await expect(
+      cambiarPasswordConActual('token-1', 'actual123', 'nueva1234'),
+    ).resolves.toBe(RESPUESTA)
+  })
+
+  it('propaga el 400 del backend cuando la contraseña actual no coincide', async () => {
+    const error = Object.assign(new Error('La contraseña actual es incorrecta.'), {
+      estado: 400,
+    })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(
+      cambiarPasswordConActual('token-1', 'equivocada9', 'nueva1234'),
+    ).rejects.toBe(error)
+  })
+
+  it('propaga el 422 de política para que el formulario lo muestre legible', async () => {
+    const error = Object.assign(new Error('Some data is invalid'), {
+      estado: 422,
+    })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(
+      cambiarPasswordConActual('token-1', 'actual123', 'corta'),
+    ).rejects.toBe(error)
+  })
+
+  it('propaga el 401 para que la sesión se cierre (ET §31)', async () => {
+    const error = Object.assign(new Error('Credenciales inválidas.'), {
+      estado: 401,
+    })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(
+      cambiarPasswordConActual('token-1', 'actual123', 'nueva1234'),
+    ).rejects.toBe(error)
+  })
+
+  it('NO modifica la sesión ni mustChangePassword (transporte puro)', async () => {
+    guardarSesion({
+      token: 'token-1',
+      rol: 'EMPLEADO',
+      mustChangePassword: false,
+    })
+
+    await cambiarPasswordConActual('token-1', 'actual123', 'nueva1234')
+
+    expect(obtenerSesion()).toEqual({
+      token: 'token-1',
+      rol: 'EMPLEADO',
+      mustChangePassword: false,
+    })
+  })
+})
+
+describe('autenticacion — el primer acceso no se ve afectado', () => {
+  it('cambiarPassword sigue enviando ÚNICAMENTE password_nueva', async () => {
+    // Con credencial temporal el backend NO exige la contraseña actual
+    // (PRD §3.3). Este flujo ya estaba cerrado y probado: no debe cambiar.
+    vi.mocked(solicitar).mockResolvedValue({
+      mensaje: 'Contraseña actualizada.',
+    })
+
+    await cambiarPassword('token-temporal', 'nueva123')
+
+    const [, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(opciones.cuerpo).toEqual({ password_nueva: 'nueva123' })
+    expect(opciones.cuerpo).not.toHaveProperty('password_actual')
+  })
+
+  it('las dos funciones comparten endpoint pero no semántica', async () => {
+    vi.mocked(solicitar).mockResolvedValue({
+      mensaje: 'Contraseña actualizada.',
+    })
+
+    await cambiarPassword('token-temporal', 'nueva123')
+    await cambiarPasswordConActual('token-1', 'actual123', 'nueva1234')
+
+    const [primera, segunda] = vi.mocked(solicitar).mock.calls
+    expect(primera[0]).toBe(segunda[0])
+    expect(primera[1].cuerpo).not.toEqual(segunda[1].cuerpo)
   })
 })

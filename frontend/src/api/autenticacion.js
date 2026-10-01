@@ -114,3 +114,34 @@ export async function cambiarPassword(token, passwordNueva) {
     cuerpo: { password_nueva: passwordNueva },
   })
 }
+
+/**
+ * Cambio VOLUNTARIO de contraseña: el usuario ya tiene contraseña definitiva
+ * (`must_change_password=false`, PRD §3.3) y por eso el backend EXIGE además
+ * `password_actual` (ver `auth_service.cambiar_password`, que responde 400 si
+ * falta o no coincide). Por eso es una función SEPARADA y no una opción de
+ * `cambiarPassword`: el flujo de primer acceso ya está cerrado y probado, y su
+ * semántica (enviar únicamente `password_nueva`) no debe cambiar.
+ *
+ * Es TRANSPORTE PURO: no valida reglas de contraseña, no calcula, no consulta
+ * `/me`, no toca la sesión ni `mustChangePassword` e no interpreta la
+ * respuesta. La política de contraseña la aplica el esquema del backend
+ * (PRD §3.5, 422) y la coincidencia de contraseñas será responsabilidad del
+ * formulario que la use. La identidad la deriva el backend del token (ET
+ * §31/§32): aquí no se envía ningún identificador de cuenta.
+ * @returns {Promise<{mensaje: string}>}
+ */
+export async function cambiarPasswordConActual(
+  token,
+  passwordActual,
+  passwordNueva,
+) {
+  return solicitar('/api/v1/auth/password/change', {
+    metodo: 'POST',
+    token,
+    cuerpo: {
+      password_actual: passwordActual,
+      password_nueva: passwordNueva,
+    },
+  })
+}
