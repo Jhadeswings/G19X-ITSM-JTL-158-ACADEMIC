@@ -9,6 +9,7 @@ import { obtenerProgreso } from '../api/progreso.js'
 import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequerida, obtenerDistribucionCompetencia } from '../api/dashboardRh.js'
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
+import { listarEvaluacionesPropias } from '../api/evaluaciones.js'
 import App from '../App.jsx'
 import { SECCIONES_EMPLEADO, SECCIONES_RH } from '../navegacion.js'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
@@ -35,6 +36,11 @@ vi.mock('../api/capacitaciones.js', async () => {
   return { ...original, listarCapacitaciones: vi.fn(), crearCapacitacion: vi.fn() }
 })
 
+vi.mock('../api/evaluaciones.js', async () => {
+  const original = await vi.importActual('../api/evaluaciones.js')
+  return { ...original, listarEvaluacionesPropias: vi.fn() }
+})
+
 const EMPLEADO = { token: 'token-empleado', rol: 'EMPLEADO', mustChangePassword: false }
 const EMPLEADO_TEMPORAL = { token: 'token-temporal', rol: 'EMPLEADO', mustChangePassword: true }
 const RH = { token: 'token-rh', rol: 'RH', mustChangePassword: false }
@@ -50,6 +56,13 @@ beforeEach(() => {
   vi.mocked(obtenerDistribucionCompetencia).mockReset()
   vi.mocked(listarEmpleados).mockReset()
   vi.mocked(listarCapacitaciones).mockReset()
+  vi.mocked(listarEvaluacionesPropias).mockReset()
+  vi.mocked(listarEvaluacionesPropias).mockResolvedValue({
+    total: 0,
+    pagina: 1,
+    por_pagina: 20,
+    items: [],
+  })
   vi.mocked(listarCapacitaciones).mockResolvedValue({
     total: 0,
     pagina: 1,
@@ -136,10 +149,10 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
-    abrir('Mi historial')
+    abrir('Mi cuenta')
 
     expect(
-      await screen.findByText('«Mi historial» todavía no está disponible'),
+      await screen.findByText('«Mi cuenta» todavía no está disponible'),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: 'Competencias' }),
@@ -199,18 +212,41 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('las tres secciones pendientes tienen su propio estado temporal', async () => {
+  it('las dos secciones pendientes tienen su propio estado temporal', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
-    for (const titulo of ['Inicio', 'Mi historial', 'Mi cuenta']) {
+    for (const titulo of ['Inicio', 'Mi cuenta']) {
       abrir(titulo)
       expect(
         screen.getByText(`«${titulo}» todavía no está disponible`),
       ).toBeInTheDocument()
     }
     expect(obtenerProgreso).toHaveBeenCalledTimes(1)
+  })
+
+  it('Mi historial abre su vista real (§21.5), no el estado temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Competencias' })
+
+    abrir('Mi historial')
+
+    expect(
+      (await screen.findAllByRole('heading', { name: 'Mi historial', level: 1 })).length,
+    ).toBeGreaterThan(0)
+    // La vista consulta SU propio historial, no el progreso.
+    await waitFor(() =>
+      expect(listarEvaluacionesPropias).toHaveBeenCalledWith(
+        'token-empleado',
+        expect.objectContaining({ pagina: 1 }),
+      ),
+    )
+    expect(obtenerProgreso).toHaveBeenCalledTimes(1)
+    expect(
+      screen.queryByText('«Mi historial» todavía no está disponible'),
+    ).not.toBeInTheDocument()
   })
 
   it('marca la sección activa y actualiza el título del header', async () => {

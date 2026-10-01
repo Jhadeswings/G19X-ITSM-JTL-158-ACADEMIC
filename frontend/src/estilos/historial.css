@@ -1,0 +1,57 @@
+/* Mi historial (Empleado, Style Guide §19 Timeline/Evolución, §26, §33).
+
+   Solo estilos de la Timeline, el selector de competencia y el listado de
+   periodos. Se reutilizan los componentes y tokens existentes (`ui-button`,
+   `ui-badge`, `estado-*`, `paginacion`, `section-header`): aquí no se crea una
+   paleta nueva, ni un sistema de botones, ni un componente genérico.
+
+   La Timeline es SUTIL por definición (§19): una línea vertical de 1px y
+   puntos pequeños. No hay ejes, escalas, barras proporcionales ni gráficas
+   cuantitativas, porque no existe ninguna métrica derivada que representar.
+
+   El estado "Datos insuficientes" se distingue por texto y por su propio
+   modificador de estilo: el color nunca es la única señal (§3). */
+
+.mi-historial { display: flex; flex-direction: column; gap: 22px; }
+
+/* --- Evolución de una competencia a la vez (PRD §21.5) --- */
+.historial-evolucion { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.historial-evolucion__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.historial-evolucion__nota { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+.historial-evolucion__selector { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.historial-timeline { display: flex; flex-direction: column; gap: 0; margin: 6px 0 0; padding: 0; list-style: none; }
+.historial-timeline__item { position: relative; display: flex; align-items: baseline; gap: 14px; padding: 12px 0 12px 24px; }
+/* Línea vertical sutil que une los puntos de la Timeline (§19). */
+.historial-timeline__item::before { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 1px; background: var(--line-soft); }
+.historial-timeline__item:first-child::before { top: 50%; }
+.historial-timeline__item:last-child::before { bottom: 50%; }
+/* Punto del periodo: pequeño y discreto, nunca una barra de valor. */
+.historial-timeline__item::after { content: ''; position: absolute; left: 0; top: 18px; width: 9px; height: 9px; background: #fff; border: 2px solid var(--color-primary); border-radius: 50%; }
+.historial-timeline__periodo { margin: 0; min-width: 88px; color: var(--color-text-primary); font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+.historial-timeline__estado { display: flex; align-items: baseline; gap: 8px; margin: 0; color: var(--color-text-primary); font-size: 14px; }
+.historial-timeline__nivel { color: var(--color-brand-deep); font-size: 18px; font-weight: 700; line-height: 1; }
+.historial-timeline__etiqueta { color: var(--color-text-secondary); }
+/* "Datos insuficientes" es un estado válido, no un error ni un nivel 0 (§5). */
+.historial-timeline__estado--di { color: #6d797e; font-style: normal; font-weight: 600; }
+
+/* --- Historial por periodo --- */
+.historial-periodos { display: flex; flex-direction: column; gap: 14px; }
+.historial-periodos__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.historial-periodos__lista { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.historial-periodo { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; }
+.historial-periodo__cabecera { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.historial-periodo__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; }
+.historial-periodo__fecha { margin: 0; color: var(--ink-soft); font-size: 12px; }
+.historial-periodo__competencias { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 20px; margin: 0; }
+.historial-competencia { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.historial-competencia dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.historial-competencia dd { margin: 0; }
+
+/* Adaptación a pantallas estrechas (§7): sin overflow horizontal. */
+@media (max-width: 760px) {
+  .historial-evolucion { padding: 18px; }
+  .historial-timeline__item { flex-direction: column; gap: 2px; }
+  .historial-periodo { padding: 16px; }
+  .historial-periodo__competencias { grid-template-columns: 1fr; }
+}

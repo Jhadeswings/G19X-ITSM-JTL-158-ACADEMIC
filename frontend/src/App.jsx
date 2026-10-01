@@ -14,8 +14,8 @@
 //      (listado ↕ alta, PRD §20.1 + §3.3);
 //   4. Empleado con contraseña definitiva → shell de Empleado con las seis
 //      secciones del Style Guide §10; "Mi progreso" (§21.2), "Mis proyectos"
-//      (§21.3) y "Mis capacitaciones" (§21.4) son funcionales, el resto
-//      reutiliza SeccionTemporal.
+//      (§21.3), "Mis capacitaciones" (§21.4) y "Mi historial" (§21.5) son
+//      funcionales, el resto reutiliza SeccionTemporal.
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -36,6 +36,7 @@ import {
 } from './navegacion.js'
 import InicioRH from './vistas/InicioRH.jsx'
 import Empleados from './vistas/Empleados.jsx'
+import MiHistorial from './vistas/MiHistorial.jsx'
 import MiProgreso from './vistas/MiProgreso.jsx'
 import MisCapacitaciones from './vistas/MisCapacitaciones.jsx'
 import MisProyectos from './vistas/MisProyectos.jsx'
@@ -155,6 +156,8 @@ function App() {
         <MisProyectos token={sesion.token} alSesionExpirada={cerrarSesion} />
       ) : seccion === 'mis-capacitaciones' ? (
         <MisCapacitaciones token={sesion.token} alSesionExpirada={cerrarSesion} />
+      ) : seccion === 'mi-historial' ? (
+        <MiHistorial token={sesion.token} alSesionExpirada={cerrarSesion} />
       ) : (
         <SeccionTemporal titulo={activa.titulo} />
       )}
