@@ -123,10 +123,10 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
-    abrir('Mis proyectos')
+    abrir('Mis capacitaciones')
 
     expect(
-      await screen.findByText('«Mis proyectos» todavía no está disponible'),
+      await screen.findByText('«Mis capacitaciones» todavía no está disponible'),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: 'Competencias' }),
@@ -135,14 +135,34 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     expect(obtenerProgreso).toHaveBeenCalledTimes(1)
   })
 
-  it('las cinco secciones pendientes tienen su propio estado temporal', async () => {
+  it('Mis proyectos abre su vista real (§21.3), no el estado temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Competencias' })
+
+    abrir('Mis proyectos')
+
+    expect(
+      await screen.findByRole('heading', { name: /Buscar el proyecto/ }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Nombre del proyecto')).toBeInTheDocument()
+    // La búsqueda es obligatoria antes de crear: sin resultados todavía no
+    // existe ninguna opción de alta ni dato simulado.
+    expect(
+      screen.queryByRole('button', { name: 'Crear proyecto' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('«Mis proyectos» todavía no está disponible'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('las cuatro secciones pendientes tienen su propio estado temporal', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
     for (const titulo of [
       'Inicio',
-      'Mis proyectos',
       'Mis capacitaciones',
       'Mi historial',
       'Mi cuenta',

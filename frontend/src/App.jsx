@@ -13,7 +13,8 @@
 //      es un catálogo con el alta integrada como subvista interna
 //      (listado ↕ alta, PRD §20.1 + §3.3);
 //   4. Empleado con contraseña definitiva → shell de Empleado con las seis
-//      secciones del Style Guide §10; solo "Mi progreso" es funcional (§21.2).
+//      secciones del Style Guide §10; "Mi progreso" (§21.2) y "Mis proyectos"
+//      (§21.3) son funcionales, el resto reutiliza SeccionTemporal.
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -35,6 +36,7 @@ import {
 import InicioRH from './vistas/InicioRH.jsx'
 import Empleados from './vistas/Empleados.jsx'
 import MiProgreso from './vistas/MiProgreso.jsx'
+import MisProyectos from './vistas/MisProyectos.jsx'
 import SeccionTemporal from './vistas/SeccionTemporal.jsx'
 
 function App() {
@@ -147,6 +149,8 @@ function App() {
     >
       {seccion === 'mi-progreso' ? (
         <MiProgreso token={sesion.token} alSesionExpirada={cerrarSesion} />
+      ) : seccion === 'mis-proyectos' ? (
+        <MisProyectos token={sesion.token} alSesionExpirada={cerrarSesion} />
       ) : (
         <SeccionTemporal titulo={activa.titulo} />
       )}

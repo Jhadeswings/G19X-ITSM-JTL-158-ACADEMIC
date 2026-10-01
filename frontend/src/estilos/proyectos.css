@@ -1,0 +1,58 @@
+/* Sección "Mis proyectos" del Empleado (PRD §11/§21.3; Style Guide §26
+   "Proyectos Empleado", §4.5 estados de proyecto, §6 espaciado, §7 responsive).
+   Solo estilos propios: `mis-proyectos`, `proyectos-*` y `proyecto-sugerencia`.
+   Reutiliza los tokens y las primitivas del shell: sin paleta nueva, sin otro
+   sistema de botones y sin tocar los estilos de otros dominios. */
+
+.mis-proyectos { display: flex; flex-direction: column; gap: 22px; }
+
+/* Paso del flujo (buscar / registrar): misma superficie que el resto del shell. */
+.proyectos-paso { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.proyectos-paso__titulo { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.proyectos-paso__titulo span { color: #b86f52; font-size: 12px; font-weight: 750; letter-spacing: .12em; }
+.proyectos-paso__nota { max-width: 660px; margin: 0 0 18px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+
+/* Búsqueda obligatoria: campo flexible y acción a la derecha. */
+.proyectos-busqueda { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.proyectos-busqueda .form-field { flex: 1 1 320px; }
+.proyectos-busqueda .ui-button { min-height: 40px; }
+
+/* Resultado: contenedor neutro, sin color de estado ni juicios sobre el dato. */
+.proyectos-resultado { display: block; }
+.proyectos-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px 22px; margin: 0; padding: 0; }
+.proyectos-datos > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.proyectos-datos dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.proyectos-datos dd { margin: 0; color: var(--color-text-primary); font-size: 14px; overflow-wrap: anywhere; }
+.proyectos-nota { margin: 16px 0 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+
+/* Coincidencia exacta: identificada con borde primario suave, sin semáforo. */
+.proyectos-coincidencia { padding: 20px 24px 24px; background: var(--color-primary-soft); border: 1px solid #c7ddda; border-radius: 12px; }
+.proyectos-coincidencia__etiqueta { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--color-brand-deep); font-size: 11px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.proyectos-coincidencia__etiqueta svg { width: 15px; height: 15px; }
+.proyectos-coincidencia__nombre { margin: 0 0 16px; color: var(--color-brand-deep); font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+
+/* Sugerencias aproximadas: información de contexto, nunca un error (§11.3/§8). */
+.proyectos-sugerencias__titulo { margin: 0 0 6px; color: var(--color-text-primary); font-size: 14px; font-weight: 700; }
+.proyectos-sugerencias__nota { max-width: 660px; margin: 0 0 14px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+.proyectos-sugerencias__lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.proyecto-sugerencia { padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; }
+.proyecto-sugerencia__nombre { margin: 0 0 12px; color: var(--color-text-primary); font-size: 15px; font-weight: 650; }
+
+/* Alta del proyecto: mismo lenguaje de formulario que el resto del sistema. */
+.proyectos-alta__campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.proyectos-alta__acciones { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.proyectos-alta__acciones > span { color: var(--ink-soft); font-size: 12px; }
+
+/* Confirmación de creación: solo con la respuesta del POST. */
+.proyectos-creado { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.proyectos-creado__nombre { margin: 0; color: var(--color-brand-deep); font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.proyectos-creado .ui-button { align-self: flex-start; }
+
+/* Adaptación a pantallas estrechas (§7): sin overflow horizontal. */
+@media (max-width: 760px) {
+  .proyectos-paso, .proyectos-creado, .proyectos-coincidencia { padding: 18px; }
+  .proyectos-busqueda { flex-direction: column; align-items: stretch; }
+  .proyectos-busqueda .ui-button { width: 100%; }
+  .proyectos-datos { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .proyectos-sugerencias__lista { grid-template-columns: minmax(0, 1fr); }
+}

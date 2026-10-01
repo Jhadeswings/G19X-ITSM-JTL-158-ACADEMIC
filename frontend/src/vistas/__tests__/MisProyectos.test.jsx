@@ -1,0 +1,434 @@
+// Vista "Mis proyectos" del Empleado (PRD §11/§21.3; Style Guide §26).
+// La API se mockea: sin llamadas reales al backend.
+//
+// Se verifica el flujo de MB-5A —buscar obligatoriamente y, si el backend no
+// devuelve coincidencia exacta, crear el proyecto— más los estados de la
+// vista. Los fixtures son fieles a los DTO reales (`ResultadoBusquedaOut` y
+// `ProyectoOut`): la coincidencia se decide SIEMPRE por lo que envía el
+// backend, nunca se recalcula en la vista.
+
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buscarProyectos, crearProyecto } from '../../api/proyectos.js'
+import MisProyectos from '../MisProyectos.jsx'
+
+vi.mock('../../api/proyectos.js', () => ({
+  buscarProyectos: vi.fn(),
+  crearProyecto: vi.fn(),
+}))
+
+const EXACTA = {
+  id: 3,
+  nombre: 'Proyecto ÁRBOL',
+  nombre_normalizado: 'proyecto arbol',
+  area: 'Operaciones',
+  cliente: 'Cliente interno',
+  estado: 'EN_PROCESO',
+  created_at: '2026-06-01T10:00:00',
+  updated_at: '2026-06-01T10:00:00',
+}
+
+/** ResultadoBusquedaOut con coincidencia exacta (proyecto ya existente). */
+function conExacta() {
+  return { consulta_normalizada: 'proyecto arbol', coincidencia_exacta: EXACTA, sugerencias: [] }
+}
+
+/** ResultadoBusquedaOut sin coincidencia exacta y con N sugerencias. */
+function conSugerencias(cantidad = 3) {
+  return {
+    consulta_normalizada: 'proyecto arbol',
+    coincidencia_exacta: null,
+    sugerencias: Array.from({ length: cantidad }, (_, indice) => ({
+      proyecto: {
+        id: 100 + indice,
+        nombre: `Proyecto aproximado ${indice + 1}`,
+        nombre_normalizado: `proyecto aproximado ${indice + 1}`,
+        area: null,
+        cliente: null,
+        estado: 'COMPLETADO',
+        created_at: '2026-05-01T10:00:00',
+        updated_at: '2026-06-01T10:00:00',
+      },
+      similitud: Number((0.7 - indice * 0.05).toFixed(2)),
+    })),
+  }
+}
+
+/** Sin coincidencia exacta ni sugerencias: el catálogo no tiene nada parecido. */
+const SIN_RESULTADOS = {
+  consulta_normalizada: 'proyecto arbol',
+  coincidencia_exacta: null,
+  sugerencias: [],
+}
+
+/** ProyectoOut que devuelve el POST (201): siempre inicia EN_PROCESO (§6). */
+const CREADO = {
+  id: 12,
+  nombre: 'Proyecto Roble',
+  nombre_normalizado: 'proyecto roble',
+  area: 'TI',
+  cliente: null,
+  estado: 'EN_PROCESO',
+  created_at: '2026-09-30T09:00:00',
+  updated_at: '2026-09-30T09:00:00',
+}
+
+function errorDe(estado, mensaje = 'detalle') {
+  return Object.assign(new Error(mensaje), { estado })
+}
+
+let respuestaBusqueda = () => Promise.resolve(conSugerencias())
+let respuestaAlta = () => Promise.resolve(CREADO)
+
+beforeEach(() => {
+  respuestaBusqueda = () => Promise.resolve(conSugerencias())
+  respuestaAlta = () => Promise.resolve(CREADO)
+  vi.mocked(buscarProyectos).mockReset()
+  vi.mocked(buscarProyectos).mockImplementation(() => respuestaBusqueda())
+  vi.mocked(crearProyecto).mockReset()
+  vi.mocked(crearProyecto).mockImplementation(() => respuestaAlta())
+})
+
+function montar(alSesionExpirada = vi.fn()) {
+  render(<MisProyectos token="token-empleado" alSesionExpirada={alSesionExpirada} />)
+  return alSesionExpirada
+}
+
+/** Flujo real: escribir el nombre y pulsar el botón de búsqueda. */
+function escribirYBuscar(nombre) {
+  fireEvent.change(screen.getByLabelText('Nombre del proyecto'), {
+    target: { value: nombre },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Buscar proyecto' }))
+}
+
+/** Formulario de alta (solo existe cuando el backend no dio coincidencia exacta). */
+function formularioAlta() {
+  return screen.getByRole('button', { name: 'Crear proyecto' }).closest('form')
+}
+
+function enviarAlta({
+  nombre = 'Proyecto Roble',
+  area = 'TI',
+  cliente = 'Interno',
+} = {}) {
+  const formulario = formularioAlta()
+  fireEvent.change(within(formulario).getByLabelText('Nombre'), {
+    target: { value: nombre },
+  })
+  fireEvent.change(within(formulario).getByLabelText('Área'), {
+    target: { value: area },
+  })
+  fireEvent.change(within(formulario).getByLabelText('Cliente'), {
+    target: { value: cliente },
+  })
+  fireEvent.click(within(formulario).getByRole('button', { name: 'Crear proyecto' }))
+}
+
+describe('MisProyectos — render inicial y búsqueda obligatoria', () => {
+  it('muestra la búsqueda sin consultar la API ni ofrecer el alta', () => {
+    montar()
+
+    expect(
+      screen.getByRole('heading', { name: /Buscar el proyecto/ }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Nombre del proyecto')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Buscar proyecto' })).toBeInTheDocument()
+    expect(screen.getByText('Todavía no has buscado un proyecto')).toBeInTheDocument()
+    // Búsqueda obligatoria: sin búsqueda no hay alta ni datos simulados.
+    expect(
+      screen.queryByRole('button', { name: 'Crear proyecto' }),
+    ).not.toBeInTheDocument()
+    expect(buscarProyectos).not.toHaveBeenCalled()
+    expect(crearProyecto).not.toHaveBeenCalled()
+  })
+
+  it('no busca con el campo vacío: avisa y no llama a la API', () => {
+    montar()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar proyecto' }))
+
+    expect(
+      screen.getByText('Escribe el nombre del proyecto para buscarlo.'),
+    ).toBeInTheDocument()
+    expect(buscarProyectos).not.toHaveBeenCalled()
+  })
+
+  it('no busca con solo espacios (el contrato exige `nombre`)', () => {
+    montar()
+
+    escribirYBuscar('   ')
+
+    expect(
+      screen.getByText('Escribe el nombre del proyecto para buscarlo.'),
+    ).toBeInTheDocument()
+    expect(buscarProyectos).not.toHaveBeenCalled()
+  })
+
+  it('muestra su estado de carga mientras consulta', () => {
+    respuestaBusqueda = () => new Promise(() => {})
+    montar()
+
+    escribirYBuscar('Proyecto nuevo')
+
+    expect(screen.getByText('Buscando en el catálogo…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Buscando…' })).toBeInTheDocument()
+  })
+
+  it('envía el nombre recortado con el token de la sesión', async () => {
+    montar()
+
+    escribirYBuscar('  Proyecto nuevo  ')
+
+    expect(buscarProyectos).toHaveBeenCalledTimes(1)
+    expect(buscarProyectos).toHaveBeenCalledWith('token-empleado', 'Proyecto nuevo')
+    // Se espera la respuesta para que el cierre del estado ocurra dentro de
+    // `act` (sin avisos de React en la salida de los tests).
+    expect(await screen.findByText('Sugerencias aproximadas')).toBeInTheDocument()
+  })
+})
+
+describe('MisProyectos — resultado de la búsqueda', () => {
+  it('identifica la coincidencia exacta y NO ofrece el alta', async () => {
+    respuestaBusqueda = () => Promise.resolve(conExacta())
+    montar()
+
+    escribirYBuscar('Proyecto ÁRBOL')
+
+    expect(await screen.findByText('Proyecto existente')).toBeInTheDocument()
+    expect(screen.getByText('Proyecto ÁRBOL')).toBeInTheDocument()
+    expect(screen.getByText('Operaciones')).toBeInTheDocument()
+    expect(screen.getByText('Cliente interno')).toBeInTheDocument()
+    // El estado y la clave de comparación llegan del backend (§11.2, §6).
+    expect(screen.getByText('En proceso')).toBeInTheDocument()
+    expect(screen.getByText('proyecto arbol')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Crear proyecto' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: /Registrar el proyecto/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('muestra las sugerencias con su similitud como información, nunca como error', async () => {
+    montar()
+
+    escribirYBuscar('Proyecto arbol')
+
+    expect(await screen.findByText('Sugerencias aproximadas')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getByText('Proyecto aproximado 1')).toBeInTheDocument()
+    expect(screen.getByText('0.7')).toBeInTheDocument()
+    // Informativa (§8): no hay ninguna alerta y no se identifica como existente.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText('Proyecto existente')).not.toBeInTheDocument()
+    // El alta se ofrece porque el backend no dio coincidencia exacta (§11.1).
+    expect(screen.getByRole('button', { name: 'Crear proyecto' })).toBeInTheDocument()
+  })
+
+  it('no muestra más de 5 sugerencias aunque el backend envíe más', async () => {
+    respuestaBusqueda = () => Promise.resolve(conSugerencias(7))
+    montar()
+
+    escribirYBuscar('Proyecto arbol')
+
+    expect(await screen.findByText('Sugerencias aproximadas')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+    expect(screen.queryByText('Proyecto aproximado 6')).not.toBeInTheDocument()
+  })
+
+  it('muestra un vacío neutro cuando no hay coincidencia ni sugerencias', async () => {
+    respuestaBusqueda = () => Promise.resolve(SIN_RESULTADOS)
+    montar()
+
+    escribirYBuscar('Proyecto inexistente')
+
+    expect(
+      await screen.findByText('Sin coincidencias en el catálogo'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Crear proyecto' })).toBeInTheDocument()
+  })
+
+  it('reintenta la búsqueda tras un error recuperable', async () => {
+    respuestaBusqueda = () => Promise.reject(errorDe(500, 'fallo del servidor'))
+    montar()
+
+    escribirYBuscar('Proyecto ÁRBOL')
+
+    expect(
+      await screen.findByText('No pudimos completar la búsqueda'),
+    ).toBeInTheDocument()
+
+    respuestaBusqueda = () => Promise.resolve(conExacta())
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+
+    expect(await screen.findByText('Proyecto existente')).toBeInTheDocument()
+    await waitFor(() => expect(buscarProyectos).toHaveBeenCalledTimes(2))
+    expect(buscarProyectos).toHaveBeenLastCalledWith('token-empleado', 'Proyecto ÁRBOL')
+  })
+
+  it('cierra la sesión ante un 401 de la búsqueda, sin estado de error', async () => {
+    respuestaBusqueda = () => Promise.reject(errorDe(401, 'Credenciales inválidas.'))
+    const alSesionExpirada = montar()
+
+    escribirYBuscar('Proyecto ÁRBOL')
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByText('No pudimos completar la búsqueda'),
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe('MisProyectos — alta del proyecto', () => {
+  it('crea el proyecto y confirma con la respuesta del backend', async () => {
+    montar()
+    escribirYBuscar('Proyecto Roble')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+
+    enviarAlta()
+
+    const creado = await screen.findByLabelText('Proyecto creado')
+    expect(crearProyecto).toHaveBeenCalledTimes(1)
+    expect(crearProyecto).toHaveBeenCalledWith('token-empleado', {
+      nombre: 'Proyecto Roble',
+      area: 'TI',
+      cliente: 'Interno',
+    })
+    expect(within(creado).getByText('Proyecto Roble')).toBeInTheDocument()
+    expect(within(creado).getByText('12')).toBeInTheDocument()
+    expect(within(creado).getByText('proyecto roble')).toBeInTheDocument()
+  })
+
+  it('muestra el proyecto creado en estado EN_PROCESO (§6)', async () => {
+    montar()
+    escribirYBuscar('Proyecto Roble')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+
+    enviarAlta()
+
+    const creado = await screen.findByLabelText('Proyecto creado')
+    expect(within(creado).getByText('En proceso')).toBeInTheDocument()
+    // El estado lo fija el backend: la vista no lo envía.
+    expect(vi.mocked(crearProyecto).mock.calls[0][1].estado).toBeUndefined()
+  })
+
+  it('envía null en los opcionales vacíos, según el contrato', async () => {
+    montar()
+    escribirYBuscar('Proyecto Roble')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+
+    enviarAlta({ nombre: '  Proyecto Roble  ', area: '', cliente: '   ' })
+
+    await waitFor(() => expect(crearProyecto).toHaveBeenCalledTimes(1))
+    expect(crearProyecto).toHaveBeenCalledWith('token-empleado', {
+      nombre: 'Proyecto Roble',
+      area: null,
+      cliente: null,
+    })
+  })
+
+  it('muestra el 409 del backend con su mensaje, no como fallo genérico', async () => {
+    respuestaAlta = () =>
+      Promise.reject(
+        errorDe(409, 'Ya existe un proyecto con ese nombre (coincidencia exacta).'),
+      )
+    montar()
+    escribirYBuscar('Proyecto ÁRBOL')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+
+    enviarAlta({ nombre: 'Proyecto ÁRBOL' })
+
+    expect(
+      await screen.findByText(
+        'Ya existe un proyecto con ese nombre (coincidencia exacta).',
+      ),
+    ).toBeInTheDocument()
+    // Sigue siendo el formulario con su respuesta: no es un error técnico.
+    expect(
+      screen.queryByText('No pudimos registrar el proyecto'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Crear proyecto' })).toBeInTheDocument()
+  })
+
+  it('conserva el mensaje del backend en un 422', async () => {
+    respuestaAlta = () =>
+      Promise.reject(
+        errorDe(
+          422,
+          'Algunos datos enviados no son válidos. Revisa e inténtalo de nuevo.',
+        ),
+      )
+    montar()
+    escribirYBuscar('Proyecto Roble')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+
+    enviarAlta()
+
+    expect(
+      await screen.findByText(
+        'Algunos datos enviados no son válidos. Revisa e inténtalo de nuevo.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('No pudimos registrar el proyecto'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('reintenta el alta tras un error recuperable', async () => {
+    let intentos = 0
+    respuestaAlta = () => {
+      intentos += 1
+      return intentos === 1
+        ? Promise.reject(errorDe(500, 'fallo del servidor'))
+        : Promise.resolve(CREADO)
+    }
+    montar()
+    escribirYBuscar('Proyecto Roble')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+
+    enviarAlta()
+
+    expect(
+      await screen.findByText('No pudimos registrar el proyecto'),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+
+    expect(await screen.findByLabelText('Proyecto creado')).toBeInTheDocument()
+    await waitFor(() => expect(crearProyecto).toHaveBeenCalledTimes(2))
+  })
+
+  it('cierra la sesión ante un 401 del alta, sin estado de error', async () => {
+    respuestaAlta = () => Promise.reject(errorDe(401, 'Credenciales inválidas.'))
+    const alSesionExpirada = montar()
+    escribirYBuscar('Proyecto Roble')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+
+    enviarAlta()
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByText('No pudimos registrar el proyecto'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Proyecto creado')).not.toBeInTheDocument()
+  })
+
+  it('vuelve al estado inicial con «Buscar otro proyecto»', async () => {
+    montar()
+    escribirYBuscar('Proyecto Roble')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+    enviarAlta()
+    await screen.findByLabelText('Proyecto creado')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar otro proyecto' }))
+
+    expect(screen.getByText('Todavía no has buscado un proyecto')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Proyecto creado')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Nombre del proyecto')).toHaveValue('')
+    expect(
+      screen.queryByRole('button', { name: 'Crear proyecto' }),
+    ).not.toBeInTheDocument()
+  })
+})

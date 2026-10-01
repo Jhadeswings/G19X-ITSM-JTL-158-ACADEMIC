@@ -11,6 +11,7 @@ import './estilos/progreso.css'
 import './estilos/responsive.css'
 import './estilos/dashboard.css'
 import './estilos/empleados.css'
+import './estilos/proyectos.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
