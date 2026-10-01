@@ -1,13 +1,14 @@
 // Shell y navegación del rol Empleado (Style Guide §7, §10, §11; PRD §21).
 // La API se mockea: sin llamadas reales al backend.
 
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { limpiarSesion, obtenerSesion } from '../api/autenticacion.js'
 import { obtenerCuenta } from '../api/cuenta.js'
 import { obtenerProgreso } from '../api/progreso.js'
 import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequerida, obtenerDistribucionCompetencia } from '../api/dashboardRh.js'
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
+import { listarCapacitaciones } from '../api/capacitaciones.js'
 import App from '../App.jsx'
 import { SECCIONES_EMPLEADO, SECCIONES_RH } from '../navegacion.js'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
@@ -29,6 +30,11 @@ vi.mock('../api/empleados.js', async () => {
   return { ...original, listarEmpleados: vi.fn() }
 })
 
+vi.mock('../api/capacitaciones.js', async () => {
+  const original = await vi.importActual('../api/capacitaciones.js')
+  return { ...original, listarCapacitaciones: vi.fn(), crearCapacitacion: vi.fn() }
+})
+
 const EMPLEADO = { token: 'token-empleado', rol: 'EMPLEADO', mustChangePassword: false }
 const EMPLEADO_TEMPORAL = { token: 'token-temporal', rol: 'EMPLEADO', mustChangePassword: true }
 const RH = { token: 'token-rh', rol: 'RH', mustChangePassword: false }
@@ -43,6 +49,13 @@ beforeEach(() => {
   vi.mocked(obtenerAtencionRequerida).mockReset()
   vi.mocked(obtenerDistribucionCompetencia).mockReset()
   vi.mocked(listarEmpleados).mockReset()
+  vi.mocked(listarCapacitaciones).mockReset()
+  vi.mocked(listarCapacitaciones).mockResolvedValue({
+    total: 0,
+    pagina: 1,
+    por_pagina: 20,
+    items: [],
+  })
   vi.mocked(listarEmpleados).mockResolvedValue({
     total: 12,
     pagina: 1,
@@ -123,10 +136,10 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
-    abrir('Mis capacitaciones')
+    abrir('Mi historial')
 
     expect(
-      await screen.findByText('«Mis capacitaciones» todavía no está disponible'),
+      await screen.findByText('«Mi historial» todavía no está disponible'),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: 'Competencias' }),
@@ -156,17 +169,42 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('las cuatro secciones pendientes tienen su propio estado temporal', async () => {
+  it('Mis capacitaciones abre su vista real (§21.4), no el estado temporal', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
-    for (const titulo of [
-      'Inicio',
-      'Mis capacitaciones',
-      'Mi historial',
-      'Mi cuenta',
-    ]) {
+    abrir('Mis capacitaciones')
+
+    // El título aparece dos veces por patrón del shell: el `h1` del header y
+    // el `h1` del SectionHeader de la vista (igual que en las demás secciones
+    // funcionales). Basta con que la vista esté montada.
+    expect(
+      (await screen.findAllByRole('heading', { name: 'Mis capacitaciones', level: 1 }))
+        .length,
+    ).toBeGreaterThan(0)
+    expect(
+      await screen.findByRole('heading', { name: 'Registrar capacitación' }),
+    ).toBeInTheDocument()
+    // La vista consulta sus propias capacitaciones, no el progreso.
+    await waitFor(() =>
+      expect(listarCapacitaciones).toHaveBeenCalledWith(
+        'token-empleado',
+        expect.objectContaining({ pagina: 1 }),
+      ),
+    )
+    expect(obtenerProgreso).toHaveBeenCalledTimes(1)
+    expect(
+      screen.queryByText('«Mis capacitaciones» todavía no está disponible'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('las tres secciones pendientes tienen su propio estado temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Competencias' })
+
+    for (const titulo of ['Inicio', 'Mi historial', 'Mi cuenta']) {
       abrir(titulo)
       expect(
         screen.getByText(`«${titulo}» todavía no está disponible`),

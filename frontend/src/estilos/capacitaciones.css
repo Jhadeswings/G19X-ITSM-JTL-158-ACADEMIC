@@ -1,0 +1,40 @@
+/* Mis capacitaciones (Estilo Empleado, Style Guide §19, §21, §31, §33).
+
+   Solo estilos de la TrainingCard y del formulario de registro. Se reutilizan
+   los componentes y tokens existentes (`ui-input`, `ui-button`, `ui-badge`,
+   `form-field`, `estado-*`, `paginacion`): aquí no se crea una paleta nueva, ni
+   un sistema de botones, ni un componente genérico.
+
+   Sin gráficos, sin puntuaciones y sin semáforo: el estado de completado se
+   presenta como texto dentro de un Badge, nunca solo con color (§3). */
+
+.mis-capacitaciones { display: flex; flex-direction: column; gap: 22px; }
+
+/* Tarea principal: registrar capacitación (Style Guide §19). */
+.capacitaciones-registro { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.capacitaciones-registro__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.capacitaciones-registro__form { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
+.capacitaciones-registro__campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; width: 100%; }
+.capacitaciones-registro__completado { display: flex; align-items: center; gap: 10px; align-self: end; padding-bottom: 10px; }
+.capacitaciones-registro__completado input[type='checkbox'] { width: 16px; height: 16px; margin: 0; accent-color: var(--color-primary); }
+.capacitaciones-registro__completado label { color: var(--color-text-primary); font-size: 14px; }
+.capacitaciones-registro__form .ui-button { min-height: 40px; }
+
+/* Listado: TrainingCard con nombre, fecha y estado (sin gráficos). */
+.capacitaciones-lista { display: flex; flex-direction: column; gap: 14px; }
+.capacitaciones-lista__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.capacitaciones-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.capacitacion-card { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; }
+.capacitacion-card__nombre { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.capacitaciones-card__datos { display: flex; flex-wrap: wrap; gap: 14px 24px; margin: 0; }
+.capacitaciones-card__datos > div { display: flex; flex-direction: column; gap: 4px; }
+.capacitaciones-card__datos dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.capacitaciones-card__datos dd { margin: 0; color: var(--color-text-primary); font-size: 14px; }
+
+/* Adaptación a pantallas estrechas (§7): sin overflow horizontal. */
+@media (max-width: 760px) {
+  .capacitaciones-registro { padding: 18px; }
+  .capacitaciones-registro__campos { grid-template-columns: 1fr; }
+  .capacitaciones-registro__completado { padding-bottom: 0; }
+  .capacitaciones-cards { grid-template-columns: 1fr; }
+}

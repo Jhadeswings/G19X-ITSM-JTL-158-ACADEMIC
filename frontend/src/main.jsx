@@ -12,6 +12,7 @@ import './estilos/responsive.css'
 import './estilos/dashboard.css'
 import './estilos/empleados.css'
 import './estilos/proyectos.css'
+import './estilos/capacitaciones.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
