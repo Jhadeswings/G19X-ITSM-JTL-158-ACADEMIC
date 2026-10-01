@@ -685,4 +685,51 @@ histórico, sin modelo, sin auditoría (§25) y sin cache persistente.
 Cada consulta deriva el ResultadoActual vigente y pide una sugerencia
 nueva al proveedor.
 
+## 51. MB-6-1: `GET /me` amplía su DTO con `puesto` y `area`
+
+**Decisión.** PRD §21.6 exige que "Mi cuenta" muestre nombre, puesto, área y
+correo de acceso. El contrato real de `GET /api/v1/me` solo exponía nombre y
+correo: `puesto` y `area` nunca se leían. Se **extiende el DTO existente**
+(`MeOut`) con `puesto: str | None` y `area: str | None`, leídos del `Empleado`
+asociado a la cuenta autenticada. No se crea ningún endpoint nuevo.
+
+**Por qué extender `/me` y no otra cosa.**
+
+- La ET §31 lista `GET /me` como endpoint mínimo del Empleado y fija el
+  principio de que "los nombres exactos pueden adaptarse al estilo REST del
+  proyecto, pero los permisos y reglas no". Ampliar un DTO no altera ninguna
+  regla de permisos.
+- La documentación NO define la forma del DTO de `/me` (ET §36 solo exige
+  separar DTOs). Ninguna fuente de verdad prescribe un endpoint dedicado, así
+  que la alternativa mínima y coherente es exponer en el contrato que ya
+  existe lo que el PRD exige, sin crear una superficie de API nueva.
+- Las otras vías disponibles están bloqueadas por la arquitectura: `/rh/employees`
+  exige rol RH (`require_rh`) y un Empleado recibiría 403; enviar `empleado_id`
+  desde el cliente violaría ET §32; resolver los datos desde el frontend
+  trasladaría la fuente de verdad y pondría lógica en el cliente (ET §41).
+
+**Por qué `str | None` y no `str`.** `Empleado.puesto` y `Empleado.area` son
+nullable (ET §5, contemplating el estado `profile_incomplete` de ET §30). El
+DTO refleja el modelo tal cual: no inventa, completa ni normaliza valores. Si
+algún día se define una regla de producto para el perfil incompleto, esa regla
+se añadirá después; hoy el dato se expone sin interpretación.
+
+**Invariantes que este cambio NO toca.**
+
+- Ruta y método: sigue siendo `GET /api/v1/me`. Sin POST/PATCH/PUT/DELETE.
+- Autorización: sigue usando `get_current_user`, **no** `require_empleado`. Una
+  cuenta RH puede leer `/me` y, al no tener `empleado_id`, recibe
+  `empleado_nombre`, `puesto` y `area` en `null`.
+- Identidad: `empleado_id` se sigue derivando exclusivamente del token (§32).
+  El endpoint no acepta `empleado_id` en ruta, query ni cuerpo.
+- Sin duplicación: el correo sigue viviendo solo en `CuentaAcceso` (§4.1) y
+  estos datos no se replican en la cuenta.
+- Sin migraciones: `puesto` y `area` ya existen en `empleados` (migración
+  inicial). No se modifica el modelo `Empleado`.
+- Sin datos internos: `password_hash`, `activo` y `created_at`/`updated_at`
+  siguen sin exponerse.
+
+**Alcance de la UI.** Este cambio es exclusivamente de contrato. La pantalla
+"Mi cuenta" y el flujo de cambio de contraseña son microbloques posteriores y no
+se implementan aquí.
 

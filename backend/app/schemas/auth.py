@@ -38,13 +38,27 @@ class TokenOut(BaseModel):
 
 
 class MeOut(BaseModel):
-    """Identidad del usuario autenticado (GET /api/v1/me)."""
+    """Identidad del usuario autenticado (GET /api/v1/me).
+
+    ``puesto`` y ``area`` son los datos laborales que PRD §21.6 ("Mi cuenta")
+    exige mostrar. Se leen SIEMPRE del empleado ligado a la cuenta
+    autenticada (§32: la identidad viene del token, nunca del cliente) y son
+    de SOLO LECTURA: aquí no existe ningún endpoint para modificarlos; los
+    datos laborales los administra RH.
+
+    Son NULLABLE a propósito y sin valor por defecto de negocio: ``Empleado``
+    admite ``puesto`` y ``area`` nulos (ET §5, estado ``profile_incomplete``
+    §30) y este DTO no inventa, completa ni normaliza nada. Para una cuenta RH
+    sin ``empleado_id`` salen ``null`` junto con ``empleado_nombre``.
+    """
 
     cuenta_id: int
     email: str
     rol: str
     empleado_id: int | None = None
     empleado_nombre: str | None = None
+    puesto: str | None = None
+    area: str | None = None
     must_change_password: bool
 
 

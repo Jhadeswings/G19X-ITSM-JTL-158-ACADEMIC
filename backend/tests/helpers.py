@@ -68,8 +68,20 @@ def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def crear_empleado(db: Session, nombre: str = "Empleado Prueba") -> Empleado:
-    empleado = Empleado(nombre=nombre, activo=True)
+def crear_empleado(
+    db: Session,
+    nombre: str = "Empleado Prueba",
+    puesto: str | None = None,
+    area: str | None = None,
+) -> Empleado:
+    """Empleado de prueba.
+
+    ``puesto`` y ``area`` son opcionales y NULABLES por defecto a propósito:
+    ``Empleado`` los admite nulos (ET §5, estado ``profile_incomplete`` §30) y
+    el resto de la suite no los necesita. ``GET /me`` los expone tal cual, sin
+    inventar valores (MB-6-1).
+    """
+    empleado = Empleado(nombre=nombre, puesto=puesto, area=area, activo=True)
     db.add(empleado)
     db.commit()
     db.refresh(empleado)
