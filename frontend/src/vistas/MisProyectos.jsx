@@ -14,8 +14,14 @@
 // - MB-5B-3A: antes de abrir el formulario se detecta (GET /me/participations)
 //   si el Empleado YA tiene participación en el proyecto seleccionado; en ese
 //   caso se muestra un bloque informativo con sus datos y NO hay formulario
-//   (la unicidad empleado/proyecto del backend queda como defensa final, no
-//   como flujo de UX).
+//   de alta (la unicidad empleado/proyecto del backend queda como defensa final,
+//   no como flujo de UX).
+// - MB-5B-2: ese mismo bloque ofrece «Editar participación», que entra en modo
+//   edición DENTRO de esta vista (sin pantalla nueva, sin navegación y sin
+//   detalle) para corregir SOLO rol, entregables y horas
+//   (PATCH /me/participations/{id}). Proyecto, fecha de registro, estado y los
+//   cuatro indicadores se muestran como dato bloqueado: nunca son inputs ni se
+//   envían.
 //
 // Contrato real del backend (nada se inventa):
 // - GET /api/v1/me/projects/search?nombre= → `coincidencia_exacta` + hasta 5
@@ -42,8 +48,12 @@
 // `participacion.proyecto`: el nombre mostrado sale del proyecto seleccionado.
 
 import { useState } from 'react'
-import { ArrowRight, CheckCircle2, ClipboardCheck, FolderKanban, Repeat2, Search } from 'lucide-react'
-import { crearParticipacion, listarParticipaciones } from '../api/participaciones.js'
+import { ArrowRight, CheckCircle2, ClipboardCheck, FolderKanban, Pencil, Repeat2, Save, Search } from 'lucide-react'
+import {
+  actualizarParticipacion,
+  crearParticipacion,
+  listarParticipaciones,
+} from '../api/participaciones.js'
 import { buscarProyectos, crearProyecto } from '../api/proyectos.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
@@ -144,6 +154,15 @@ function etiquetaSiNo(valor) {
   return valor ? 'Sí' : 'No'
 }
 
+/**
+ * MB-5B-2: estado inicial del modo edición. Solo se precargan los TRES campos
+ * editables del contrato `ParticipacionEmpleadoUpdateIn`; el resto de la
+ * participación se muestra como dato, nunca como input.
+ */
+function edicionInicial() {
+  return { activa: false, fase: 'inactiva', error: null }
+}
+
 export default function MisProyectos({ token, alSesionExpirada }) {
   const [nombreEscrito, setNombreEscrito] = useState('')
   const [consultaEjecutada, setConsultaEjecutada] = useState('')
@@ -164,6 +183,11 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     participacion: null,
     error: null,
   })
+  // MB-5B-2: edición controlada dentro de la MISMA vista (no hay pantalla ni
+  // detalle nuevo). El formulario guarda solo rol/entregables/horas.
+  const [edicion, setEdicion] = useState(edicionInicial)
+  const [formEdicion, setFormEdicion] = useState({ rol: '', entregables: '', horas: '' })
+  const [avisosEdicion, setAvisosEdicion] = useState(avisosIniciales)
 
   function buscar(nombre) {
     setConsultaEjecutada(nombre)
@@ -176,6 +200,9 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     setAvisosParticipacion(avisosIniciales())
     setRegistro({ fase: 'inactiva', datos: null, error: null })
     setDeteccion({ fase: 'inactiva', participacion: null, error: null })
+    setEdicion(edicionInicial())
+    setFormEdicion({ rol: '', entregables: '', horas: '' })
+    setAvisosEdicion(avisosIniciales())
     buscarProyectos(token, nombre)
       .then((datos) => {
         setBusqueda({ fase: 'listo', datos, error: null })
@@ -337,6 +364,78 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     enviarRegistro()
   }
 
+  /**
+   * MB-5B-2: entra al modo edición dentro de la misma vista y precarga los tres
+   * campos editables con los valores actuales de la participación detectada.
+   */
+  function abrirEdicion(participacion) {
+    setFormEdicion({
+      rol: participacion.rol ?? '',
+      entregables: participacion.entregables ?? '',
+      horas: participacion.horas == null ? '' : String(participacion.horas),
+    })
+    setAvisosEdicion(avisosIniciales())
+    setEdicion({ activa: true, fase: 'inactiva', error: null })
+  }
+
+  /** Cancelar NO hace ninguna petición: descarta lo local y vuelve al resumen. */
+  function cancelarEdicion() {
+    setFormEdicion({ rol: '', entregables: '', horas: '' })
+    setAvisosEdicion(avisosIniciales())
+    setEdicion(edicionInicial())
+  }
+
+  async function enviarEdicion() {
+    // Misma validación local espejo del contrato que el registro: sin rol o con
+    // horas inválidas no se envía el PATCH (el backend lo rechazaría igual).
+    const validacion = validarParticipacion(formEdicion)
+    setAvisosEdicion(validacion)
+    if (!validacion.valido) return
+
+    // Payload EXACTO de ParticipacionEmpleadoUpdateIn (tres campos, ni uno más):
+    // sin proyecto_id, empleado_id, fecha_registro, estado ni los cuatro
+    // indicadores, que son datos bloqueados del registro inicial.
+    const payload = {
+      rol: formEdicion.rol.trim(),
+      entregables: formEdicion.entregables.trim() || null,
+      horas: Number.parseInt(formEdicion.horas.trim(), 10),
+    }
+
+    setEdicion({ activa: true, fase: 'enviando', error: null })
+    try {
+      // El id es el de la PARTICIPACIÓN (el que entrega la detección), nunca el
+      // del proyecto.
+      const participacion = await actualizarParticipacion(
+        token,
+        deteccion.participacion.id,
+        payload,
+      )
+      // La respuesta del PATCH es la fuente de verdad: el resumen local queda
+      // actualizado sin volver a consultar el listado.
+      setDeteccion({ fase: 'listo', participacion, error: null })
+      setEdicion(edicionInicial())
+      setFormEdicion({ rol: '', entregables: '', horas: '' })
+      setAvisosEdicion(avisosIniciales())
+    } catch (error) {
+      if (error?.estado === 401) {
+        alSesionExpirada?.()
+        return
+      }
+      // 404 (participación ajena o inexistente) y 422 (validación) conservan el
+      // mensaje del backend junto al formulario, igual que en el registro.
+      if ([404, 422].includes(error?.estado)) {
+        setEdicion({ activa: true, fase: 'invalido', error })
+        return
+      }
+      setEdicion({ activa: true, fase: 'error', error })
+    }
+  }
+
+  function manejarEdicion(evento) {
+    evento.preventDefault()
+    enviarEdicion()
+  }
+
   /** Vuelve al estado inicial de la sección (sin ningún dato simulado). */
   function reiniciar() {
     setNombreEscrito('')
@@ -350,6 +449,9 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     setAvisosParticipacion(avisosIniciales())
     setRegistro({ fase: 'inactiva', datos: null, error: null })
     setDeteccion({ fase: 'inactiva', participacion: null, error: null })
+    setEdicion(edicionInicial())
+    setFormEdicion({ rol: '', entregables: '', horas: '' })
+    setAvisosEdicion(avisosIniciales())
   }
 
   const exacta = busqueda.datos?.coincidencia_exacta ?? null
@@ -753,36 +855,186 @@ export default function MisProyectos({ token, alSesionExpirada }) {
                 Ya registraste una participación en este proyecto.
               </p>
               <p className="proyectos-existente__nombre">{proyectoExistente.nombre}</p>
-              <dl className="proyectos-datos">
-                <div>
-                  <dt>Área</dt>
-                  <dd>{proyectoExistente.area ?? SIN_DATO}</dd>
-                </div>
-                <div>
-                  <dt>Cliente</dt>
-                  <dd>{proyectoExistente.cliente ?? SIN_DATO}</dd>
-                </div>
-                <div>
-                  <dt>Estado</dt>
-                  <dd>
-                    <Badge tone={tonoEstado(proyectoExistente.estado)}>
-                      {etiquetaEstado(proyectoExistente.estado)}
-                    </Badge>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Rol</dt>
-                  <dd>{participacionExistente.rol}</dd>
-                </div>
-                {/* Fecha real de ParticipacionOut: no se inventa periodo. */}
-                <div>
-                  <dt>Fecha de registro</dt>
-                  <dd>{participacionExistente.fecha_registro}</dd>
-                </div>
-              </dl>
-              <Button type="button" variant="secondary" onClick={reiniciar}>
-                <Repeat2 aria-hidden="true" /> Buscar otro proyecto
-              </Button>
+{edicion.activa ? (
+                /* MB-5B-2: modo edición DENTRO de la misma vista. Solo tres
+                   campos editables; el resto se muestra como dato, nunca input. */
+                <form
+                  className="proyectos-registro"
+                  onSubmit={manejarEdicion}
+                  aria-busy={edicion.fase === 'enviando'}
+                >
+                  <p className="proyectos-paso__nota">
+                    Puedes actualizar tu rol, tus entregables y tus horas.
+                  </p>
+                  <FormField
+                    id="edicion-rol"
+                    label="Rol"
+                    required
+                    hint="El rol que desempeñaste en este proyecto."
+                    error={avisosEdicion.rol}
+                  >
+                    <Input
+                      id="edicion-rol"
+                      autoComplete="off"
+                      value={formEdicion.rol}
+                      onChange={(evento) =>
+                        setFormEdicion({ ...formEdicion, rol: evento.target.value })
+                      }
+                      invalid={Boolean(avisosEdicion.rol)}
+                    />
+                  </FormField>
+
+                  <FormField
+                    id="edicion-entregables"
+                    label="Entregables"
+                    hint="Opcional: lo que entregaste en este proyecto."
+                  >
+                    <Input
+                      id="edicion-entregables"
+                      autoComplete="off"
+                      value={formEdicion.entregables}
+                      onChange={(evento) =>
+                        setFormEdicion({ ...formEdicion, entregables: evento.target.value })
+                      }
+                    />
+                  </FormField>
+                  <FormField
+                    id="edicion-horas"
+                    label="Horas"
+                    required
+                    hint="Número entero de horas dedicadas, por ejemplo 120."
+                    error={avisosEdicion.horas}
+                  >
+                    <Input
+                      id="edicion-horas"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      value={formEdicion.horas}
+                      onChange={(evento) =>
+                        setFormEdicion({ ...formEdicion, horas: evento.target.value })
+                      }
+                      invalid={Boolean(avisosEdicion.horas)}
+                    />
+                  </FormField>
+
+                  {/* El proyecto y la fecha los fija el backend: son datos. */}
+                  <dl className="proyectos-datos">
+                    <div>
+                      <dt>Proyecto</dt>
+                      <dd>{proyectoExistente.nombre}</dd>
+                    </div>
+                    <div>
+                      <dt>Fecha de registro</dt>
+                      <dd>{participacionExistente.fecha_registro}</dd>
+                    </div>
+                  </dl>
+                  {/* Indicadores objetivos: solo lectura, nunca inputs (extra="forbid"). */}
+                  <div
+                    className="proyectos-indicadores"
+                    role="group"
+                    aria-labelledby="proyectos-indicadores-edicion"
+                  >
+                    <p
+                      className="proyectos-indicadores__titulo"
+                      id="proyectos-indicadores-edicion"
+                    >
+                      Indicadores del registro inicial
+                    </p>
+                    <dl className="proyectos-datos">
+                      <div>
+                        <dt>Trabajo en equipo</dt>
+                        <dd>{etiquetaSiNo(participacionExistente.en_equipo)}</dd>
+                      </div>
+                      <div>
+                        <dt>Coordinación</dt>
+                        <dd>{etiquetaSiNo(participacionExistente.coordino_tareas)}</dd>
+                      </div>
+                      <div>
+                        <dt>Explicación a públicos distintos</dt>
+                        <dd>
+                          {etiquetaSiNo(participacionExistente.explico_a_publico_distinto)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Situación/problema</dt>
+                        <dd>{etiquetaSiNo(participacionExistente.resolvio_problema)}</dd>
+                      </div>
+                    </dl>
+                    <p className="proyectos-indicador__nota">
+                      Registrado al crear la participación.
+                    </p>
+                  </div>
+                  {/* 404 y 422 conservan el mensaje del backend junto al formulario. */}
+                  {edicion.fase === 'invalido' && (
+                    <Alert tone="error">{edicion.error?.message}</Alert>
+                  )}
+
+                  {edicion.fase === 'error' ? (
+                    <EstadoError
+                      titulo="No pudimos actualizar la participación"
+                      mensaje={edicion.error?.message}
+                      onReintentar={enviarEdicion}
+                    />
+                  ) : (
+                    <div className="proyectos-registro__acciones">
+                      <span>Los campos con * son obligatorios.</span>
+                      <Button type="button" variant="secondary" onClick={cancelarEdicion}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" loading={edicion.fase === 'enviando'}>
+                        <Save aria-hidden="true" />
+                        {edicion.fase === 'enviando'
+                          ? 'Actualizando…'
+                          : 'Actualizar participación'}
+                      </Button>
+                    </div>
+                  )}
+                </form>
+              ) : (
+                <dl className="proyectos-datos">
+                  <div>
+                    <dt>Área</dt>
+                    <dd>{proyectoExistente.area ?? SIN_DATO}</dd>
+                  </div>
+                  <div>
+                    <dt>Cliente</dt>
+                    <dd>{proyectoExistente.cliente ?? SIN_DATO}</dd>
+                  </div>
+                  <div>
+                    <dt>Estado</dt>
+                    <dd>
+                      <Badge tone={tonoEstado(proyectoExistente.estado)}>
+                        {etiquetaEstado(proyectoExistente.estado)}
+                      </Badge>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Rol</dt>
+                    <dd>{participacionExistente.rol}</dd>
+                  </div>
+                  {/* Fecha real de ParticipacionOut: no se inventa periodo. */}
+                  <div>
+                    <dt>Fecha de registro</dt>
+                    <dd>{participacionExistente.fecha_registro}</dd>
+                  </div>
+                </dl>
+              )}
+              <div className="proyectos-edicion__acciones">
+                {/* MB-5B-2: entrar al modo edición DENTRO de la misma vista.
+                    No es navegación ni un detalle nuevo (§18.1/§28). */}
+                {!edicion.activa && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => abrirEdicion(participacionExistente)}
+                  >
+                    <Pencil aria-hidden="true" /> Editar participación
+                  </Button>
+                )}
+                <Button type="button" variant="secondary" onClick={reiniciar}>
+                  <Repeat2 aria-hidden="true" /> Buscar otro proyecto
+                </Button>
+              </div>
             </div>
           ) : registro.fase === 'error' ? (
             <EstadoError

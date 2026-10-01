@@ -13,11 +13,16 @@
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { crearParticipacion, listarParticipaciones } from '../../api/participaciones.js'
+import {
+  actualizarParticipacion,
+  crearParticipacion,
+  listarParticipaciones,
+} from '../../api/participaciones.js'
 import { buscarProyectos, crearProyecto } from '../../api/proyectos.js'
 import MisProyectos from '../MisProyectos.jsx'
 
 vi.mock('../../api/participaciones.js', () => ({
+  actualizarParticipacion: vi.fn(),
   crearParticipacion: vi.fn(),
   listarParticipaciones: vi.fn(),
 }))
@@ -118,6 +123,7 @@ let respuestaBusqueda = () => Promise.resolve(conSugerencias())
 let respuestaAlta = () => Promise.resolve(CREADO)
 let respuestaRegistro = () => Promise.resolve(PARTICIPACION)
 let respuestaParticipaciones = () => Promise.resolve(SIN_PARTICIPACIONES)
+let respuestaEdicion = () => Promise.resolve(PARTICIPACION)
 
 beforeEach(() => {
   respuestaBusqueda = () => Promise.resolve(conSugerencias())
@@ -134,6 +140,8 @@ beforeEach(() => {
   vi.mocked(listarParticipaciones).mockImplementation((token, opciones) =>
     respuestaParticipaciones(opciones),
   )
+  vi.mocked(actualizarParticipacion).mockReset()
+  vi.mocked(actualizarParticipacion).mockImplementation(() => respuestaEdicion())
 })
 
 function montar(alSesionExpirada = vi.fn()) {
@@ -918,13 +926,15 @@ describe('MisProyectos — MB-5B-3A: participación existente detectada', () => 
     expect(within(existente).getByText('Fecha de registro')).toBeInTheDocument()
     expect(within(existente).getByText('2026-09-30')).toBeInTheDocument()
 
-    // Sin acciones hacia un detalle inexistente (fuera de alcance): solo
-    // "Buscar otro proyecto" (decisión 3).
+    // Sin navegación a un detalle inexistente (§18.1/§28): el bloque solo ofrece
+    // la edición controlada (MB-5B-2) y "Buscar otro proyecto".
     expect(
       screen.queryByRole('button', { name: /Ver participación/ }),
     ).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument()
-    expect(within(existente).getAllByRole('button')).toHaveLength(1)
+    expect(within(existente).getAllByRole('button')).toHaveLength(2)
+    expect(
+      within(existente).getByRole('button', { name: 'Editar participación' }),
+    ).toBeInTheDocument()
     expect(
       within(existente).getByRole('button', { name: 'Buscar otro proyecto' }),
     ).toBeInTheDocument()
@@ -1066,6 +1076,332 @@ describe('MisProyectos — MB-5B-3A: participación existente detectada', () => 
     expect(
       screen.queryByRole('button', { name: 'Seleccionar proyecto' }),
     ).not.toBeInTheDocument()
+// ---------------------------------------------------------------------------
+// MB-5B-2 — Edición controlada de la participación propia.
+//
+// Se verifica SOLO lo que la vista decide: entrar al modo edición desde el
+// bloque existente, qué campos son editables, que los datos bloqueados no son
+// inputs, que Cancelar no viaja, que el PATCH usa el id de la PARTICIPACIÓN con
+// un payload de tres campos, la validación local y el patrón de errores ya
+// usado por el registro. Nada de reglas de negocio del backend.
+// ---------------------------------------------------------------------------
+describe('MisProyectos — MB-5B-2: edición controlada de la participación', () => {
+  /** Respuesta del PATCH: la misma participación con otros valores. */
+  const EDITADA = {
+    ...PARTICIPACION,
+    rol: 'Líder técnico',
+    entregables: 'API de pagos',
+    horas: 150,
+    updated_at: '2026-10-01T11:30:00',
+  }
+
+  /** Detecta la participación existente (id 21) y abre el resumen. */
+  async function abrirResumen() {
+    respuestaBusqueda = () => Promise.resolve(conExacta())
+    respuestaParticipaciones = () =>
+      Promise.resolve({
+        total: 1,
+        pagina: 1,
+        por_pagina: 100,
+        items: [PARTICIPACION_CON_PROYECTO],
+      })
+    const alSesionExpirada = montar()
+    escribirYBuscar('Proyecto ÁRBOL')
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar proyecto' }))
+    await screen.findByText('Ya registraste una participación en este proyecto.')
+    return alSesionExpirada
+  }
+
+  /** Abre el resumen y pulsa «Editar participación». */
+  async function abrirEdicion() {
+    const alSesionExpirada = await abrirResumen()
+    fireEvent.click(screen.getByRole('button', { name: 'Editar participación' }))
+    await screen.findByRole('button', { name: 'Actualizar participación' })
+    return alSesionExpirada
+  }
+
+  /** Formulario de edición (mismo lenguaje que el de registro). */
+  function formularioEdicion() {
+    return screen.getByRole('button', { name: 'Actualizar participación' }).closest('form')
+  }
+  it('ofrece «Editar participación» cuando ya existe la participación', async () => {
+    await abrirResumen()
+
+    expect(screen.getByRole('button', { name: 'Editar participación' })).toBeInTheDocument()
+    // Sigue sin haber PATCH ni formulario de alta.
+    expect(actualizarParticipacion).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('button', { name: 'Registrar participación' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('no ofrece «Editar participación» cuando NO hay participación', async () => {
+    respuestaBusqueda = () => Promise.resolve(conExacta())
+    montar()
+    escribirYBuscar('Proyecto ÁRBOL')
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar proyecto' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Registrar participación' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Editar participación' })).not.toBeInTheDocument()
+  })
+
+  it('entra en edición en la MISMA vista y precarga los tres campos', async () => {
+    await abrirEdicion()
+
+    const formulario = formularioEdicion()
+    expect(within(formulario).getByLabelText('Rol')).toHaveValue('Desarrollador')
+    expect(within(formulario).getByLabelText('Entregables')).toHaveValue('')
+    expect(within(formulario).getByLabelText('Horas')).toHaveValue(120)
+
+    // Sigue siendo la vista de Mis proyectos: no hay otra pantalla.
+    expect(screen.getByRole('heading', { name: 'Mis proyectos' })).toBeInTheDocument()
+    expect(
+      screen.queryByText('Ya registraste una participación en este proyecto.'),
+    ).toBeInTheDocument()
+  })
+  it('muestra los indicadores objetivos como datos, no como inputs', async () => {
+    await abrirEdicion()
+
+    const formulario = formularioEdicion()
+    expect(within(formulario).queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(within(formulario).getByText('Trabajo en equipo')).toBeInTheDocument()
+    expect(within(formulario).getByText('Sí')).toBeInTheDocument()
+    expect(within(formulario).getByText('Coordinación')).toBeInTheDocument()
+    expect(within(formulario).getByText('Explicación a públicos distintos')).toBeInTheDocument()
+    expect(within(formulario).getByText('Situación/problema')).toBeInTheDocument()
+    expect(
+      within(formulario).getByText('Registrado al crear la participación.'),
+    ).toBeInTheDocument()
+  })
+
+  it('el proyecto y la fecha de registro no son editables', async () => {
+    await abrirEdicion()
+
+    const formulario = formularioEdicion()
+    expect(within(formulario).getByText('Proyecto')).toBeInTheDocument()
+    expect(within(formulario).getByText('Fecha de registro')).toBeInTheDocument()
+    expect(within(formulario).getByText('2026-09-30')).toBeInTheDocument()
+    // Solo tres controles editables en todo el formulario.
+    expect(within(formulario).getAllByRole('textbox')).toHaveLength(3)
+    expect(within(formulario).queryByLabelText('Fecha de registro')).not.toBeInTheDocument()
+    expect(within(formulario).queryByLabelText('Proyecto')).not.toBeInTheDocument()
+  })
+
+  it('Cancelar no hace PATCH y descarta los cambios locales', async () => {
+    await abrirEdicion()
+
+    const formulario = formularioEdicion()
+    fireEvent.change(within(formulario).getByLabelText('Rol'), {
+      target: { value: 'Cambio descartado' },
+    })
+    fireEvent.click(within(formulario).getByRole('button', { name: 'Cancelar' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Editar participación' }),
+    ).toBeInTheDocument()
+    expect(actualizarParticipacion).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Rol')).not.toBeInTheDocument()
+    // Vuelve al resumen con los valores originales, no con el cambio local.
+    expect(screen.getByText('Desarrollador')).toBeInTheDocument()
+    expect(screen.queryByText('Cambio descartado')).not.toBeInTheDocument()
+  })
+  it('el PATCH usa el id de la PARTICIPACIÓN detectada (21), no el del proyecto', async () => {
+    respuestaEdicion = () => Promise.resolve(EDITADA)
+    await abrirEdicion()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar participación' }))
+
+    await waitFor(() => expect(actualizarParticipacion).toHaveBeenCalledTimes(1))
+    const [token, id] = vi.mocked(actualizarParticipacion).mock.calls[0]
+    expect(token).toBe('token-empleado')
+    expect(id).toBe(21)
+    expect(id).not.toBe(3)
+  })
+
+  it('envía exactamente rol, entregables y horas, sin ningún otro campo', async () => {
+    respuestaEdicion = () => Promise.resolve(EDITADA)
+    await abrirEdicion()
+
+    const formulario = formularioEdicion()
+    fireEvent.change(within(formulario).getByLabelText('Rol'), {
+      target: { value: ' Líder técnico ' },
+    })
+    fireEvent.change(within(formulario).getByLabelText('Entregables'), {
+      target: { value: 'API de pagos' },
+    })
+    fireEvent.change(within(formulario).getByLabelText('Horas'), {
+      target: { value: '150' },
+    })
+    fireEvent.click(within(formulario).getByRole('button', { name: 'Actualizar participación' }))
+
+    await waitFor(() => expect(actualizarParticipacion).toHaveBeenCalledTimes(1))
+    const payload = vi.mocked(actualizarParticipacion).mock.calls[0][2]
+    expect(payload).toEqual({ rol: 'Líder técnico', entregables: 'API de pagos', horas: 150 })
+    expect(Object.keys(payload)).toEqual(['rol', 'entregables', 'horas'])
+    for (const bloqueado of [
+      'proyecto_id',
+      'empleado_id',
+      'fecha_registro',
+      'estado',
+      'en_equipo',
+      'coordino_tareas',
+      'explico_a_publico_distinto',
+      'resolvio_problema',
+    ]) {
+      expect(payload).not.toHaveProperty(bloqueado)
+    }
+  })
+
+  it('los entregables son opcionales: vacío viaja como null', async () => {
+    respuestaEdicion = () => Promise.resolve(PARTICIPACION)
+    respuestaParticipaciones = () =>
+      Promise.resolve({
+        total: 1,
+        pagina: 1,
+        por_pagina: 100,
+        items: [{ ...PARTICIPACION_CON_PROYECTO, entregables: 'API de pagos' }],
+      })
+    respuestaBusqueda = () => Promise.resolve(conExacta())
+    montar()
+    escribirYBuscar('Proyecto ÁRBOL')
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar proyecto' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar participación' }))
+    const formulario = (await screen.findByRole('button', {
+      name: 'Actualizar participación',
+    })).closest('form')
+
+    expect(within(formulario).getByLabelText('Entregables')).toHaveValue('API de pagos')
+    fireEvent.change(within(formulario).getByLabelText('Entregables'), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(within(formulario).getByRole('button', { name: 'Actualizar participación' }))
+
+    await waitFor(() => expect(actualizarParticipacion).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(actualizarParticipacion).mock.calls[0][2]).toEqual({
+      rol: 'Desarrollador',
+      entregables: null,
+      horas: 120,
+    })
+  })
+  it('la validación local bloquea el PATCH cuando el rol está vacío', async () => {
+    await abrirEdicion()
+
+    const formulario = formularioEdicion()
+    fireEvent.change(within(formulario).getByLabelText('Rol'), { target: { value: '   ' } })
+    fireEvent.click(within(formulario).getByRole('button', { name: 'Actualizar participación' }))
+
+    expect(
+      await screen.findByText('Escribe el rol que desempeñaste en el proyecto.'),
+    ).toBeInTheDocument()
+    expect(actualizarParticipacion).not.toHaveBeenCalled()
+    // Sigue en modo edición: no sale al resumen.
+    expect(screen.getByRole('button', { name: 'Actualizar participación' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['vacías', '', 'Escribe las horas que dedicaste a este proyecto.'],
+    ['no enteras', '12.5', 'Las horas deben ser un número entero, por ejemplo 120.'],
+    ['no numéricas', 'muchas', 'Las horas deben ser un número entero, por ejemplo 120.'],
+    ['negativas', '-5', 'Las horas no pueden ser negativas.'],
+  ])('la validación local bloquea el PATCH cuando las horas son %s', async (_, valor, aviso) => {
+    await abrirEdicion()
+
+    const formulario = formularioEdicion()
+    fireEvent.change(within(formulario).getByLabelText('Horas'), { target: { value: valor } })
+    fireEvent.click(within(formulario).getByRole('button', { name: 'Actualizar participación' }))
+
+    expect(await screen.findByText(aviso)).toBeInTheDocument()
+    expect(actualizarParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('el PATCH válido vuelve al resumen con los datos actualizados', async () => {
+    respuestaEdicion = () => Promise.resolve(EDITADA)
+    await abrirEdicion()
+
+    const formulario = formularioEdicion()
+    fireEvent.change(within(formulario).getByLabelText('Rol'), {
+      target: { value: 'Líder técnico' },
+    })
+    fireEvent.change(within(formulario).getByLabelText('Horas'), {
+      target: { value: '150' },
+    })
+    fireEvent.click(within(formulario).getByRole('button', { name: 'Actualizar participación' }))
+
+    // Sale del modo edición y el resumen muestra la respuesta del PATCH.
+    expect(
+      await screen.findByRole('button', { name: 'Editar participación' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Actualizar participación' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Líder técnico')).toBeInTheDocument()
+    expect(screen.getByText('2026-09-30')).toBeInTheDocument()
+    // Sin recargar la página ni repetir el GET de detección.
+    expect(listarParticipaciones).toHaveBeenCalledTimes(1)
+    expect(actualizarParticipacion).toHaveBeenCalledTimes(1)
+  })
+  it('cierra la sesión ante un 401 del PATCH', async () => {
+    respuestaEdicion = () => Promise.reject(errorDe(401, 'Credenciales inválidas.'))
+    const alSesionExpirada = await abrirEdicion()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar participación' }))
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByText('No pudimos actualizar la participación'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('muestra el mensaje del backend ante un 404 del PATCH, sin salir de la edición', async () => {
+    respuestaEdicion = () => Promise.reject(errorDe(404, 'Participación no encontrada.'))
+    await abrirEdicion()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar participación' }))
+
+    expect(await screen.findByText('Participación no encontrada.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Actualizar participación' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Editar participación' })).not.toBeInTheDocument()
+  })
+
+  it('muestra el mensaje del backend ante un 422 del PATCH', async () => {
+    respuestaEdicion = () => Promise.reject(errorDe(422, 'Algunos datos enviados no son válidos.'))
+    await abrirEdicion()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar participación' }))
+
+    expect(
+      await screen.findByText('Algunos datos enviados no son válidos.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Actualizar participación' })).toBeInTheDocument()
+  })
+
+  it('muestra error recuperable ante un 500 y permite reintentar', async () => {
+    let intentos = 0
+    respuestaEdicion = () => {
+      intentos += 1
+      return intentos === 1
+        ? Promise.reject(errorDe(500, 'fallo del servidor'))
+        : Promise.resolve(EDITADA)
+    }
+    await abrirEdicion()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar participación' }))
+
+    expect(
+      await screen.findByText('No pudimos actualizar la participación'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('fallo del servidor')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Editar participación' }),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(actualizarParticipacion).toHaveBeenCalledTimes(2))
+  })
+})
     expect(listarParticipaciones).not.toHaveBeenCalled()
     expect(crearParticipacion).not.toHaveBeenCalled()
   })
