@@ -1,17 +1,25 @@
-// Vista "Mis proyectos" del Empleado (PRD §11/§21.3; Style Guide §26).
+// Vista "Mis proyectos" del Empleado (PRD §11/§12/§21.3; Style Guide §26,
+// §18.2 ProjectSearch, §18.3 ParticipationForm, §18.4 StepIndicator).
 // La API se mockea: sin llamadas reales al backend.
 //
-// Se verifica el flujo de MB-5A —buscar obligatoriamente y, si el backend no
-// devuelve coincidencia exacta, crear el proyecto— más los estados de la
-// vista. Los fixtures son fieles a los DTO reales (`ResultadoBusquedaOut` y
-// `ProyectoOut`): la coincidencia se decide SIEMPRE por lo que envía el
-// backend, nunca se recalcula en la vista.
+// Se verifica el flujo MB-5A —buscar obligatoriamente y, si el backend no
+// devuelve coincidencia exacta, crear el proyecto— el flujo MB-5B-1
+// —seleccionar la coincidencia exacta y registrar la participación inicial—
+// más los estados de la vista. Los fixtures son fieles a los DTO reales
+// (`ResultadoBusquedaOut`, `ProyectoOut` y `ParticipacionOut`): la coincidencia
+// se decide SIEMPRE por lo que envía el backend, nunca se recalcula en la
+// vista, y las sugerencias aproximadas siguen siendo informativas y NO
+// seleccionables (Style Guide §18.2).
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { crearParticipacion } from '../../api/participaciones.js'
 import { buscarProyectos, crearProyecto } from '../../api/proyectos.js'
 import MisProyectos from '../MisProyectos.jsx'
 
+vi.mock('../../api/participaciones.js', () => ({
+  crearParticipacion: vi.fn(),
+}))
 vi.mock('../../api/proyectos.js', () => ({
   buscarProyectos: vi.fn(),
   crearProyecto: vi.fn(),
@@ -73,20 +81,43 @@ const CREADO = {
   updated_at: '2026-09-30T09:00:00',
 }
 
+/** ParticipacionOut del registro inicial (201). `proyecto` viene en null a
+ *  propósito: la confirmación del flujo NUNCA depende de esa relación. */
+const PARTICIPACION = {
+  id: 21,
+  empleado_id: 7,
+  proyecto_id: 3,
+  rol: 'Desarrollador',
+  entregables: null,
+  en_equipo: true,
+  coordino_tareas: true,
+  explico_a_publico_distinto: false,
+  resolvio_problema: true,
+  horas: 120,
+  fecha_registro: '2026-09-30',
+  proyecto: null,
+  created_at: '2026-09-30T09:00:00',
+  updated_at: '2026-09-30T09:00:00',
+}
+
 function errorDe(estado, mensaje = 'detalle') {
   return Object.assign(new Error(mensaje), { estado })
 }
 
 let respuestaBusqueda = () => Promise.resolve(conSugerencias())
 let respuestaAlta = () => Promise.resolve(CREADO)
+let respuestaRegistro = () => Promise.resolve(PARTICIPACION)
 
 beforeEach(() => {
   respuestaBusqueda = () => Promise.resolve(conSugerencias())
   respuestaAlta = () => Promise.resolve(CREADO)
+  respuestaRegistro = () => Promise.resolve(PARTICIPACION)
   vi.mocked(buscarProyectos).mockReset()
   vi.mocked(buscarProyectos).mockImplementation(() => respuestaBusqueda())
   vi.mocked(crearProyecto).mockReset()
   vi.mocked(crearProyecto).mockImplementation(() => respuestaAlta())
+  vi.mocked(crearParticipacion).mockReset()
+  vi.mocked(crearParticipacion).mockImplementation(() => respuestaRegistro())
 })
 
 function montar(alSesionExpirada = vi.fn()) {
@@ -184,7 +215,10 @@ describe('MisProyectos — render inicial y búsqueda obligatoria', () => {
     expect(buscarProyectos).toHaveBeenCalledWith('token-empleado', 'Proyecto nuevo')
     // Se espera la respuesta para que el cierre del estado ocurra dentro de
     // `act` (sin avisos de React en la salida de los tests).
-    expect(await screen.findByText('Sugerencias aproximadas')).toBeInTheDocument()
+    // Copy literal del Style Guide §18.2 para la aproximada.
+    expect(
+      await screen.findByText('¿Tal vez buscas uno de estos proyectos?'),
+    ).toBeInTheDocument()
   })
 })
 
@@ -195,7 +229,7 @@ describe('MisProyectos — resultado de la búsqueda', () => {
 
     escribirYBuscar('Proyecto ÁRBOL')
 
-    expect(await screen.findByText('Proyecto existente')).toBeInTheDocument()
+    expect(await screen.findByText('Este proyecto ya existe.')).toBeInTheDocument()
     expect(screen.getByText('Proyecto ÁRBOL')).toBeInTheDocument()
     expect(screen.getByText('Operaciones')).toBeInTheDocument()
     expect(screen.getByText('Cliente interno')).toBeInTheDocument()
@@ -206,7 +240,7 @@ describe('MisProyectos — resultado de la búsqueda', () => {
       screen.queryByRole('button', { name: 'Crear proyecto' }),
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: /Registrar el proyecto/ }),
+      screen.queryByRole('heading', { name: /Registrar la participación/ }),
     ).not.toBeInTheDocument()
   })
 
@@ -215,13 +249,15 @@ describe('MisProyectos — resultado de la búsqueda', () => {
 
     escribirYBuscar('Proyecto arbol')
 
-    expect(await screen.findByText('Sugerencias aproximadas')).toBeInTheDocument()
+    expect(
+      await screen.findByText('¿Tal vez buscas uno de estos proyectos?'),
+    ).toBeInTheDocument()
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
     expect(screen.getByText('Proyecto aproximado 1')).toBeInTheDocument()
     expect(screen.getByText('0.7')).toBeInTheDocument()
     // Informativa (§8): no hay ninguna alerta y no se identifica como existente.
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.queryByText('Proyecto existente')).not.toBeInTheDocument()
+    expect(screen.queryByText('Este proyecto ya existe.')).not.toBeInTheDocument()
     // El alta se ofrece porque el backend no dio coincidencia exacta (§11.1).
     expect(screen.getByRole('button', { name: 'Crear proyecto' })).toBeInTheDocument()
   })
@@ -232,7 +268,9 @@ describe('MisProyectos — resultado de la búsqueda', () => {
 
     escribirYBuscar('Proyecto arbol')
 
-    expect(await screen.findByText('Sugerencias aproximadas')).toBeInTheDocument()
+    expect(
+      await screen.findByText('¿Tal vez buscas uno de estos proyectos?'),
+    ).toBeInTheDocument()
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
     expect(screen.queryByText('Proyecto aproximado 6')).not.toBeInTheDocument()
   })
@@ -263,7 +301,7 @@ describe('MisProyectos — resultado de la búsqueda', () => {
     respuestaBusqueda = () => Promise.resolve(conExacta())
     fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
 
-    expect(await screen.findByText('Proyecto existente')).toBeInTheDocument()
+    expect(await screen.findByText('Este proyecto ya existe.')).toBeInTheDocument()
     await waitFor(() => expect(buscarProyectos).toHaveBeenCalledTimes(2))
     expect(buscarProyectos).toHaveBeenLastCalledWith('token-empleado', 'Proyecto ÁRBOL')
   })
@@ -430,5 +468,340 @@ describe('MisProyectos — alta del proyecto', () => {
     expect(
       screen.queryByRole('button', { name: 'Crear proyecto' }),
     ).not.toBeInTheDocument()
+  })
+})
+
+/** Paso 02: selecciona la coincidencia exacta con la acción del Style Guide §18.2. */
+async function seleccionarExacta() {
+  respuestaBusqueda = () => Promise.resolve(conExacta())
+  const alSesionExpirada = montar()
+  escribirYBuscar('Proyecto ÁRBOL')
+  fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar proyecto' }))
+  return alSesionExpirada
+}
+
+/** Rellena el ParticipationForm: rol y horas (obligatorios) y entregables. */
+function rellenarParticipacion({
+  rol = 'Desarrollador',
+  entregables = '',
+  horas = '120',
+} = {}) {
+  fireEvent.change(screen.getByLabelText('Rol'), { target: { value: rol } })
+  fireEvent.change(screen.getByLabelText('Entregables'), { target: { value: entregables } })
+  fireEvent.change(screen.getByLabelText('Horas'), { target: { value: horas } })
+}
+
+/** Marca indicadores objetivos por su etiqueta visible (§18.3). */
+function marcarIndicadores(...etiquetas) {
+  for (const etiqueta of etiquetas) {
+    fireEvent.click(screen.getByLabelText(etiqueta))
+  }
+}
+
+function enviarRegistro() {
+  fireEvent.click(screen.getByRole('button', { name: 'Registrar participación' }))
+}
+
+describe('MisProyectos — MB-5B-1: seleccionar proyecto (§18.2)', () => {
+  it('no ofrece el paso 03 sin un proyecto seleccionado', () => {
+    montar()
+
+    expect(
+      screen.queryByRole('heading', { name: /Registrar la participación/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Este dato no modifica tus competencias.'),
+    ).not.toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('ofrece «Seleccionar proyecto» en la coincidencia exacta y abre el paso 03', async () => {
+    respuestaBusqueda = () => Promise.resolve(conExacta())
+    montar()
+    escribirYBuscar('Proyecto ÁRBOL')
+
+    expect(await screen.findByText('Este proyecto ya existe.')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: /Registrar la participación/ }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar proyecto' }))
+
+    expect(
+      await screen.findByRole('heading', { name: /Registrar la participación/ }),
+    ).toBeInTheDocument()
+    // La selección ya se hizo: no se puede repetir ni duplicar el paso 03.
+    expect(
+      screen.queryByRole('button', { name: 'Seleccionar proyecto' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(/Proyecto seleccionado/)).toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('las sugerencias aproximadas siguen sin acción de selección', async () => {
+    montar()
+    escribirYBuscar('Proyecto arbol')
+
+    expect(
+      await screen.findByText('¿Tal vez buscas uno de estos proyectos?'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Seleccionar proyecto' }),
+    ).not.toBeInTheDocument()
+    for (const sugerencia of screen.getAllByRole('listitem')) {
+      expect(within(sugerencia).queryByRole('button')).not.toBeInTheDocument()
+    }
+    expect(
+      screen.queryByRole('heading', { name: /Registrar la participación/ }),
+    ).not.toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('el proyecto creado queda seleccionado y continúa al paso 03', async () => {
+    montar()
+    escribirYBuscar('Proyecto Roble')
+    await screen.findByRole('button', { name: 'Crear proyecto' })
+
+    enviarAlta()
+
+    const creado = await screen.findByLabelText('Proyecto creado')
+    expect(within(creado).getByText('Proyecto Roble')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /Registrar la participación/ }),
+    ).toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+})
+
+describe('MisProyectos — MB-5B-1: ParticipationForm (§18.3)', () => {
+  it('respeta el orden exacto de los campos y el dato contextual', async () => {
+    await seleccionarExacta()
+
+    const formulario = screen
+      .getByRole('button', { name: 'Registrar participación' })
+      .closest('form')
+    const controles = [...formulario.querySelectorAll('input')].map((input) => input.id)
+    expect(controles).toEqual([
+      'registro-rol',
+      'registro-entregables',
+      'registro-en-equipo',
+      'registro-coordina',
+      'registro-explica',
+      'registro-situacion',
+      'registro-horas',
+    ])
+    // entregables es visible pero NO obligatorio; sí lo son rol y horas.
+    expect(screen.getByLabelText('Entregables')).toBeInTheDocument()
+    // resolvio_problema se presenta como dato contextual, no como palanca.
+    expect(
+      screen.getByText('Este dato no modifica tus competencias.'),
+    ).toBeInTheDocument()
+    // El copy de bloqueo aparece SOLO después de registrar (§18.3).
+    expect(
+      screen.queryByText('Registrado al crear la participación.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('no envía el registro con el rol vacío', async () => {
+    await seleccionarExacta()
+    rellenarParticipacion({ rol: '   ' })
+
+    enviarRegistro()
+
+    expect(
+      await screen.findByText('Escribe el rol que desempeñaste en el proyecto.'),
+    ).toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+    expect(screen.queryByText('Participación registrada')).not.toBeInTheDocument()
+  })
+
+  it('no envía el registro sin horas', async () => {
+    await seleccionarExacta()
+    rellenarParticipacion({ horas: '   ' })
+
+    enviarRegistro()
+
+    expect(
+      await screen.findByText('Escribe las horas que dedicaste a este proyecto.'),
+    ).toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('no envía el registro con horas que no sean enteras', async () => {
+    await seleccionarExacta()
+    rellenarParticipacion({ horas: '12.5' })
+
+    enviarRegistro()
+
+    expect(
+      await screen.findByText('Las horas deben ser un número entero, por ejemplo 120.'),
+    ).toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('no envía el registro con horas negativas', async () => {
+    await seleccionarExacta()
+    rellenarParticipacion({ horas: '-5' })
+
+    enviarRegistro()
+
+    expect(await screen.findByText('Las horas no pueden ser negativas.')).toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+})
+
+describe('MisProyectos — MB-5B-1: registro de la participación', () => {
+  it('envía exactamente los ocho campos del contrato, sin campos extra', async () => {
+    await seleccionarExacta()
+    rellenarParticipacion({ rol: '  Desarrollador  ', entregables: '   ', horas: ' 120 ' })
+    marcarIndicadores('Trabajo en equipo', 'Coordinación', 'Situación/problema')
+
+    enviarRegistro()
+
+    expect(await screen.findByText('Participación registrada')).toBeInTheDocument()
+    expect(crearParticipacion).toHaveBeenCalledTimes(1)
+    const [token, payload] = vi.mocked(crearParticipacion).mock.calls[0]
+    expect(token).toBe('token-empleado')
+    // Ni un campo fuera de ParticipacionCreateIn (extra="forbid" → 422).
+    expect(Object.keys(payload).sort()).toEqual(
+      [
+        'coordino_tareas',
+        'en_equipo',
+        'entregables',
+        'explico_a_publico_distinto',
+        'horas',
+        'proyecto_id',
+        'resolvio_problema',
+        'rol',
+      ].sort(),
+    )
+    expect(payload).toEqual({
+      proyecto_id: 3,
+      rol: 'Desarrollador',
+      entregables: null,
+      en_equipo: true,
+      coordino_tareas: true,
+      explico_a_publico_distinto: false,
+      resolvio_problema: true,
+      horas: 120,
+    })
+    // Lo que fija el backend: nunca viaja desde el frontend (§32/§12).
+    expect(payload).not.toHaveProperty('empleado_id')
+    expect(payload).not.toHaveProperty('fecha_registro')
+    expect(payload).not.toHaveProperty('estado')
+  })
+
+  it('la confirmación usa el proyecto seleccionado, no participacion.proyecto', async () => {
+    await seleccionarExacta()
+    rellenarParticipacion()
+    marcarIndicadores('Trabajo en equipo')
+
+    enviarRegistro()
+
+    expect(await screen.findByText('Participación registrada')).toBeInTheDocument()
+    const paso03 = screen
+      .getByRole('heading', { name: /Registrar la participación/ })
+      .closest('section')
+    // El fixture trae `proyecto: null`: el nombre sale del seleccionado (§02).
+    expect(within(paso03).getByText('Proyecto ÁRBOL')).toBeInTheDocument()
+    expect(within(paso03).getByText('Desarrollador')).toBeInTheDocument()
+    expect(within(paso03).getByText('2026-09-30')).toBeInTheDocument()
+    // Indicadores con el copy de §18.3, sin tono punitivo.
+    expect(
+      within(paso03).getByText('Registrado al crear la participación.'),
+    ).toBeInTheDocument()
+    expect(within(paso03).getAllByText('Sí')).toHaveLength(3)
+    expect(within(paso03).getAllByText('No')).toHaveLength(1)
+    // El formulario ya no está: el registro inicial se cerró.
+    expect(
+      screen.queryByRole('button', { name: 'Registrar participación' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe('MisProyectos — MB-5B-1: errores del registro', () => {
+  it('cierra la sesión ante un 401, sin mostrar confirmación', async () => {
+    respuestaRegistro = () => Promise.reject(errorDe(401, 'Credenciales inválidas.'))
+    const alSesionExpirada = await seleccionarExacta()
+    rellenarParticipacion()
+
+    enviarRegistro()
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('Participación registrada')).not.toBeInTheDocument()
+    expect(screen.queryByText('No pudimos registrar la participación')).not.toBeInTheDocument()
+  })
+
+  it('muestra el 409 del backend junto al formulario, no como fallo técnico', async () => {
+    respuestaRegistro = () =>
+      Promise.reject(
+        errorDe(409, 'Ya existe una participación de este empleado en ese proyecto.'),
+      )
+    await seleccionarExacta()
+    rellenarParticipacion()
+
+    enviarRegistro()
+
+    expect(
+      await screen.findByText('Ya existe una participación de este empleado en ese proyecto.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Registrar participación' })).toBeInTheDocument()
+    expect(screen.queryByText('Participación registrada')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('No pudimos registrar la participación'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('muestra el 422 del backend junto al formulario', async () => {
+    respuestaRegistro = () =>
+      Promise.reject(
+        errorDe(422, 'Algunos datos enviados no son válidos. Revisa e inténtalo de nuevo.'),
+      )
+    await seleccionarExacta()
+    rellenarParticipacion()
+
+    enviarRegistro()
+
+    expect(
+      await screen.findByText(
+        'Algunos datos enviados no son válidos. Revisa e inténtalo de nuevo.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Registrar participación' })).toBeInTheDocument()
+    expect(screen.queryByText('Participación registrada')).not.toBeInTheDocument()
+  })
+
+  it('muestra el 404 del backend junto al formulario', async () => {
+    respuestaRegistro = () => Promise.reject(errorDe(404, 'Proyecto no encontrado.'))
+    await seleccionarExacta()
+    rellenarParticipacion()
+
+    enviarRegistro()
+
+    expect(await screen.findByText('Proyecto no encontrado.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Registrar participación' })).toBeInTheDocument()
+    expect(screen.queryByText('Participación registrada')).not.toBeInTheDocument()
+  })
+
+  it('reintenta el registro tras un error recuperable (500)', async () => {
+    let intentos = 0
+    respuestaRegistro = () => {
+      intentos += 1
+      return intentos === 1
+        ? Promise.reject(errorDe(500, 'fallo del servidor'))
+        : Promise.resolve(PARTICIPACION)
+    }
+    await seleccionarExacta()
+    rellenarParticipacion()
+
+    enviarRegistro()
+
+    expect(await screen.findByText('No pudimos registrar la participación')).toBeInTheDocument()
+    expect(screen.queryByText('Participación registrada')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+
+    expect(await screen.findByText('Participación registrada')).toBeInTheDocument()
+    await waitFor(() => expect(crearParticipacion).toHaveBeenCalledTimes(2))
   })
 })

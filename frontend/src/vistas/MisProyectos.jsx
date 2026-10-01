@@ -1,9 +1,16 @@
-// Vista "Mis proyectos" del rol Empleado (PRD §11, §21.3; Style Guide §26
-// "Proyectos Empleado").
+// Vista "Mis proyectos" del rol Empleado (PRD §11, §12, §21.3; Style Guide §26
+// "Proyectos Empleado", §18.2 ProjectSearch, §18.3 ParticipationForm, §18.4
+// StepIndicator).
 //
-// Alcance (MB-5A): BUSCAR un proyecto por nombre y, si no existe coincidencia
-// exacta, CREARLO. El registro de la participación es otro microbloque: esta
-// vista no registra participaciones.
+// Alcance (MB-5A + MB-5B-1): flujo completo 01 Buscar → 02 Crear o seleccionar
+// → 03 Registrar la participación (§18.4), TODO dentro de "Mis proyectos":
+// no existe una sección de navegación "Mis participaciones" y no se crea.
+// - MB-5A: búsqueda obligatoria y alta del proyecto cuando el backend no
+//   devuelve coincidencia exacta.
+// - MB-5B-1: SOLO la coincidencia exacta puede SELECCIONARSE (§18.2); las
+//   sugerencias aproximadas siguen siendo informativas y NO seleccionables.
+//   El proyecto recién creado se convierte en el seleccionado y continúa al
+//   paso 03, donde se registra la participación inicial (§18.3).
 //
 // Contrato real del backend (nada se inventa):
 // - GET /api/v1/me/projects/search?nombre= → `coincidencia_exacta` + hasta 5
@@ -14,17 +21,24 @@
 //   El duplicado exacto responde 409 y se muestra como respuesta del backend,
 //   no como fallo genérico.
 // - NO existe GET /me/projects: el Empleado no tiene listado de proyectos, y
-//   la vista no lo simula. La confirmación se construye ÚNICAMENTE con el
-//   ProyectoOut que devuelve el POST.
+//   la vista no lo simula.
+// - POST /api/v1/me/participations → registro inicial (ParticipacionCreateIn,
+//   exactamente ocho campos). `empleado_id` lo deriva el backend de la cuenta
+//   autenticada (§32), `fecha_registro` la fija el servidor y `estado` no forma
+//   parte del contrato: la vista NUNCA los envía. Errores: 401 (sesión),
+//   404 (proyecto inexistente), 409 (participación duplicada), 422 (validación).
 //
 // La vista no decide nada de negocio: no determina si el proyecto existe (lo
 // dice el backend), no normaliza nombres, no calcula similitudes y no fija el
-// estado. Las dos únicas decisiones de presentación son las de los documentos:
-// ofrecer el alta cuando el backend no encontró coincidencia exacta (PRD §11.1
-// "Crear nuevo si no existe") y no mostrar más de 5 sugerencias (PRD §11.3/§8).
+// estado. Las decisiones de presentación son las de los documentos: ofrecer el
+// alta sin coincidencia exacta (PRD §11.1), no mostrar más de 5 sugerencias
+// (PRD §11.3/§8), el copy literal del Style Guide §18.2 y el orden exacto del
+// formulario §18.3. La confirmación del registro NUNCA depende de
+// `participacion.proyecto`: el nombre mostrado sale del proyecto seleccionado.
 
 import { useState } from 'react'
-import { CheckCircle2, FolderKanban, Repeat2, Search } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ClipboardCheck, FolderKanban, Repeat2, Search } from 'lucide-react'
+import { crearParticipacion } from '../api/participaciones.js'
 import { buscarProyectos, crearProyecto } from '../api/proyectos.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
@@ -79,6 +93,52 @@ function prepararProyecto({ nombre, area, cliente }) {
   }
 }
 
+/** Estado inicial del ParticipationForm (§18.3): todo vacío, indicadores en false. */
+function participacionInicial() {
+  return {
+    rol: '',
+    entregables: '',
+    en_equipo: false,
+    coordino_tareas: false,
+    explico_a_publico_distinto: false,
+    resolvio_problema: false,
+    horas: '',
+  }
+}
+
+/** Avisos de validación local (ninguno visible al iniciar). */
+function avisosIniciales() {
+  return { rol: null, horas: null }
+}
+
+/**
+ * Validación local ESPEJO del contrato (rol no vacío; horas entero >= 0):
+ * evita el viaje cuando el backend ya sabe que rechazaría. NO agrega reglas:
+ * ParticipacionCreateIn exige `rol` no vacío y `horas` int ge=0.
+ * @returns {{rol: string|null, horas: string|null, valido: boolean}}
+ */
+function validarParticipacion({ rol, horas }) {
+  const avisos = avisosIniciales()
+  const rolLimpio = rol.trim()
+  const horasLimpias = horas.trim()
+  if (!rolLimpio) {
+    avisos.rol = 'Escribe el rol que desempeñaste en el proyecto.'
+  }
+  if (!horasLimpias) {
+    avisos.horas = 'Escribe las horas que dedicaste a este proyecto.'
+  } else if (!/^-?\d+$/.test(horasLimpias)) {
+    avisos.horas = 'Las horas deben ser un número entero, por ejemplo 120.'
+  } else if (Number.parseInt(horasLimpias, 10) < 0) {
+    avisos.horas = 'Las horas no pueden ser negativas.'
+  }
+  return { ...avisos, valido: !avisos.rol && !avisos.horas }
+}
+
+/** Etiqueta de presentación Sí/No para los indicadores registrados. */
+function etiquetaSiNo(valor) {
+  return valor ? 'Sí' : 'No'
+}
+
 export default function MisProyectos({ token, alSesionExpirada }) {
   const [nombreEscrito, setNombreEscrito] = useState('')
   const [consultaEjecutada, setConsultaEjecutada] = useState('')
@@ -86,11 +146,23 @@ export default function MisProyectos({ token, alSesionExpirada }) {
   const [busqueda, setBusqueda] = useState(consultaInicial)
   const [formulario, setFormulario] = useState({ nombre: '', area: '', cliente: '' })
   const [alta, setAlta] = useState({ fase: 'inactiva', datos: null, error: null })
+  // Paso 02→03: proyecto seleccionado (coincidencia exacta o recién creado).
+  const [proyectoSeleccionado, setProyectoSeleccionado] = useState(null)
+  // ParticipationForm (§18.3) y su registro (POST /me/participations).
+  const [formParticipacion, setFormParticipacion] = useState(participacionInicial)
+  const [avisosParticipacion, setAvisosParticipacion] = useState(avisosIniciales)
+  const [registro, setRegistro] = useState({ fase: 'inactiva', datos: null, error: null })
 
   function buscar(nombre) {
     setConsultaEjecutada(nombre)
     setBusqueda({ fase: 'cargando', datos: null, error: null })
     setAlta({ fase: 'inactiva', datos: null, error: null })
+    // Una nueva búsqueda invalida la selección previa: el paso 03 solo existe
+    // con un proyecto seleccionado en la consulta actual.
+    setProyectoSeleccionado(null)
+    setFormParticipacion(participacionInicial())
+    setAvisosParticipacion(avisosIniciales())
+    setRegistro({ fase: 'inactiva', datos: null, error: null })
     buscarProyectos(token, nombre)
       .then((datos) => {
         setBusqueda({ fase: 'listo', datos, error: null })
@@ -128,6 +200,12 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     try {
       const proyecto = await crearProyecto(token, prepararProyecto(formulario))
       setAlta({ fase: 'creado', datos: proyecto, error: null })
+      // MB-5B-1: el proyecto recién creado se convierte en el seleccionado y
+      // el flujo continúa al paso 03 (decisión confirmada).
+      setProyectoSeleccionado(proyecto)
+      setFormParticipacion(participacionInicial())
+      setAvisosParticipacion(avisosIniciales())
+      setRegistro({ fase: 'inactiva', datos: null, error: null })
     } catch (error) {
       if (error?.estado === 401) {
         alSesionExpirada?.()
@@ -148,6 +226,60 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     enviarAlta()
   }
 
+  /** Paso 02: SOLO la coincidencia exacta puede seleccionarse (§18.2). */
+  function seleccionarProyecto(proyecto) {
+    setProyectoSeleccionado(proyecto)
+    setFormParticipacion(participacionInicial())
+    setAvisosParticipacion(avisosIniciales())
+    setRegistro({ fase: 'inactiva', datos: null, error: null })
+  }
+
+  async function enviarRegistro() {
+    // Validación local espejo del contrato: sin rol o con horas inválidas no
+    // se envía el POST (el backend rechazaría igual, pero evitamos el viaje).
+    const validacion = validarParticipacion(formParticipacion)
+    setAvisosParticipacion(validacion)
+    if (!validacion.valido) return
+
+    // Payload EXACTO de ParticipacionCreateIn (ocho campos, ni uno más):
+    // sin empleado_id (§32), sin fecha_registro (la fija el servidor) y sin
+    // estado (no forma parte del contrato).
+    const payload = {
+      proyecto_id: proyectoSeleccionado.id,
+      rol: formParticipacion.rol.trim(),
+      entregables: formParticipacion.entregables.trim() || null,
+      en_equipo: formParticipacion.en_equipo,
+      coordino_tareas: formParticipacion.coordino_tareas,
+      explico_a_publico_distinto: formParticipacion.explico_a_publico_distinto,
+      resolvio_problema: formParticipacion.resolvio_problema,
+      horas: Number.parseInt(formParticipacion.horas.trim(), 10),
+    }
+
+    setRegistro({ fase: 'enviando', datos: null, error: null })
+    try {
+      const participacion = await crearParticipacion(token, payload)
+      setRegistro({ fase: 'registrada', datos: participacion, error: null })
+    } catch (error) {
+      if (error?.estado === 401) {
+        alSesionExpirada?.()
+        return
+      }
+      // 404 (proyecto), 409 (duplicada) y 422 (validación) conservan el
+      // mensaje del backend junto al formulario: son respuestas del contrato,
+      // no fallos técnicos.
+      if ([404, 409, 422].includes(error?.estado)) {
+        setRegistro({ fase: 'invalido', datos: null, error })
+        return
+      }
+      setRegistro({ fase: 'error', datos: null, error })
+    }
+  }
+
+  function manejarRegistro(evento) {
+    evento.preventDefault()
+    enviarRegistro()
+  }
+
   /** Vuelve al estado inicial de la sección (sin ningún dato simulado). */
   function reiniciar() {
     setNombreEscrito('')
@@ -156,6 +288,10 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     setBusqueda(consultaInicial())
     setFormulario({ nombre: '', area: '', cliente: '' })
     setAlta({ fase: 'inactiva', datos: null, error: null })
+    setProyectoSeleccionado(null)
+    setFormParticipacion(participacionInicial())
+    setAvisosParticipacion(avisosIniciales())
+    setRegistro({ fase: 'inactiva', datos: null, error: null })
   }
 
   const exacta = busqueda.datos?.coincidencia_exacta ?? null
@@ -163,19 +299,22 @@ export default function MisProyectos({ token, alSesionExpirada }) {
   // presentación del PRD §11.3 ("hasta 5 sugerencias aproximadas").
   const sugerencias = (busqueda.datos?.sugerencias ?? []).slice(0, SUGERENCIAS_MAXIMAS)
   const puedeCrear = busqueda.fase === 'listo' && exacta === null
-  // Confirmación de creación: ÚNICAMENTE con el ProyectoOut del backend. No
-  // se simula un listado persistente: no existe GET /me/projects.
-  if (alta.fase === 'creado') {
-    return (
-      <div className="mis-proyectos">
-        <SectionHeader
-          eyebrow="Proyectos"
-          title="Mis proyectos"
-          description="Busca un proyecto del catálogo compartido y, si todavía no existe, regístralo."
-        />
+  return (
+    <div className="mis-proyectos">
+      <SectionHeader
+        eyebrow="Proyectos"
+        title="Mis proyectos"
+        description="Busca un proyecto del catálogo compartido y, si todavía no existe, regístralo."
+      />
+
+      {/* Confirmación de creación (MB-5A): SOLO con el ProyectoOut del POST.
+          En MB-5B-1 deja de ser terminal: el proyecto creado queda seleccionado
+          y el flujo continúa en el paso 03. */}
+      {alta.fase === 'creado' && (
         <section className="proyectos-creado" aria-label="Proyecto creado">
           <Alert tone="success" title="Proyecto creado">
             Quedó registrado en el catálogo compartido con el estado inicial del producto.
+            Ya está seleccionado: continúa con el paso 03.
           </Alert>
           <p className="proyectos-creado__nombre">{alta.datos.nombre}</p>
           <dl className="proyectos-datos">
@@ -213,17 +352,7 @@ export default function MisProyectos({ token, alSesionExpirada }) {
             <Repeat2 aria-hidden="true" /> Buscar otro proyecto
           </Button>
         </section>
-      </div>
-    )
-  }
-
-  return (
-    <div className="mis-proyectos">
-      <SectionHeader
-        eyebrow="Proyectos"
-        title="Mis proyectos"
-        description="Busca un proyecto del catálogo compartido y, si todavía no existe, regístralo."
-      />
+      )}
 
       <section className="proyectos-paso" aria-labelledby="proyectos-busqueda-titulo">
         <h2 className="proyectos-paso__titulo" id="proyectos-busqueda-titulo">
@@ -259,6 +388,9 @@ export default function MisProyectos({ token, alSesionExpirada }) {
         </form>
       </section>
 
+      {/* Tras crear el proyecto, el resultado de la búsqueda anterior deja de
+          interesar: el foco del flujo pasa a la confirmación y al paso 03. */}
+      {alta.fase !== 'creado' && (
       <section
         className="proyectos-resultado"
         aria-label="Resultado de la búsqueda"
@@ -287,8 +419,13 @@ export default function MisProyectos({ token, alSesionExpirada }) {
             (PRD §11.1 "Seleccionar existente"). No se calcula nada aquí. */}
         {busqueda.fase === 'listo' && exacta && (
           <div className="proyectos-coincidencia">
+            {/* Copy literal del Style Guide §18.2 (decisión F.3): "Este proyecto
+                ya existe." + acción "Seleccionar proyecto". */}
+            <h2 className="proyectos-paso__titulo" id="proyectos-seleccion-titulo">
+              <span>02</span> Crear o seleccionar
+            </h2>
             <p className="proyectos-coincidencia__etiqueta">
-              <CheckCircle2 aria-hidden="true" /> Proyecto existente
+              <CheckCircle2 aria-hidden="true" /> Este proyecto ya existe.
             </p>
             <p className="proyectos-coincidencia__nombre">{exacta.nombre}</p>
             <dl className="proyectos-datos">
@@ -318,6 +455,18 @@ export default function MisProyectos({ token, alSesionExpirada }) {
               nuevo. «Nombre normalizado» es la forma que el backend usa para detectar
               duplicados exactos.
             </p>
+            {/* Solo la coincidencia exacta continúa al registro (§18.2):
+                las sugerencias aproximadas NO tienen esta acción. */}
+            {proyectoSeleccionado?.id === exacta.id ? (
+              <p className="proyectos-seleccionado">
+                <CheckCircle2 aria-hidden="true" /> Proyecto seleccionado: continúa con el
+                paso 03.
+              </p>
+            ) : (
+              <Button type="button" onClick={() => seleccionarProyecto(exacta)}>
+                <ArrowRight aria-hidden="true" /> Seleccionar proyecto
+              </Button>
+            )}
           </div>
         )}
 
@@ -325,7 +474,11 @@ export default function MisProyectos({ token, alSesionExpirada }) {
             INFORMATIVAS (§8). No son un error y no crean ninguna relación. */}
         {busqueda.fase === 'listo' && !exacta && (
           <div className="proyectos-sugerencias">
-            <p className="proyectos-sugerencias__titulo">Sugerencias aproximadas</p>
+            {/* Copy literal del Style Guide §18.2: advertencia informativa,
+                NUNCA un error y sin opción de seleccionar. */}
+            <p className="proyectos-sugerencias__titulo">
+              ¿Tal vez buscas uno de estos proyectos?
+            </p>
             <p className="proyectos-sugerencias__nota">
               Ninguna coincide exactamente. Son informativas: no crean ninguna relación con
               el proyecto ni impiden registrar uno nuevo.
@@ -373,17 +526,19 @@ export default function MisProyectos({ token, alSesionExpirada }) {
           </div>
         )}
       </section>
+      )}
 
       {/* Alta (PRD §11.1 "Crear nuevo si no existe"): aparece SOLO cuando el
           backend no devolvió coincidencia exacta. El estado EN_PROCESO lo fija
-          el backend; aquí no se envía. */}
-      {puedeCrear && (
+          el backend; aquí no se envía. Tras crear, el proyecto queda seleccionado
+          y esta sección se retira a favor del paso 03. */}
+      {puedeCrear && alta.fase !== 'creado' && (
         <section
           className="proyectos-paso"
           aria-labelledby="proyectos-alta-titulo"
         >
           <h2 className="proyectos-paso__titulo" id="proyectos-alta-titulo">
-            <span>02</span> Registrar el proyecto
+            <span>02</span> Crear o seleccionar
           </h2>
           {alta.fase === 'error' ? (
             <EstadoError
@@ -443,6 +598,247 @@ export default function MisProyectos({ token, alSesionExpirada }) {
                   <Button type="submit" loading={alta.fase === 'enviando'}>
                     <FolderKanban aria-hidden="true" />
                     {alta.fase === 'enviando' ? 'Registrando…' : 'Crear proyecto'}
+                  </Button>
+                </div>
+              </form>
+            </>
+          )}
+        </section>
+      )}
+
+      {/* Paso 03 (MB-5B-1, §18.3/§18.4): ParticipationForm con el orden exacto
+          de los documentos. Solo existe con un proyecto seleccionado: la
+          coincidencia aproximada jamás llega aquí. */}
+      {proyectoSeleccionado && (
+        <section
+          className="proyectos-paso"
+          aria-labelledby="proyectos-registro-titulo"
+        >
+          <h2 className="proyectos-paso__titulo" id="proyectos-registro-titulo">
+            <span>03</span> Registrar la participación
+          </h2>
+
+          {registro.fase === 'registrada' ? (
+            <div className="proyectos-confirmacion">
+              <Alert tone="success" title="Participación registrada">
+                Se guardó con los indicadores que capturaste y la fecha del servidor.
+              </Alert>
+              {/* El nombre NO proviene de participacion.proyecto (que puede ser
+                  null): proviene del proyecto seleccionado en el paso 02. */}
+              <p className="proyectos-creado__nombre">{proyectoSeleccionado.nombre}</p>
+              <dl className="proyectos-datos">
+                <div>
+                  <dt>Rol</dt>
+                  <dd>{registro.datos.rol}</dd>
+                </div>
+                <div>
+                  <dt>Entregables</dt>
+                  <dd>{registro.datos.entregables ?? SIN_DATO}</dd>
+                </div>
+                <div>
+                  <dt>Horas</dt>
+                  <dd>{registro.datos.horas}</dd>
+                </div>
+                <div>
+                  <dt>Fecha de registro</dt>
+                  <dd>{registro.datos.fecha_registro}</dd>
+                </div>
+              </dl>
+              <div>
+                <dl className="proyectos-datos">
+                  <div>
+                    <dt>Trabajo en equipo</dt>
+                    <dd>{etiquetaSiNo(registro.datos.en_equipo)}</dd>
+                  </div>
+                  <div>
+                    <dt>Coordinación</dt>
+                    <dd>{etiquetaSiNo(registro.datos.coordino_tareas)}</dd>
+                  </div>
+                  <div>
+                    <dt>Explicación a públicos distintos</dt>
+                    <dd>{etiquetaSiNo(registro.datos.explico_a_publico_distinto)}</dd>
+                  </div>
+                  <div>
+                    <dt>Situación/problema</dt>
+                    <dd>{etiquetaSiNo(registro.datos.resolvio_problema)}</dd>
+                  </div>
+                </dl>
+                {/* Copy §18.3: el estado posterior no es punitivo, refiere al
+                    registro inicial hecho por la propia persona. */}
+                <p className="proyectos-nota">Registrado al crear la participación.</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={reiniciar}>
+                <Repeat2 aria-hidden="true" /> Buscar otro proyecto
+              </Button>
+            </div>
+          ) : registro.fase === 'error' ? (
+            <EstadoError
+              titulo="No pudimos registrar la participación"
+              mensaje={registro.error?.message}
+              onReintentar={enviarRegistro}
+            />
+          ) : (
+            <>
+              <p className="proyectos-paso__nota">
+                Estás registrando tu participación en «{proyectoSeleccionado.nombre}».
+                La búsqueda y la selección ya quedaron hechas en los pasos 01 y 02.
+              </p>
+              <form
+                className="proyectos-registro"
+                onSubmit={manejarRegistro}
+                aria-busy={registro.fase === 'enviando'}
+              >
+                {/* 1. rol (obligatorio) */}
+                <FormField
+                  id="registro-rol"
+                  label="Rol"
+                  required
+                  hint="El rol que desempeñaste en este proyecto."
+                  error={avisosParticipacion.rol}
+                >
+                  <Input
+                    id="registro-rol"
+                    autoComplete="off"
+                    value={formParticipacion.rol}
+                    onChange={(evento) =>
+                      setFormParticipacion({ ...formParticipacion, rol: evento.target.value })
+                    }
+                    invalid={Boolean(avisosParticipacion.rol)}
+                  />
+                </FormField>
+
+                {/* 2. entregables: visible pero NO obligatorio */}
+                <FormField
+                  id="registro-entregables"
+                  label="Entregables"
+                  hint="Opcional: lo que entregaste en este proyecto."
+                >
+                  <Input
+                    id="registro-entregables"
+                    autoComplete="off"
+                    value={formParticipacion.entregables}
+                    onChange={(evento) =>
+                      setFormParticipacion({
+                        ...formParticipacion,
+                        entregables: evento.target.value,
+                      })
+                    }
+                  />
+                </FormField>
+
+                {/* 3-6. indicadores objetivos + dato contextual (§18.3) */}
+                <div
+                  className="proyectos-indicadores"
+                  role="group"
+                  aria-labelledby="proyectos-indicadores-titulo"
+                >
+                  <p
+                    className="proyectos-indicadores__titulo"
+                    id="proyectos-indicadores-titulo"
+                  >
+                    Indicadores del registro inicial
+                  </p>
+                  <div className="proyectos-indicador">
+                    <input
+                      type="checkbox"
+                      id="registro-en-equipo"
+                      checked={formParticipacion.en_equipo}
+                      onChange={(evento) =>
+                        setFormParticipacion({
+                          ...formParticipacion,
+                          en_equipo: evento.target.checked,
+                        })
+                      }
+                    />
+                    <label htmlFor="registro-en-equipo">Trabajo en equipo</label>
+                  </div>
+                  <div className="proyectos-indicador">
+                    <input
+                      type="checkbox"
+                      id="registro-coordina"
+                      checked={formParticipacion.coordino_tareas}
+                      onChange={(evento) =>
+                        setFormParticipacion({
+                          ...formParticipacion,
+                          coordino_tareas: evento.target.checked,
+                        })
+                      }
+                    />
+                    <label htmlFor="registro-coordina">Coordinación</label>
+                  </div>
+                  <div className="proyectos-indicador">
+                    <input
+                      type="checkbox"
+                      id="registro-explica"
+                      checked={formParticipacion.explico_a_publico_distinto}
+                      onChange={(evento) =>
+                        setFormParticipacion({
+                          ...formParticipacion,
+                          explico_a_publico_distinto: evento.target.checked,
+                        })
+                      }
+                    />
+                    <label htmlFor="registro-explica">
+                      Explicación a públicos distintos
+                    </label>
+                  </div>
+                  <div className="proyectos-indicador">
+                    <input
+                      type="checkbox"
+                      id="registro-situacion"
+                      checked={formParticipacion.resolvio_problema}
+                      onChange={(evento) =>
+                        setFormParticipacion({
+                          ...formParticipacion,
+                          resolvio_problema: evento.target.checked,
+                        })
+                      }
+                    />
+                    <label htmlFor="registro-situacion">Situación/problema</label>
+                  </div>
+                  {/* resolvio_problema es contexto humano (PRD §12.3): dato
+                      contextual, nunca una palanca de competencias. */}
+                  <p className="proyectos-indicador__nota">
+                    Este dato no modifica tus competencias.
+                  </p>
+                </div>
+
+                {/* 7. horas (obligatorio, entero >= 0) */}
+                <FormField
+                  id="registro-horas"
+                  label="Horas"
+                  required
+                  hint="Número entero de horas dedicadas, por ejemplo 120."
+                  error={avisosParticipacion.horas}
+                >
+                  <Input
+                    id="registro-horas"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={formParticipacion.horas}
+                    onChange={(evento) =>
+                      setFormParticipacion({
+                        ...formParticipacion,
+                        horas: evento.target.value,
+                      })
+                    }
+                    invalid={Boolean(avisosParticipacion.horas)}
+                  />
+                </FormField>
+
+                {/* 404 (proyecto), 409 (duplicada) y 422 (validación) se muestran
+                    con el mensaje del backend junto al formulario. */}
+                {registro.fase === 'invalido' && (
+                  <Alert tone="error">{registro.error?.message}</Alert>
+                )}
+
+                <div className="proyectos-registro__acciones">
+                  <span>Los campos con * son obligatorios.</span>
+                  <Button type="submit" loading={registro.fase === 'enviando'}>
+                    <ClipboardCheck aria-hidden="true" />
+                    {registro.fase === 'enviando'
+                      ? 'Registrando…'
+                      : 'Registrar participación'}
                   </Button>
                 </div>
               </form>
