@@ -69,6 +69,14 @@
 .proyectos-confirmacion { display: flex; flex-direction: column; gap: 16px; }
 .proyectos-confirmacion .ui-button { align-self: flex-start; }
 
+/* Participación existente (MB-5B-3A): bloque informativo, NO un error ni una
+   sanción (§18.1 ProjectCard sin navegación, §28 sin alarmas). */
+.proyectos-existente { display: flex; flex-direction: column; gap: 16px; }
+.proyectos-existente__mensaje { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--color-brand-deep); font-size: 14px; font-weight: 650; }
+.proyectos-existente__mensaje svg { width: 16px; height: 16px; flex-shrink: 0; }
+.proyectos-existente__nombre { margin: 0; color: var(--color-brand-deep); font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.proyectos-existente .ui-button { align-self: flex-start; }
+
 /* Adaptación a pantallas estrechas (§7): sin overflow horizontal. */
 @media (max-width: 760px) {
   .proyectos-paso, .proyectos-creado, .proyectos-coincidencia { padding: 18px; }

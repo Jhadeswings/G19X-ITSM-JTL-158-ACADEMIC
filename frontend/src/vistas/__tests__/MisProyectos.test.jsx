@@ -13,12 +13,13 @@
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { crearParticipacion } from '../../api/participaciones.js'
+import { crearParticipacion, listarParticipaciones } from '../../api/participaciones.js'
 import { buscarProyectos, crearProyecto } from '../../api/proyectos.js'
 import MisProyectos from '../MisProyectos.jsx'
 
 vi.mock('../../api/participaciones.js', () => ({
   crearParticipacion: vi.fn(),
+  listarParticipaciones: vi.fn(),
 }))
 vi.mock('../../api/proyectos.js', () => ({
   buscarProyectos: vi.fn(),
@@ -100,6 +101,15 @@ const PARTICIPACION = {
   updated_at: '2026-09-30T09:00:00',
 }
 
+/** La misma participación con el proyecto embebido (joinedload real). */
+const PARTICIPACION_CON_PROYECTO = { ...PARTICIPACION, proyecto: EXACTA }
+
+/** Participación propia en OTRO proyecto (id 99) para paginación. */
+const PARTICIPACION_AJENA_A_PAGINA = { ...PARTICIPACION, id: 22, proyecto_id: 99 }
+
+/** ParticipacionPageOut sin registros: NO es un error, permite registrar. */
+const SIN_PARTICIPACIONES = { total: 0, pagina: 1, por_pagina: 100, items: [] }
+
 function errorDe(estado, mensaje = 'detalle') {
   return Object.assign(new Error(mensaje), { estado })
 }
@@ -107,17 +117,23 @@ function errorDe(estado, mensaje = 'detalle') {
 let respuestaBusqueda = () => Promise.resolve(conSugerencias())
 let respuestaAlta = () => Promise.resolve(CREADO)
 let respuestaRegistro = () => Promise.resolve(PARTICIPACION)
+let respuestaParticipaciones = () => Promise.resolve(SIN_PARTICIPACIONES)
 
 beforeEach(() => {
   respuestaBusqueda = () => Promise.resolve(conSugerencias())
   respuestaAlta = () => Promise.resolve(CREADO)
   respuestaRegistro = () => Promise.resolve(PARTICIPACION)
+  respuestaParticipaciones = () => Promise.resolve(SIN_PARTICIPACIONES)
   vi.mocked(buscarProyectos).mockReset()
   vi.mocked(buscarProyectos).mockImplementation(() => respuestaBusqueda())
   vi.mocked(crearProyecto).mockReset()
   vi.mocked(crearProyecto).mockImplementation(() => respuestaAlta())
   vi.mocked(crearParticipacion).mockReset()
   vi.mocked(crearParticipacion).mockImplementation(() => respuestaRegistro())
+  vi.mocked(listarParticipaciones).mockReset()
+  vi.mocked(listarParticipaciones).mockImplementation((token, opciones) =>
+    respuestaParticipaciones(opciones),
+  )
 })
 
 function montar(alSesionExpirada = vi.fn()) {
@@ -477,6 +493,8 @@ async function seleccionarExacta() {
   const alSesionExpirada = montar()
   escribirYBuscar('Proyecto ÁRBOL')
   fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar proyecto' }))
+  // MB-5B-3A: la detección resuelve (sin participación) antes del formulario.
+  await screen.findByRole('button', { name: 'Registrar participación' })
   return alSesionExpirada
 }
 
@@ -530,6 +548,14 @@ describe('MisProyectos — MB-5B-1: seleccionar proyecto (§18.2)', () => {
     expect(
       await screen.findByRole('heading', { name: /Registrar la participación/ }),
     ).toBeInTheDocument()
+    // MB-5B-3A: la detección consulta el listado y, sin participación, abre
+    // el formulario exactamente como en MB-5B-1.
+    expect(await screen.findByRole('button', { name: 'Registrar participación' })).toBeInTheDocument()
+    expect(listarParticipaciones).toHaveBeenCalledTimes(1)
+    expect(listarParticipaciones).toHaveBeenCalledWith('token-empleado', {
+      pagina: 1,
+      por_pagina: 100,
+    })
     // La selección ya se hizo: no se puede repetir ni duplicar el paso 03.
     expect(
       screen.queryByRole('button', { name: 'Seleccionar proyecto' }),
@@ -570,6 +596,9 @@ describe('MisProyectos — MB-5B-1: seleccionar proyecto (§18.2)', () => {
       await screen.findByRole('heading', { name: /Registrar la participación/ }),
     ).toBeInTheDocument()
     expect(crearParticipacion).not.toHaveBeenCalled()
+    // MB-5B-3A: el proyecto recién creado no puede tener participación previa:
+    // dentro del mismo flujo de alta NO se consulta el listado.
+    expect(listarParticipaciones).not.toHaveBeenCalled()
   })
 })
 
@@ -803,5 +832,241 @@ describe('MisProyectos — MB-5B-1: errores del registro', () => {
 
     expect(await screen.findByText('Participación registrada')).toBeInTheDocument()
     await waitFor(() => expect(crearParticipacion).toHaveBeenCalledTimes(2))
+  })
+})
+
+describe('MisProyectos — MB-5B-3A: participación existente detectada', () => {
+  /** Selecciona la coincidencia exacta y dispara la detección (GET). */
+  async function abrirSeleccion() {
+    respuestaBusqueda = () => Promise.resolve(conExacta())
+    const alSesionExpirada = montar()
+    escribirYBuscar('Proyecto ÁRBOL')
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar proyecto' }))
+    return alSesionExpirada
+  }
+
+  it('consulta al seleccionar y muestra el formulario cuando NO hay participación', async () => {
+    await abrirSeleccion()
+
+    expect(
+      await screen.findByRole('button', { name: 'Registrar participación' }),
+    ).toBeInTheDocument()
+    expect(listarParticipaciones).toHaveBeenCalledTimes(1)
+    expect(listarParticipaciones).toHaveBeenCalledWith('token-empleado', {
+      pagina: 1,
+      por_pagina: 100,
+    })
+    // "Sin participación" NO es error: simplemente continúa el flujo MB-5B-1.
+    expect(
+      screen.queryByText('Ya registraste una participación en este proyecto.'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('No pudimos consultar tus participaciones')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Rol')).toBeInTheDocument()
+  })
+
+  it('muestra estado de carga durante la detección, sin formulario simultáneo', async () => {
+    let resolver = null
+    respuestaParticipaciones = () =>
+      new Promise((resolve) => {
+        resolver = resolve
+      })
+    await abrirSeleccion()
+
+    expect(await screen.findByText('Consultando tus participaciones…')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Registrar participación' }),
+    ).not.toBeInTheDocument()
+
+    resolver(SIN_PARTICIPACIONES)
+
+    expect(await screen.findByRole('button', { name: 'Registrar participación' })).toBeInTheDocument()
+    expect(screen.queryByText('Consultando tus participaciones…')).not.toBeInTheDocument()
+  })
+
+  it('detecta la participación por proyecto_id y ofrece solo «Buscar otro proyecto»', async () => {
+    // total > por_pagina: se detiene en la página que contiene la participación.
+    respuestaParticipaciones = ({ pagina }) =>
+      Promise.resolve({
+        total: 150,
+        pagina,
+        por_pagina: 100,
+        items: [PARTICIPACION_CON_PROYECTO],
+      })
+    await abrirSeleccion()
+
+    expect(
+      await screen.findByText('Ya registraste una participación en este proyecto.'),
+    ).toBeInTheDocument()
+    expect(listarParticipaciones).toHaveBeenCalledTimes(1)
+
+    // Sin ParticipationForm y sin POST: el 409 deja de ser el flujo de UX.
+    expect(
+      screen.queryByRole('button', { name: 'Registrar participación' }),
+    ).not.toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Rol')).not.toBeInTheDocument()
+
+    // Resumen con datos reales del ParticipacionOut (§18.1, sin periodo inventado).
+    const existente = screen
+      .getByText('Ya registraste una participación en este proyecto.')
+      .closest('div')
+    expect(within(existente).getByText('Proyecto ÁRBOL')).toBeInTheDocument()
+    expect(within(existente).getByText('Operaciones')).toBeInTheDocument()
+    expect(within(existente).getByText('Cliente interno')).toBeInTheDocument()
+    expect(within(existente).getByText('En proceso')).toBeInTheDocument()
+    expect(within(existente).getByText('Desarrollador')).toBeInTheDocument()
+    expect(within(existente).getByText('Fecha de registro')).toBeInTheDocument()
+    expect(within(existente).getByText('2026-09-30')).toBeInTheDocument()
+
+    // Sin acciones hacia un detalle inexistente (fuera de alcance): solo
+    // "Buscar otro proyecto" (decisión 3).
+    expect(
+      screen.queryByRole('button', { name: /Ver participación/ }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument()
+    expect(within(existente).getAllByRole('button')).toHaveLength(1)
+    expect(
+      within(existente).getByRole('button', { name: 'Buscar otro proyecto' }),
+    ).toBeInTheDocument()
+  })
+
+  it('sin proyecto embebido en el DTO, el resumen se apoya en el proyecto seleccionado', async () => {
+    respuestaParticipaciones = () =>
+      Promise.resolve({ total: 1, pagina: 1, por_pagina: 100, items: [PARTICIPACION] })
+    await abrirSeleccion()
+
+    expect(
+      await screen.findByText('Ya registraste una participación en este proyecto.'),
+    ).toBeInTheDocument()
+    const existente = screen
+      .getByText('Ya registraste una participación en este proyecto.')
+      .closest('div')
+    expect(within(existente).getByText('Proyecto ÁRBOL')).toBeInTheDocument()
+    expect(within(existente).getByText('Operaciones')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Registrar participación' }),
+    ).not.toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('muestra error recuperable si falla la consulta y permite reintentar', async () => {
+    let intentos = 0
+    respuestaParticipaciones = () => {
+      intentos += 1
+      return intentos === 1
+        ? Promise.reject(errorDe(500, 'fallo del servidor'))
+        : Promise.resolve(SIN_PARTICIPACIONES)
+    }
+    await abrirSeleccion()
+
+    expect(await screen.findByText('No pudimos consultar tus participaciones')).toBeInTheDocument()
+    expect(await screen.findByText('fallo del servidor')).toBeInTheDocument()
+    // Nunca formulario de alta y estado de error a la vez.
+    expect(
+      screen.queryByRole('button', { name: 'Registrar participación' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Rol')).not.toBeInTheDocument()
+    expect(screen.queryByText('No pudimos registrar la participación')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+
+    expect(await screen.findByRole('button', { name: 'Registrar participación' })).toBeInTheDocument()
+    await waitFor(() => expect(listarParticipaciones).toHaveBeenCalledTimes(2))
+  })
+
+  it('cierra la sesión ante un 401 en la consulta de detección', async () => {
+    respuestaParticipaciones = () => Promise.reject(errorDe(401, 'Credenciales inválidas.'))
+    const alSesionExpirada = await abrirSeleccion()
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByRole('button', { name: 'Registrar participación' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Rol')).not.toBeInTheDocument()
+    expect(screen.queryByText('No pudimos consultar tus participaciones')).not.toBeInTheDocument()
+  })
+
+  it('continúa a la segunda página y se detiene al encontrar la participación', async () => {
+    respuestaParticipaciones = ({ pagina }) =>
+      Promise.resolve({
+        total: 150,
+        pagina,
+        por_pagina: 100,
+        items: pagina === 1 ? [PARTICIPACION_AJENA_A_PAGINA] : [PARTICIPACION_CON_PROYECTO],
+      })
+    await abrirSeleccion()
+
+    expect(
+      await screen.findByText('Ya registraste una participación en este proyecto.'),
+    ).toBeInTheDocument()
+    expect(listarParticipaciones).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(listarParticipaciones).mock.calls[0][1]).toEqual({
+      pagina: 1,
+      por_pagina: 100,
+    })
+    expect(vi.mocked(listarParticipaciones).mock.calls[1][1]).toEqual({
+      pagina: 2,
+      por_pagina: 100,
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Registrar participación' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('se detiene al cubrir total sin encontrar la participación y permite registrar', async () => {
+    // `total` manda (nunca items.length): con 150 registros caben 2 páginas
+    // de 100 y el bucle se detiene ahí, aunque el proyecto no aparezca.
+    respuestaParticipaciones = ({ pagina }) =>
+      Promise.resolve({
+        total: 150,
+        pagina,
+        por_pagina: 100,
+        items: [PARTICIPACION_AJENA_A_PAGINA],
+      })
+    await abrirSeleccion()
+
+    expect(await screen.findByRole('button', { name: 'Registrar participación' })).toBeInTheDocument()
+    expect(listarParticipaciones).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('Ya registraste una participación en este proyecto.')).not.toBeInTheDocument()
+    expect(screen.queryByText('No pudimos consultar tus participaciones')).not.toBeInTheDocument()
+  })
+
+  it('«Buscar otro proyecto» limpia la selección y permite una nueva búsqueda', async () => {
+    respuestaParticipaciones = () =>
+      Promise.resolve({ total: 1, pagina: 1, por_pagina: 100, items: [PARTICIPACION_CON_PROYECTO] })
+    await abrirSeleccion()
+    expect(
+      await screen.findByText('Ya registraste una participación en este proyecto.'),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar otro proyecto' }))
+
+    expect(await screen.findByText('Todavía no has buscado un proyecto')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Ya registraste una participación en este proyecto.'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: /Registrar la participación/ }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Buscar otro proyecto' })).not.toBeInTheDocument()
+
+    // La sección sigue siendo Mis proyectos: se puede buscar de nuevo.
+    escribirYBuscar('Proyecto ÁRBOL')
+    expect(await screen.findByText('Este proyecto ya existe.')).toBeInTheDocument()
+    expect(listarParticipaciones).toHaveBeenCalledTimes(1)
+  })
+
+  it('las sugerencias aproximadas no disparan la consulta de detección', async () => {
+    montar()
+    escribirYBuscar('Proyecto arbol')
+
+    expect(
+      await screen.findByText('¿Tal vez buscas uno de estos proyectos?'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Seleccionar proyecto' }),
+    ).not.toBeInTheDocument()
+    expect(listarParticipaciones).not.toHaveBeenCalled()
+    expect(crearParticipacion).not.toHaveBeenCalled()
   })
 })

@@ -17,8 +17,9 @@
 // no completa campos por su cuenta. Los errores 401/404/409/422 llegan tal
 // cual desde el cliente HTTP compartido, con su estado y su mensaje.
 //
-// La consulta (GET) y la edición (PATCH) de participaciones NO forman parte de
-// este microbloque: solo se implementa el registro inicial.
+// La consulta (GET) de participaciones existe SOLO para la detección de
+// participación existente (MB-5B-3A); la edición (PATCH) y el detalle
+// completo son microbloques posteriores.
 
 import { solicitar } from './clienteApi.js'
 
@@ -37,4 +38,34 @@ export async function crearParticipacion(token, datos) {
     token,
     cuerpo: datos,
   })
+}
+
+/**
+ * Listado paginado de las participaciones propias (MB-5B-3A, detección de
+ * participación existente; ET §31 `GET /me/participations`).
+ *
+ * Contrato real: `pagina >= 1`, `por_pagina` 1..100 (default 20) y respuesta
+ * `ParticipacionPageOut { total, pagina, por_pagina, items[] }` con las
+ * participaciones SOLO del empleado autenticado (orden `fecha_registro` DESC)
+ * y `proyecto` incluido en cada item. Aquí se piden 100 por página para
+ * cubrir el total en la menor cantidad de llamadas; filtrar por `proyecto_id`
+ * es responsabilidad de quien llama: el endpoint NO admite ese filtro.
+ *
+ * Este módulo solo transporta: la respuesta llega sin transformar y los
+ * errores 401/422 llegan tal cual desde el cliente HTTP compartido.
+ *
+ * @param {string} token token de la sesión Empleado.
+ * @param {{pagina?: number, por_pagina?: number}} [parametros] paginación.
+ * @returns {Promise<object>} ParticipacionPageOut del backend, sin transformar.
+ */
+export async function listarParticipaciones(
+  token,
+  { pagina = 1, por_pagina = 100 } = {},
+) {
+  return solicitar(
+    `/api/v1/me/participations?pagina=${encodeURIComponent(
+      pagina,
+    )}&por_pagina=${encodeURIComponent(por_pagina)}`,
+    { token },
+  )
 }

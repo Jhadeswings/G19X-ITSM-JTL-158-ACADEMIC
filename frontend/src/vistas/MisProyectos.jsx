@@ -11,6 +11,11 @@
 //   sugerencias aproximadas siguen siendo informativas y NO seleccionables.
 //   El proyecto recién creado se convierte en el seleccionado y continúa al
 //   paso 03, donde se registra la participación inicial (§18.3).
+// - MB-5B-3A: antes de abrir el formulario se detecta (GET /me/participations)
+//   si el Empleado YA tiene participación en el proyecto seleccionado; en ese
+//   caso se muestra un bloque informativo con sus datos y NO hay formulario
+//   (la unicidad empleado/proyecto del backend queda como defensa final, no
+//   como flujo de UX).
 //
 // Contrato real del backend (nada se inventa):
 // - GET /api/v1/me/projects/search?nombre= → `coincidencia_exacta` + hasta 5
@@ -38,7 +43,7 @@
 
 import { useState } from 'react'
 import { ArrowRight, CheckCircle2, ClipboardCheck, FolderKanban, Repeat2, Search } from 'lucide-react'
-import { crearParticipacion } from '../api/participaciones.js'
+import { crearParticipacion, listarParticipaciones } from '../api/participaciones.js'
 import { buscarProyectos, crearProyecto } from '../api/proyectos.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
@@ -152,6 +157,13 @@ export default function MisProyectos({ token, alSesionExpirada }) {
   const [formParticipacion, setFormParticipacion] = useState(participacionInicial)
   const [avisosParticipacion, setAvisosParticipacion] = useState(avisosIniciales)
   const [registro, setRegistro] = useState({ fase: 'inactiva', datos: null, error: null })
+  // MB-5B-3A: detección de participación propia para el proyecto seleccionado,
+  // resuelta ANTES de mostrar el formulario (el 409 deja de ser el flujo UX).
+  const [deteccion, setDeteccion] = useState({
+    fase: 'inactiva',
+    participacion: null,
+    error: null,
+  })
 
   function buscar(nombre) {
     setConsultaEjecutada(nombre)
@@ -163,6 +175,7 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     setFormParticipacion(participacionInicial())
     setAvisosParticipacion(avisosIniciales())
     setRegistro({ fase: 'inactiva', datos: null, error: null })
+    setDeteccion({ fase: 'inactiva', participacion: null, error: null })
     buscarProyectos(token, nombre)
       .then((datos) => {
         setBusqueda({ fase: 'listo', datos, error: null })
@@ -206,6 +219,9 @@ export default function MisProyectos({ token, alSesionExpirada }) {
       setFormParticipacion(participacionInicial())
       setAvisosParticipacion(avisosIniciales())
       setRegistro({ fase: 'inactiva', datos: null, error: null })
+      // MB-5B-3A: un proyecto recién creado NO puede tener participación
+      // previa: no se consulta el listado dentro del mismo flujo de alta.
+      setDeteccion({ fase: 'inactiva', participacion: null, error: null })
     } catch (error) {
       if (error?.estado === 401) {
         alSesionExpirada?.()
@@ -232,6 +248,47 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     setFormParticipacion(participacionInicial())
     setAvisosParticipacion(avisosIniciales())
     setRegistro({ fase: 'inactiva', datos: null, error: null })
+    detectarParticipacion(proyecto)
+  }
+
+  /**
+   * MB-5B-3A: detecta si el Empleado YA tiene participación en el proyecto
+   * seleccionado, ANTES de abrir el formulario.
+   *
+   * Usa EXCLUSIVAMENTE `GET /me/participations` (sin endpoint nuevo): el
+   * endpoint no admite filtro por `proyecto_id`, así que se pagina con
+   * `por_pagina=100` cubriendo `total` (nunca se usa `items.length` como
+   * sustituto de `total`) y se detiene al encontrar la participación o al
+   * cubrir el total. El 409 del POST queda como defensa final del backend,
+   * no como flujo normal de UX.
+   */
+  async function detectarParticipacion(proyecto) {
+    setDeteccion({ fase: 'cargando', participacion: null, error: null })
+    const porPagina = 100
+    let pagina = 1
+    let total = 0
+    let encontrada = null
+    try {
+      do {
+        const respuesta = await listarParticipaciones(token, {
+          pagina,
+          por_pagina: porPagina,
+        })
+        total = Number(respuesta?.total ?? 0)
+        encontrada = (respuesta?.items ?? []).find(
+          (item) => item.proyecto_id === proyecto.id,
+        )
+        pagina += 1
+      } while (!encontrada && (pagina - 1) * porPagina < total)
+    } catch (error) {
+      if (error?.estado === 401) {
+        alSesionExpirada?.()
+        return
+      }
+      setDeteccion({ fase: 'error', participacion: null, error })
+      return
+    }
+    setDeteccion({ fase: 'listo', participacion: encontrada ?? null, error: null })
   }
 
   async function enviarRegistro() {
@@ -292,6 +349,7 @@ export default function MisProyectos({ token, alSesionExpirada }) {
     setFormParticipacion(participacionInicial())
     setAvisosParticipacion(avisosIniciales())
     setRegistro({ fase: 'inactiva', datos: null, error: null })
+    setDeteccion({ fase: 'inactiva', participacion: null, error: null })
   }
 
   const exacta = busqueda.datos?.coincidencia_exacta ?? null
@@ -299,6 +357,11 @@ export default function MisProyectos({ token, alSesionExpirada }) {
   // presentación del PRD §11.3 ("hasta 5 sugerencias aproximadas").
   const sugerencias = (busqueda.datos?.sugerencias ?? []).slice(0, SUGERENCIAS_MAXIMAS)
   const puedeCrear = busqueda.fase === 'listo' && exacta === null
+  // MB-5B-3A: participación propia ya registrada en el proyecto seleccionado.
+  // El `proyecto` del item puede venir null en el DTO: como es la misma
+  // entidad (coinciden por proyecto_id), se apoya en el proyecto seleccionado.
+  const participacionExistente = deteccion.participacion
+  const proyectoExistente = participacionExistente?.proyecto ?? proyectoSeleccionado
   return (
     <div className="mis-proyectos">
       <SectionHeader
@@ -667,6 +730,56 @@ export default function MisProyectos({ token, alSesionExpirada }) {
                     registro inicial hecho por la propia persona. */}
                 <p className="proyectos-nota">Registrado al crear la participación.</p>
               </div>
+              <Button type="button" variant="secondary" onClick={reiniciar}>
+                <Repeat2 aria-hidden="true" /> Buscar otro proyecto
+              </Button>
+            </div>
+          ) : deteccion.fase === 'cargando' ? (
+            <EstadoCarga texto="Consultando tus participaciones…" />
+          ) : deteccion.fase === 'error' ? (
+            <EstadoError
+              titulo="No pudimos consultar tus participaciones"
+              mensaje={deteccion.error?.message}
+              onReintentar={() => detectarParticipacion(proyectoSeleccionado)}
+            />
+          ) : participacionExistente ? (
+            /* MB-5B-3A: participación ya registrada para este proyecto. Bloque
+               informativo (no un error): sin formulario, sin POST y sin
+               acciones hacia un detalle que todavía no existe (§18.1/§28). */
+            <div className="proyectos-existente">
+              <p className="proyectos-existente__mensaje">
+                <CheckCircle2 aria-hidden="true" />
+                {' '}
+                Ya registraste una participación en este proyecto.
+              </p>
+              <p className="proyectos-existente__nombre">{proyectoExistente.nombre}</p>
+              <dl className="proyectos-datos">
+                <div>
+                  <dt>Área</dt>
+                  <dd>{proyectoExistente.area ?? SIN_DATO}</dd>
+                </div>
+                <div>
+                  <dt>Cliente</dt>
+                  <dd>{proyectoExistente.cliente ?? SIN_DATO}</dd>
+                </div>
+                <div>
+                  <dt>Estado</dt>
+                  <dd>
+                    <Badge tone={tonoEstado(proyectoExistente.estado)}>
+                      {etiquetaEstado(proyectoExistente.estado)}
+                    </Badge>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Rol</dt>
+                  <dd>{participacionExistente.rol}</dd>
+                </div>
+                {/* Fecha real de ParticipacionOut: no se inventa periodo. */}
+                <div>
+                  <dt>Fecha de registro</dt>
+                  <dd>{participacionExistente.fecha_registro}</dd>
+                </div>
+              </dl>
               <Button type="button" variant="secondary" onClick={reiniciar}>
                 <Repeat2 aria-hidden="true" /> Buscar otro proyecto
               </Button>

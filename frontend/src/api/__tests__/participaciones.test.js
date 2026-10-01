@@ -9,7 +9,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { solicitar } from '../clienteApi.js'
-import { crearParticipacion } from '../participaciones.js'
+import { crearParticipacion, listarParticipaciones } from '../participaciones.js'
 
 vi.mock('../clienteApi.js', () => ({ solicitar: vi.fn() }))
 
@@ -179,5 +179,72 @@ describe('participaciones — registro inicial (POST /me/participations)', () =>
     await expect(
       crearParticipacion('token-empleado', { ...REGISTRO, horas: -1 }),
     ).rejects.toBe(error)
+  })
+})
+
+describe('participaciones — listado (GET /me/participations)', () => {
+  const PAGINA = { total: 3, pagina: 1, por_pagina: 100, items: [PARTICIPACION] }
+
+  beforeEach(() => {
+    vi.mocked(solicitar).mockReset()
+  })
+
+  it('llama a GET /api/v1/me/participations con pagina y por_pagina en la query', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PAGINA)
+
+    await listarParticipaciones('token-empleado', { pagina: 2, por_pagina: 50 })
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    expect(solicitar).toHaveBeenCalledWith(
+      '/api/v1/me/participations?pagina=2&por_pagina=50',
+      { token: 'token-empleado' },
+    )
+  })
+
+  it('usa pagina=1 y por_pagina=100 por defecto (cubrir el total en pocas llamadas)', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PAGINA)
+
+    await listarParticipaciones('token-empleado')
+
+    const [ruta] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toBe('/api/v1/me/participations?pagina=1&por_pagina=100')
+  })
+
+  it('la ruta es la base sin barra final y sin método explícito (GET por defecto)', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PAGINA)
+
+    await listarParticipaciones('token-empleado', { pagina: 1, por_pagina: 100 })
+
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta.startsWith('/api/v1/me/participations?')).toBe(true)
+    expect(ruta.endsWith('/')).toBe(false)
+    expect(opciones.metodo).toBeUndefined()
+    expect(opciones.cuerpo).toBeUndefined()
+    expect(opciones.token).toBe('token-empleado')
+  })
+
+  it('devuelve la respuesta del backend sin transformarla', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PAGINA)
+
+    await expect(listarParticipaciones('token-empleado')).resolves.toBe(PAGINA)
+    expect(PAGINA.total).toBe(3)
+    expect(PAGINA.items[0].proyecto_id).toBe(3)
+  })
+
+  it('propaga el 401 de la sesión expirada', async () => {
+    const error = errorDe(401, 'Credenciales inválidas.')
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(listarParticipaciones('token-empleado')).rejects.toBe(error)
+  })
+
+  it('propaga un error de transporte sin reinterpretarlo', async () => {
+    const error = errorDe(500, 'fallo del servidor')
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(listarParticipaciones('token-empleado')).rejects.toMatchObject({
+      estado: 500,
+      message: 'fallo del servidor',
+    })
   })
 })
