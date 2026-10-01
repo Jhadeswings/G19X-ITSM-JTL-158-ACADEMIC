@@ -144,15 +144,38 @@ describe('Shell de Empleado — layout', () => {
 })
 
 describe('Shell de Empleado — navegación entre secciones', () => {
-  it('las secciones no implementadas muestran un estado temporal neutro', async () => {
+  it('Mi cuenta abre su vista real (§21.6), no el estado temporal', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
     abrir('Mi cuenta')
 
+    // El título aparece dos veces por patrón del shell: el `h1` del header y
+    // el `h1` del SectionHeader de la vista (igual que en las demás secciones
+    // funcionales). Basta con que la vista esté montada.
     expect(
-      await screen.findByText('«Mi cuenta» todavía no está disponible'),
+      (await screen.findAllByRole('heading', { name: 'Mi cuenta', level: 1 }))
+        .length,
+    ).toBeGreaterThan(0)
+    expect(
+      await screen.findByRole('heading', { name: 'Información de la cuenta' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('«Mi cuenta» todavía no está disponible'),
+    ).not.toBeInTheDocument()
+    expect(obtenerProgreso).toHaveBeenCalledTimes(1)
+  })
+
+  it('las secciones no implementadas muestran un estado temporal neutro', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Competencias' })
+
+    abrir('Inicio')
+
+    expect(
+      await screen.findByText('«Inicio» todavía no está disponible'),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: 'Competencias' }),
@@ -212,12 +235,12 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('las dos secciones pendientes tienen su propio estado temporal', async () => {
+  it('la sección pendiente tiene su propio estado temporal', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
-    for (const titulo of ['Inicio', 'Mi cuenta']) {
+    for (const titulo of ['Inicio']) {
       abrir(titulo)
       expect(
         screen.getByText(`«${titulo}» todavía no está disponible`),
@@ -256,9 +279,11 @@ describe('Shell de Empleado — navegación entre secciones', () => {
 
     abrir('Mi cuenta')
 
+    // Header y SectionHeader muestran el título (patrón de las secciones
+    // funcionales), así que hay más de un `h1` con ese nombre.
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Mi cuenta' }),
-    ).toBeInTheDocument()
+      screen.getAllByRole('heading', { level: 1, name: 'Mi cuenta' }).length,
+    ).toBeGreaterThan(0)
     expect(
       within(navegacion()).getByRole('button', { name: 'Mi cuenta' }),
     ).toHaveAttribute('aria-current', 'page')

@@ -1,0 +1,41 @@
+/* Mi cuenta (Empleado, Style Guide §12 Card, §24 densidad baja de Empleado,
+   §28 estados).
+
+   Solo estilos de los dos bloques de la pantalla: la información de la cuenta
+   (lectura) y el formulario de cambio de contraseña. Se reutilizan tokens y
+   componentes existentes (`section-header`, `form-field`, `ui-input`,
+   `ui-button`, `ui-alert`, `estado-*`): aquí no se crea una paleta nueva, ni un
+   sistema de botones, ni tokens globales, ni estilos que afecten a otras
+   pantallas.
+
+   El bloque de datos reproduce el patrón de definición de datos del perfil de
+   RH (`PerfilEmpleado`), ajustado a la densidad baja que el Style Guide §24
+   exige al rol Empleado. Los datos laborales son de solo lectura: no hay
+   inputs ni controles de edición, y este archivo no añade ninguno. */
+
+.mi-cuenta { display: flex; flex-direction: column; gap: 22px; }
+
+/* --- Información de la cuenta (solo lectura) --- */
+.cuenta-datos { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.cuenta-datos__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.cuenta-datos__lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px 24px; margin: 0; }
+.cuenta-datos__lista > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.cuenta-datos__lista dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.cuenta-datos__lista dd { margin: 0; color: var(--color-text-primary); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+
+/* --- Cambio de contraseña --- */
+.cuenta-seguridad { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.cuenta-seguridad__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+
+/* Clases del formulario (componente `CambioPasswordCuenta`). */
+.cuenta-password { display: flex; flex-direction: column; gap: 16px; max-width: 460px; }
+.cuenta-password__titulo { display: flex; align-items: center; gap: 8px; }
+.cuenta-password__titulo svg { width: 18px; height: 18px; color: var(--color-primary); }
+.cuenta-password__titulo h3 { margin: 0; color: var(--color-text-primary); font-size: 14px; font-weight: 700; }
+
+/* Adaptación a pantallas estrechas (§7): sin desbordamiento horizontal. */
+@media (max-width: 760px) {
+  .cuenta-datos, .cuenta-seguridad { padding: 18px; }
+  .cuenta-datos__lista { grid-template-columns: 1fr; }
+  .cuenta-password { max-width: 100%; }
+}
