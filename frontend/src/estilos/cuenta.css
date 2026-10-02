@@ -13,7 +13,13 @@
    exige al rol Empleado. Los datos laborales son de solo lectura: no hay
    inputs ni controles de edición, y este archivo no añade ninguno. */
 
-.mi-cuenta { display: flex; flex-direction: column; gap: 22px; }
+/* La pantalla es una columna CONTENIDA y centrada (patrón del sistema para
+   bloques contenidos, como `employee-success`/`employee-onboarding`): al fijar
+   aquí la anchura, las DOS tarjetas comparten el mismo ancho y quedan alineadas
+   entre sí. 720px es el ancho que el formulario de Seguridad necesita para sus
+   dos columnas cómodas, y evita tanto el ancho completo del shell (con vacío a
+   la derecha) como una tarjeta demasiado estrecha. */
+.mi-cuenta { display: flex; flex-direction: column; gap: 22px; max-width: 720px; margin: 0 auto; }
 
 /* --- Información de la cuenta (solo lectura) ---
    Título en banda de encabezado propia (borde inferior, patrón de las tarjetas
@@ -29,16 +35,13 @@
 
 /* --- Seguridad ---
    Misma estructura de tarjeta que "Información de la cuenta" (banda de
-   encabezado "Seguridad" + cuerpo), pero con la ANCHURA CONTENIDA a la del
-   propio formulario: a todo el ancho del shell (1240px) la tarjeta quedaba
-   enorme respecto a su contenido y sobraba mucho espacio vacío a la derecha.
-   Se limita a 720px —alineada a la izquierda, sobre el mismo margen que el
-   resto de la pantalla— para que abrace su contenido sin estirarse. El cuerpo
-   sigue siendo una composición de dos columnas, donde "Contraseña actual" abre
-   en ancho completo y el par "Nueva contraseña / Confirma" comparte fila. La
-   jerarquía queda así: título de sección (h2) → etiqueta del grupo (h3 del
-   componente) → campos → política → mensajes de estado → acción principal. */
-.cuenta-seguridad { display: flex; flex-direction: column; max-width: 720px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
+   encabezado "Seguridad" + cuerpo). La anchura la fija la columna `.mi-cuenta`
+   (720px), así que las dos tarjetas quedan alineadas entre sí. El cuerpo es una
+   composición de dos columnas: "Contraseña actual" abre en ancho completo y el
+   par "Nueva contraseña / Confirma" comparte fila. La jerarquía interna sigue
+   siendo: título de sección (h2) → etiqueta del grupo (h3 del componente) →
+   campos → política → mensajes de estado → acción principal. */
+.cuenta-seguridad { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
 .cuenta-seguridad__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
 .cuenta-seguridad__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
 
