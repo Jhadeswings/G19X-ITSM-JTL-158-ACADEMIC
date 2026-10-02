@@ -16,10 +16,11 @@
 /* La pantalla es una columna CONTENIDA y centrada (patrón del sistema para
    bloques contenidos, como `employee-success`/`employee-onboarding`): al fijar
    aquí la anchura, las DOS tarjetas comparten el mismo ancho y quedan alineadas
-   entre sí. 720px es el ancho que el formulario de Seguridad necesita para sus
-   dos columnas cómodas, y evita tanto el ancho completo del shell (con vacío a
-   la derecha) como una tarjeta demasiado estrecha. */
-.mi-cuenta { display: flex; flex-direction: column; gap: 22px; max-width: 720px; margin: 0 auto; }
+   entre sí. 840px es el ancho que deja los cuatro datos de información con
+   holgura (nombre y correo en una sola línea en escritorio) sin llegar al ancho
+   completo del shell (con vacío a la derecha) ni a una tarjeta excesivamente
+   ancha; el formulario de Seguridad sigue teniendo sus dos columnas cómodas. */
+.mi-cuenta { display: flex; flex-direction: column; gap: 22px; max-width: 840px; margin: 0 auto; }
 
 /* --- Información de la cuenta (solo lectura) ---
    Título en banda de encabezado propia (borde inferior, patrón de las tarjetas
@@ -27,9 +28,9 @@
    contenido y hace que las dos secciones de la pantalla se lean iguales.
    Los cuatro datos van SIEMPRE en una sola fila en escritorio (referencia):
    con `auto-fit`/`minmax(180px)` la cuarta columna caía a una segunda fila al
-   estar la vista limitada a 720px, así que la rejilla se fija a 4 columnas
-   `minmax(0, 1fr)` (equitativas y sin desbordar). En `≤760px` la media query
-   inferior ya la colapsa a una sola columna. */
+   estar la vista limitada a un ancho contenido, así que la rejilla se
+   fija a 4 columnas `minmax(0, 1fr)` (equitativas y sin desbordar). En `≤760px`
+   la media query inferior ya la colapsa a una sola columna. */
 .cuenta-datos { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
 .cuenta-datos__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
 .cuenta-datos__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
@@ -41,7 +42,7 @@
 /* --- Seguridad ---
    Misma estructura de tarjeta que "Información de la cuenta" (banda de
    encabezado "Seguridad" + cuerpo). La anchura la fija la columna `.mi-cuenta`
-   (720px), así que las dos tarjetas quedan alineadas entre sí. El cuerpo es una
+   (840px), así que las dos tarjetas quedan alineadas entre sí. El cuerpo es una
    composición de dos columnas: "Contraseña actual" abre en ancho completo y el
    par "Nueva contraseña / Confirma" comparte fila. La jerarquía interna sigue
    siendo: título de sección (h2) → etiqueta del grupo (h3 del componente) →
@@ -53,13 +54,13 @@
 /* Clases del formulario (componente `CambioPasswordCuenta`): cuerpo de la
    sección. Todos los hijos abarcan el ancho completo por defecto y SOLO el
    par nueva/confirmación comparte fila. */
-.cuenta-password { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; max-width: 720px; padding: 20px 24px 24px; }
+.cuenta-password { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; max-width: 840px; padding: 20px 24px 24px; }
 .cuenta-password > * { grid-column: 1 / -1; }
 
 /* El orden de los hijos es estable porque `CambioPasswordCuenta` es un
    componente cerrado (MB-6-3): 1 = etiqueta del grupo, 2 = contraseña actual,
    3 = nueva, 4 = confirmación y, después, la política, los mensajes y la
-   acción. El par 3/4 comparte fila: ~350px cada campo, anchura cómoda para
+   acción. El par 3/4 comparte fila: ~385px cada campo, anchura cómoda para
    escribir contraseñas sin abrir el formulario a todo el ancho de la tarjeta. */
 .cuenta-password > .form-field:nth-child(3),
 .cuenta-password > .form-field:nth-child(4) { grid-column: auto; }
