@@ -29,10 +29,23 @@ pnpm-debug.log*
 frontend/dist/
 *.local
 
-# Variables de entorno (nunca commit claves reales)
+# Variables de entorno (nunca commit claves reales).
+#
+# Nota: el patrón `.env` de gitignore NO ancla rutas, así que ya cubre
+# `backend/.env` y `frontend/.env`. Las reglas específicas de abajo son
+# defensa en profundidad y, sobre todo, la REGLA QUE IMPIDE EL ERROR
+# REPETIDO: se versionan las plantillas, nunca los `.env` reales.
 .env
 .env.*
 !.env.example
+
+# Backend: cualquier `.env*` queda fuera salvo la plantilla.
+backend/.env*
+!backend/.env.example
+
+# Frontend: cualquier `.env*` queda fuera salvo la plantilla.
+frontend/.env*
+!frontend/.env.example
 
 # Docker
 .docker/

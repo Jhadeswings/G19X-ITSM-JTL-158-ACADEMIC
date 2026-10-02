@@ -25,6 +25,16 @@ services:
     build: ./backend
     container_name: talento_backend
     restart: unless-stopped
+    # Los secretos del backend (IA, credenciales de seed, etc.) llegan como
+    # VARIABLES DE ENTORNO desde backend/.env, que está ignorado por Git y
+    # excluido del contexto de build (backend/.dockerignore). NUNCA se hornea
+    # un archivo .env dentro de la imagen: `COPY . .` no debe poder copiarlo.
+    #
+    # `environment:` tiene prioridad sobre `env_file` en Docker Compose, por
+    # lo que DATABASE_URL sigue siendo la calculada para la red de compose
+    # (host "db"), aunque backend/.env traiga la de localhost.
+    env_file:
+      - ./backend/.env
     environment:
       TZ: America/Mexico_City
       # Dentro de la red de compose el host es el nombre del servicio "db"

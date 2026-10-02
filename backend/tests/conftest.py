@@ -35,6 +35,14 @@ _TABLAS = (
 )
 
 
+# Marca para pruebas que NO deben tocar la base de datos (p. ej. las de
+# seguridad de secretos, que solo inspeccionan archivos y git).
+# Uso: @pytest.mark.no_db
+# Registrada en pytest.ini para que el marcador sea explícito y no genere
+# warnings de "unknown mark".
+no_db = pytest.mark.no_db
+
+
 @pytest.fixture(scope="session", autouse=True)
 def esquema():
     """Aplica las migraciones de Alembic una vez por sesión (nunca create_all)."""
@@ -43,8 +51,17 @@ def esquema():
 
 
 @pytest.fixture(autouse=True)
-def limpieza():
-    """Estado limpio antes y después de cada test."""
+def limpieza(request):
+    """Estado limpio antes y después de cada test.
+
+    Las pruebas marcadas con ``@pytest.mark.no_db`` NO tocan la base de
+    datos: se salta el TRUNCATE por completo. Existe para que una prueba
+    puramente estática (archivos/git) pueda ejecutarse sin riesgo de
+    borrar datos de desarrollo.
+    """
+    if request.node.get_closest_marker("no_db"):
+        yield
+        return
     with engine.begin() as conexion:
         conexion.execute(text(f"TRUNCATE TABLE {_TABLAS} RESTART IDENTITY CASCADE"))
     yield

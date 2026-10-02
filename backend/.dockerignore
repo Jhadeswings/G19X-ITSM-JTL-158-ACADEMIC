@@ -1,0 +1,37 @@
+# Contexto de build del backend (docker compose build ./backend).
+#
+# Objetivo de seguridad: los secretos NUNCA deben entrar en la imagen Docker.
+# Las claves de IA y demas secretos llegan al contenedor por variable de
+# entorno (docker-compose `env_file`), NO por archivo.
+#
+# `COPY . .` del Dockerfile copia TODO lo que no este listado aqui, por lo
+# que backend/.env DEBE quedar excluido de forma explicita.
+
+# Secretos: nunca dentro de la imagen
+.env
+.env.*
+!.env.example
+
+# Solo la plantilla se versiona y no lleva claves reales
+*.local
+
+# Ruido de desarrollo y artefactos
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+ENV/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Artefactos de Docker
+.docker/
