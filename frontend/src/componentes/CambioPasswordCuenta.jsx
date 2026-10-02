@@ -113,7 +113,6 @@ export default function CambioPasswordCuenta({
       <FormField
         id="cuenta-password-nueva"
         label="Nueva contraseña"
-        hint="Mínimo 8 caracteres y al menos un número."
         required
       >
         <Input
@@ -143,6 +142,19 @@ export default function CambioPasswordCuenta({
           invalid={Boolean(error)}
         />
       </FormField>
+
+      {/* Política del conjunto "nueva contraseña" (PRD §3.5): una sola línea
+          bajo el par "Nueva / Confirma", como ayuda del CONJUNTO y no como
+          texto del campo "Nueva contraseña". Conserva el MISMO texto y su
+          `id`, que el campo `nueva` sigue referenciando con
+          `aria-describedby`. No añade ninguna validación ni requisito nuevo:
+          solo cambia su posición visual. */}
+      <p
+        className="form-field__hint cuenta-password__politica"
+        id="cuenta-password-nueva-hint"
+      >
+        Mínimo 8 caracteres y al menos un número.
+      </p>
 
       {error && <Alert tone="error">{error}</Alert>}
       {exito && <Alert tone="success">{exito}</Alert>}

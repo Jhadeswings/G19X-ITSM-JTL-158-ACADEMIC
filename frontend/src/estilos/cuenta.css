@@ -28,15 +28,17 @@
 .cuenta-datos__lista dd { margin: 0; color: var(--color-text-primary); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 
 /* --- Seguridad ---
-   Misma estructura de tarjeta: banda de encabezado "Seguridad" y, debajo, el
-   formulario como cuerpo de la sección. El cuerpo NO es una columna estrecha
-   pegada a la izquierda: es una composición de dos columnas con tope de 720px
-   (ni campos angostos ni el formulario estirado a todo el ancho del shell de
-   1240px), donde "Contraseña actual" abre en ancho completo y el par
-   "Nueva contraseña / Confirma" comparte fila. La jerarquía queda así: título
-   de sección (h2) → etiqueta del grupo (h3 del componente) → campos →
-   mensajes de estado → acción principal. */
-.cuenta-seguridad { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
+   Misma estructura de tarjeta que "Información de la cuenta" (banda de
+   encabezado "Seguridad" + cuerpo), pero con la ANCHURA CONTENIDA a la del
+   propio formulario: a todo el ancho del shell (1240px) la tarjeta quedaba
+   enorme respecto a su contenido y sobraba mucho espacio vacío a la derecha.
+   Se limita a 720px —alineada a la izquierda, sobre el mismo margen que el
+   resto de la pantalla— para que abrace su contenido sin estirarse. El cuerpo
+   sigue siendo una composición de dos columnas, donde "Contraseña actual" abre
+   en ancho completo y el par "Nueva contraseña / Confirma" comparte fila. La
+   jerarquía queda así: título de sección (h2) → etiqueta del grupo (h3 del
+   componente) → campos → política → mensajes de estado → acción principal. */
+.cuenta-seguridad { display: flex; flex-direction: column; max-width: 720px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
 .cuenta-seguridad__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
 .cuenta-seguridad__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
 
@@ -48,11 +50,18 @@
 
 /* El orden de los hijos es estable porque `CambioPasswordCuenta` es un
    componente cerrado (MB-6-3): 1 = etiqueta del grupo, 2 = contraseña actual,
-   3 = nueva, 4 = confirmación. El par 3/4 comparte fila: ~350px cada campo,
-   anchura cómoda para escribir contraseñas sin abrir el formulario a todo el
-   ancho de la tarjeta. */
+   3 = nueva, 4 = confirmación y, después, la política, los mensajes y la
+   acción. El par 3/4 comparte fila: ~350px cada campo, anchura cómoda para
+   escribir contraseñas sin abrir el formulario a todo el ancho de la tarjeta. */
 .cuenta-password > .form-field:nth-child(3),
 .cuenta-password > .form-field:nth-child(4) { grid-column: auto; }
+
+/* Política de contraseña (PRD §3.5): una sola línea bajo el par
+   "Nueva / Confirma", como ayuda del CONJUNTO. El margen negativo la acerca a
+   los campos (el `gap` de la rejilla es de 16px) para que se lea pegada a
+   ellos y no como un bloque suelto. Conserva el texto y el `id` con que el
+   campo "Nueva contraseña" se describe. */
+.cuenta-password__politica { margin: -8px 0 0; }
 
 /* Etiqueta del grupo: más pequeña que el h2 de la sección para no competir
    con "Seguridad"; el bloque se lee como la primera pieza del formulario, no
@@ -61,10 +70,10 @@
 .cuenta-password__titulo svg { width: 16px; height: 16px; color: var(--color-primary); }
 .cuenta-password__titulo h3 { margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; }
 
-/* Acción principal: a la izquierda e inmediatamente después de los campos,
-   algo separada de los mensajes de estado (patrón de `proyectos-creado
+/* Acción principal: a la izquierda e inmediatamente debajo de los campos y de
+   la política, con una separación vertical moderada (patrón de `proyectos-creado
    .ui-button`), nunca estirada a todo el ancho del formulario. */
-.cuenta-password > .ui-button { justify-self: start; min-height: 40px; margin-top: 6px; }
+.cuenta-password > .ui-button { justify-self: start; min-height: 40px; margin-top: 2px; }
 
 /* Adaptación a pantallas estrechas (§7): sin desbordamiento horizontal.
    Una sola columna: los campos siguen cómodos y legibles, y el botón mantiene
