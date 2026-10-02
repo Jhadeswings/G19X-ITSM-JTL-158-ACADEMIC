@@ -1,0 +1,70 @@
+/* Inicio del Empleado (PRD §21.1).
+   Solo composición: los bloques usan los tokens y tarjetas ya existentes
+   (`.metric-card`, `.competencias`, `.estado-vacio`). Aquí únicamente se
+   ordena la pila de la vista y se define la rejilla de sus tarjetas. */
+
+.inicio-empleado {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.inicio-bloque {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.inicio-bloque h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -.03em;
+}
+
+.inicio-bloque h2 svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.7;
+}
+
+/* Bloque reservado ("Próximo paso"): sin contraste de emphasis para que no
+   se lea como contenido definitivo. */
+.inicio-bloque--reservado {
+  padding: clamp(20px, 2.4vw, 28px);
+  background: #f8faf9;
+  border: 1px dashed var(--line-soft);
+  border-radius: 13px;
+}
+
+.inicio-metricas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.inicio-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inicio-lista li {
+  padding: 6px 10px;
+  color: var(--color-text-secondary);
+  background: #f7f9f8;
+  border: 1px solid #e7ecea;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.inicio-metricas .metric-card .categorias {
+  margin: 0;
+}

@@ -3,6 +3,7 @@
   .competencias { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .app-header__role strong { display: none; }
   .dashboard-metrics__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inicio-metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
   .auth-layout, .onboarding-layout { grid-template-columns: minmax(0, 1fr); }
@@ -57,6 +58,7 @@
   .como-se-obtienen__fila { grid-template-columns: 1fr; gap: 7px; }
   .transparencia__lista { grid-template-columns: 1fr; }
   .dashboard-metrics__grid, .attention-list { grid-template-columns: 1fr; }
+  .inicio-metricas { grid-template-columns: 1fr; }
   .metric-card { min-height: 170px; }
 }
 @media (prefers-reduced-motion: reduce) {

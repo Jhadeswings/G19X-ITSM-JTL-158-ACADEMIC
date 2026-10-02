@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { limpiarSesion, obtenerSesion } from '../api/autenticacion.js'
 import { obtenerCuenta } from '../api/cuenta.js'
 import { obtenerProgreso } from '../api/progreso.js'
+import { obtenerResultadoActual } from '../api/resultado.js'
 import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequerida, obtenerDistribucionCompetencia } from '../api/dashboardRh.js'
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
@@ -25,6 +26,7 @@ vi.mock('../api/autenticacion.js', () => ({
 
 vi.mock('../api/cuenta.js', () => ({ obtenerCuenta: vi.fn() }))
 vi.mock('../api/progreso.js', () => ({ obtenerProgreso: vi.fn() }))
+vi.mock('../api/resultado.js', () => ({ obtenerResultadoActual: vi.fn() }))
 vi.mock('../api/dashboardRh.js', () => ({ obtenerAtencionRequerida: vi.fn(), obtenerDistribucionCompetencia: vi.fn(), obtenerEmpleadosActivos: vi.fn(), obtenerProyectosActivos: vi.fn() }))
 vi.mock('../api/empleados.js', async () => {
   const original = await vi.importActual('../api/empleados.js')
@@ -50,6 +52,7 @@ beforeEach(() => {
   vi.mocked(limpiarSesion).mockReset()
   vi.mocked(obtenerCuenta).mockReset()
   vi.mocked(obtenerProgreso).mockReset()
+vi.mocked(obtenerResultadoActual).mockReset()
   vi.mocked(obtenerEmpleadosActivos).mockReset()
   vi.mocked(obtenerProyectosActivos).mockReset()
   vi.mocked(obtenerAtencionRequerida).mockReset()
@@ -172,16 +175,43 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
+    // MB-7-2: "Inicio" ya tiene vista propia; las secciones aún sin
+    // implementar son las que muestran el estado temporal.
+    const pendientes = SECCIONES_EMPLEADO.filter(
+      (seccion) => !['inicio', 'mi-progreso', 'mis-proyectos', 'mis-capacitaciones', 'mi-historial', 'mi-cuenta'].includes(seccion.id),
+    )
+
+    for (const seccion of pendientes) {
+      abrir(seccion.titulo)
+      expect(
+        await screen.findByText(`«${seccion.titulo}» todavía no está disponible`),
+      ).toBeInTheDocument()
+    }
+  })
+
+  it('Inicio abre su vista propia (§21.1), no el estado temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(EMPLEADO)
+    vi.mocked(obtenerResultadoActual).mockResolvedValue({
+      empleado_id: 7,
+      competencias: [],
+      experiencia: { fecha_ingreso: null, anios_antiguedad: null, proyectos_unicos: 0 },
+      fortalezas: [],
+      oportunidades: [],
+    })
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Competencias' })
+
     abrir('Inicio')
 
     expect(
-      await screen.findByText('«Inicio» todavía no está disponible'),
+      (await screen.findAllByRole('heading', { name: 'Inicio', level: 1 })).length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.getByRole('heading', { name: 'Resumen de competencias' }),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: 'Competencias' }),
+      screen.queryByText('«Inicio» todavía no está disponible'),
     ).not.toBeInTheDocument()
-    // El estado temporal no inventa datos ni vuelve a consultar la API.
-    expect(obtenerProgreso).toHaveBeenCalledTimes(1)
   })
 
   it('Mis proyectos abre su vista real (§21.3), no el estado temporal', async () => {
@@ -240,13 +270,12 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Competencias' })
 
-    for (const titulo of ['Inicio']) {
-      abrir(titulo)
-      expect(
-        screen.getByText(`«${titulo}» todavía no está disponible`),
-      ).toBeInTheDocument()
-    }
-    expect(obtenerProgreso).toHaveBeenCalledTimes(1)
+    // MB-7-2: tras esta etapa no queda ninguna sección de Empleado pendiente.
+    expect(
+      SECCIONES_EMPLEADO.every((seccion) =>
+        ['inicio', 'mi-progreso', 'mis-proyectos', 'mis-capacitaciones', 'mi-historial', 'mi-cuenta'].includes(seccion.id),
+      ),
+    ).toBe(true)
   })
 
   it('Mi historial abre su vista real (§21.5), no el estado temporal', async () => {

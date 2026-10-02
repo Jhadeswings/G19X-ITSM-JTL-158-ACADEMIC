@@ -15,7 +15,9 @@
 //   4. Empleado con contraseña definitiva → shell de Empleado con las seis
 //      secciones del Style Guide §10; "Mi progreso" (§21.2), "Mis proyectos"
 //      (§21.3), "Mis capacitaciones" (§21.4), "Mi historial" (§21.5) y "Mi
-//      cuenta" (§21.6) son funcionales.
+//      cuenta" (§21.6) son funcionales. "Inicio" (§21.1) abre su estructura
+//      visual con el orden de bloques del PRD, sin calcular nada.
+//      SECCION_INICIAL sigue siendo 'mi-progreso'.
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -36,6 +38,7 @@ import {
 } from './navegacion.js'
 import InicioRH from './vistas/InicioRH.jsx'
 import Empleados from './vistas/Empleados.jsx'
+import Inicio from './vistas/Inicio.jsx'
 import MiCuenta from './vistas/MiCuenta.jsx'
 import MiHistorial from './vistas/MiHistorial.jsx'
 import MiProgreso from './vistas/MiProgreso.jsx'
@@ -151,7 +154,14 @@ function App() {
       onSeleccionar={setSeccion}
       onCerrarSesion={cerrarSesion}
     >
-      {seccion === 'mi-progreso' ? (
+      {seccion === 'inicio' ? (
+        <Inicio
+          token={sesion.token}
+          alSesionExpirada={cerrarSesion}
+          onIrAProgreso={() => setSeccion('mi-progreso')}
+          onIrAProyectos={() => setSeccion('mis-proyectos')}
+        />
+      ) : seccion === 'mi-progreso' ? (
         <MiProgreso token={sesion.token} alSesionExpirada={cerrarSesion} />
       ) : seccion === 'mis-proyectos' ? (
         <MisProyectos token={sesion.token} alSesionExpirada={cerrarSesion} />
