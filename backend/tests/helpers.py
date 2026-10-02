@@ -59,6 +59,9 @@ URL_RH_COMPARACION = "/api/v1/rh/employees/compare"
 # Fase 12 (recomendación de desarrollo con IA)
 URL_ME_RECOMENDACION = "/api/v1/me/progress/recommendation"
 
+# MB-7-1 (ET §31): resultado actual del Empleado autenticado, sin IA
+URL_ME_RESULTADO = "/api/v1/me/result"
+
 # Fase 13 (resultado actual vigente por empleado, exclusivo RH)
 URL_RH_EMPLEADO_RESULTADO = "/api/v1/rh/employees/{empleado_id}/result"
 URL_RH_EMPLEADO_NINE_BOX = "/api/v1/rh/employees/{empleado_id}/nine-box"
