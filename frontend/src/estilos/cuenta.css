@@ -24,11 +24,16 @@
 /* --- Información de la cuenta (solo lectura) ---
    Título en banda de encabezado propia (borde inferior, patrón de las tarjetas
    con franja de `alta.css`): separa jerárquicamente el nombre de la sección del
-   contenido y hace que las dos secciones de la pantalla se lean iguales. */
+   contenido y hace que las dos secciones de la pantalla se lean iguales.
+   Los cuatro datos van SIEMPRE en una sola fila en escritorio (referencia):
+   con `auto-fit`/`minmax(180px)` la cuarta columna caía a una segunda fila al
+   estar la vista limitada a 720px, así que la rejilla se fija a 4 columnas
+   `minmax(0, 1fr)` (equitativas y sin desbordar). En `≤760px` la media query
+   inferior ya la colapsa a una sola columna. */
 .cuenta-datos { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
 .cuenta-datos__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
 .cuenta-datos__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.cuenta-datos__lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px 24px; margin: 0; padding: 20px 24px 24px; }
+.cuenta-datos__lista { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 24px; margin: 0; padding: 20px 24px 24px; }
 .cuenta-datos__lista > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .cuenta-datos__lista dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .cuenta-datos__lista dd { margin: 0; color: var(--color-text-primary); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
