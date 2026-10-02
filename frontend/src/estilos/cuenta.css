@@ -15,27 +15,63 @@
 
 .mi-cuenta { display: flex; flex-direction: column; gap: 22px; }
 
-/* --- Información de la cuenta (solo lectura) --- */
-.cuenta-datos { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+/* --- Información de la cuenta (solo lectura) ---
+   Título en banda de encabezado propia (borde inferior, patrón de las tarjetas
+   con franja de `alta.css`): separa jerárquicamente el nombre de la sección del
+   contenido y hace que las dos secciones de la pantalla se lean iguales. */
+.cuenta-datos { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
+.cuenta-datos__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
 .cuenta-datos__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.cuenta-datos__lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px 24px; margin: 0; }
+.cuenta-datos__lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px 24px; margin: 0; padding: 20px 24px 24px; }
 .cuenta-datos__lista > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .cuenta-datos__lista dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .cuenta-datos__lista dd { margin: 0; color: var(--color-text-primary); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 
-/* --- Cambio de contraseña --- */
-.cuenta-seguridad { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+/* --- Seguridad ---
+   Misma estructura de tarjeta: banda de encabezado "Seguridad" y, debajo, el
+   formulario como cuerpo de la sección. El cuerpo NO es una columna estrecha
+   pegada a la izquierda: es una composición de dos columnas con tope de 720px
+   (ni campos angostos ni el formulario estirado a todo el ancho del shell de
+   1240px), donde "Contraseña actual" abre en ancho completo y el par
+   "Nueva contraseña / Confirma" comparte fila. La jerarquía queda así: título
+   de sección (h2) → etiqueta del grupo (h3 del componente) → campos →
+   mensajes de estado → acción principal. */
+.cuenta-seguridad { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
+.cuenta-seguridad__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
 .cuenta-seguridad__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
 
-/* Clases del formulario (componente `CambioPasswordCuenta`). */
-.cuenta-password { display: flex; flex-direction: column; gap: 16px; max-width: 460px; }
-.cuenta-password__titulo { display: flex; align-items: center; gap: 8px; }
-.cuenta-password__titulo svg { width: 18px; height: 18px; color: var(--color-primary); }
-.cuenta-password__titulo h3 { margin: 0; color: var(--color-text-primary); font-size: 14px; font-weight: 700; }
+/* Clases del formulario (componente `CambioPasswordCuenta`): cuerpo de la
+   sección. Todos los hijos abarcan el ancho completo por defecto y SOLO el
+   par nueva/confirmación comparte fila. */
+.cuenta-password { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; max-width: 720px; padding: 20px 24px 24px; }
+.cuenta-password > * { grid-column: 1 / -1; }
 
-/* Adaptación a pantallas estrechas (§7): sin desbordamiento horizontal. */
+/* El orden de los hijos es estable porque `CambioPasswordCuenta` es un
+   componente cerrado (MB-6-3): 1 = etiqueta del grupo, 2 = contraseña actual,
+   3 = nueva, 4 = confirmación. El par 3/4 comparte fila: ~350px cada campo,
+   anchura cómoda para escribir contraseñas sin abrir el formulario a todo el
+   ancho de la tarjeta. */
+.cuenta-password > .form-field:nth-child(3),
+.cuenta-password > .form-field:nth-child(4) { grid-column: auto; }
+
+/* Etiqueta del grupo: más pequeña que el h2 de la sección para no competir
+   con "Seguridad"; el bloque se lee como la primera pieza del formulario, no
+   como una sección anidada más. */
+.cuenta-password__titulo { display: flex; align-items: center; gap: 8px; }
+.cuenta-password__titulo svg { width: 16px; height: 16px; color: var(--color-primary); }
+.cuenta-password__titulo h3 { margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; }
+
+/* Acción principal: a la izquierda e inmediatamente después de los campos,
+   algo separada de los mensajes de estado (patrón de `proyectos-creado
+   .ui-button`), nunca estirada a todo el ancho del formulario. */
+.cuenta-password > .ui-button { justify-self: start; min-height: 40px; margin-top: 6px; }
+
+/* Adaptación a pantallas estrechas (§7): sin desbordamiento horizontal.
+   Una sola columna: los campos siguen cómodos y legibles, y el botón mantiene
+   su relación con el formulario ocupando el ancho completo. */
 @media (max-width: 760px) {
-  .cuenta-datos, .cuenta-seguridad { padding: 18px; }
-  .cuenta-datos__lista { grid-template-columns: 1fr; }
-  .cuenta-password { max-width: 100%; }
+  .cuenta-datos__encabezado, .cuenta-seguridad__encabezado { padding: 16px 18px; }
+  .cuenta-datos__lista { grid-template-columns: 1fr; padding: 18px; }
+  .cuenta-password { grid-template-columns: 1fr; max-width: 100%; padding: 18px; }
+  .cuenta-password > .ui-button { justify-self: stretch; width: 100%; }
 }

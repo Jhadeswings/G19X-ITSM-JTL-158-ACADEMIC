@@ -91,14 +91,18 @@ export default function MiCuenta({ token, alSesionExpirada }) {
       {fase === 'listo' && datos && (
         <>
           {/* Datos laborales: SOLO LECTURA. Sin inputs, sin botones de editar,
-              sin formularios: §21.6 prohíbe modificarlos. */}
+              sin formularios: §21.6 prohíbe modificarlos. El título vive en su
+              propia banda de encabezado, igual que en "Seguridad": las dos
+              secciones comparten la MISMA estructura de tarjeta del sistema. */}
           <section
             className="cuenta-datos"
             aria-labelledby="cuenta-datos-titulo"
           >
-            <h2 id="cuenta-datos-titulo" className="cuenta-datos__titulo">
-              Información de la cuenta
-            </h2>
+            <div className="cuenta-datos__encabezado">
+              <h2 id="cuenta-datos-titulo" className="cuenta-datos__titulo">
+                Información de la cuenta
+              </h2>
+            </div>
             <dl className="cuenta-datos__lista">
               <div>
                 <dt>Nombre</dt>
@@ -119,14 +123,20 @@ export default function MiCuenta({ token, alSesionExpirada }) {
             </dl>
           </section>
 
-          {/* Cambio de contraseña: la ÚNICA acción editable de la pantalla. */}
+          {/* Cambio de contraseña: la ÚNICA acción editable de la pantalla.
+              La sección lleva banda de encabezado propia para que "Seguridad"
+              se lea como una sección formal de la pantalla (misma estructura
+              de tarjeta que "Información de la cuenta"), no como un formulario
+              suelto. El formulario en sí es el componente independiente. */}
           <section
             className="cuenta-seguridad"
             aria-labelledby="cuenta-seguridad-titulo"
           >
-            <h2 id="cuenta-seguridad-titulo" className="cuenta-seguridad__titulo">
-              Seguridad
-            </h2>
+            <div className="cuenta-seguridad__encabezado">
+              <h2 id="cuenta-seguridad-titulo" className="cuenta-seguridad__titulo">
+                Seguridad
+              </h2>
+            </div>
             <CambioPasswordCuenta
               token={token}
               alSesionExpirada={alSesionExpirada}
