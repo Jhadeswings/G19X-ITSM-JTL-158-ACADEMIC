@@ -2,11 +2,42 @@
 
 Reglas:
 - El esquema evoluciona SOLO con Alembic: prohibido ``create_all`` (§1).
-- Los tests corren contra el PostgreSQL real de Docker (nunca SQLite).
+- Los tests corren contra PostgreSQL real de Docker (nunca SQLite).
 - Cada test arranca y termina con las tablas limpias (TRUNCATE CASCADE).
+
+AISLAMIENTO DE LA BASE DE DATOS (MB-7-TEST-SAFETY)
+---------------------------------------------------
+El TRUNCATE de este módulo borra datos. Para que NUNCA pueda alcanzar la
+base de desarrollo:
+
+1. Al IMPORTAR este archivo (antes de que exista el engine) se deriva una
+   ``DATABASE_URL`` de pruebas a partir de la configurada, y se verifica
+   con ``tests.db_guardia``. Si no puede demostrarse que es una base de
+   pruebas, la importacion aborta: no se crea ningún engine y no se
+   ejecuta nada.
+2. El fixture ``limpieza`` vuelve a verificarlo en CADA test, ya con la
+   conexion real abierta, por si alguien cambiara ``DATABASE_URL`` entre
+  tests.
+
+El usuario no necesita recordar ninguna variable: si no se define
+``TEST_DATABASE_URL``, la suite la deriva automáticamente.
 """
 
 import os
+import sys
+from pathlib import Path
+
+# El paquete `tests` debe ser importable aquí (conftest se carga antes que
+# pythonpath de pytest en algunos órdenes de importación).
+RAIZ_BACKEND = Path(__file__).resolve().parents[1]
+if str(RAIZ_BACKEND) not in sys.path:
+    sys.path.insert(0, str(RAIZ_BACKEND))
+
+from tests.db_guardia import (  # noqa: E402
+    PREFIJO_BD_PRUEBAS,
+    construir_url_de_pruebas,
+    verificar_url_de_pruebas,
+)
 
 # Variables de entorno ANTES de importar cualquier módulo de la app:
 # ``Settings`` se instancia al importar ``app.core.db`` y ``get_settings``
@@ -16,6 +47,46 @@ os.environ.setdefault(
     "SECRET_KEY", "clave-exclusiva-de-tests-jwt-0123456789abcdef"
 )
 os.environ.setdefault("BCRYPT_LOG_ROUNDS", "4")
+
+def _leer_url_configurada() -> str:
+    """Devuelve la ``DATABASE_URL`` de la configuración local del backend.
+
+    Orden de precedencia:
+    1. ``TEST_DATABASE_URL`` del entorno (si alguien la define explícitamente).
+    2. ``DATABASE_URL`` del entorno.
+    3. ``DATABASE_URL`` de ``backend/.env``.
+
+    Se lee el archivo de forma mínima y explícita, sin cargar pydantic
+    (todavía no se importa la app).
+    """
+    desde_entorno = os.environ.get("TEST_DATABASE_URL") or os.environ.get(
+        "DATABASE_URL"
+    )
+    if desde_entorno:
+        return desde_entorno
+
+    archivo_env = RAIZ_BACKEND / ".env"
+    if archivo_env.is_file():
+        for linea in archivo_env.read_text(encoding="utf-8").splitlines():
+            limpia = linea.strip()
+            if limpia.startswith("DATABASE_URL="):
+                return limpia.partition("=")[2].strip()
+    return ""
+
+
+# --- Barrera de aislamiento (ANTES de importar app.core.db) ---------------
+# Se deriva la URL de pruebas y se sobreescribe ``DATABASE_URL`` para que el
+# engine de la aplicación apunte ahí desde su creación. Si la verificación
+# falla, se aborta la IMPORTACIÓN: es preferible no ejecutar la suite a
+# ejecutar un TRUNCATE sobre la base equivocada.
+_URL_PRUEBAS = os.environ.get("TEST_DATABASE_URL") or construir_url_de_pruebas(
+    _leer_url_configurada(), PREFIJO_BD_PRUEBAS
+)
+
+# Aborta aquí si la URL no es demostrablemente de pruebas.
+verificar_url_de_pruebas(_URL_PRUEBAS)
+os.environ["DATABASE_URL"] = _URL_PRUEBAS
+# -------------------------------------------------------------------------
 
 from alembic import command  # noqa: E402
 from alembic.config import Config as AlembicConfig  # noqa: E402
@@ -43,11 +114,31 @@ _TABLAS = (
 no_db = pytest.mark.no_db
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def esquema():
-    """Aplica las migraciones de Alembic una vez por sesión (nunca create_all)."""
+    """Aplica las migraciones de Alembic una vez por sesión (nunca create_all).
+
+    NO es ``autouse`` a propósito: las pruebas estáticas marcadas ``no_db``
+    no deben abrir conexión ni exigir que exista una base de pruebas. Los
+    fixtures que sí necesitan esquema (``db`` y ``client``) dependen
+    explícitamente de este.
+    """
     command.upgrade(AlembicConfig("alembic.ini"), "head")
     yield
+
+
+def _afirmar_bd_de_pruebas(conexion) -> str:
+    """Segunda barrera: confirma en la CONEXIÓN real a qué base se apunta.
+
+    La verificación de importación usa la URL configurada; esta usa el
+    ``current_database()`` que devuelve el servidor. Así también se
+    detecta un desvío en tiempo de ejecución.
+
+    Se ejecuta justo antes de cada TRUNCATE.
+    """
+    nombre_real = conexion.execute(text("SELECT current_database()")).scalar()
+    verificar_url_de_pruebas(f"postgresql://x/{nombre_real}")
+    return nombre_real
 
 
 @pytest.fixture(autouse=True)
@@ -55,22 +146,28 @@ def limpieza(request):
     """Estado limpio antes y después de cada test.
 
     Las pruebas marcadas con ``@pytest.mark.no_db`` NO tocan la base de
-    datos: se salta el TRUNCATE por completo. Existe para que una prueba
-    puramente estática (archivos/git) pueda ejecutarse sin riesgo de
-    borrar datos de desarrollo.
+    datos: se salta el TRUNCATE por completo. Es una optimización (evita
+    abrir conexiones), NO la barrera de seguridad: la barrera real es
+    ``tests.db_guardia``, que actúa incluso sobre tests con BD.
     """
     if request.node.get_closest_marker("no_db"):
         yield
         return
     with engine.begin() as conexion:
+        _afirmar_bd_de_pruebas(conexion)
         conexion.execute(text(f"TRUNCATE TABLE {_TABLAS} RESTART IDENTITY CASCADE"))
     yield
     with engine.begin() as conexion:
+        _afirmar_bd_de_pruebas(conexion)
         conexion.execute(text(f"TRUNCATE TABLE {_TABLAS} RESTART IDENTITY CASCADE"))
 
 
 @pytest.fixture()
-def db():
+def db(esquema):
+    """Sesión contra la base de PRUEBAS (nunca la de desarrollo).
+
+    Depende de ``esquema`` para que el esquema exista antes de usarlo.
+    """
     sesion = SessionLocal()
     try:
         yield sesion
@@ -94,5 +191,6 @@ def cuenta_empleado(db):
 
 
 @pytest.fixture()
-def client() -> TestClient:
+def client(esquema):
+    """Cliente de prueba. Depende de ``esquema`` (base de pruebas)."""
     return TestClient(app)

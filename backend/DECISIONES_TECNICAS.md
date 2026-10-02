@@ -114,7 +114,47 @@ inventar uno. El flujo es:
   `require_rh`/`require_empleado` + endpoint real `/me`), flujo completo
   de `must_change_password`, recuperación (existente/inexistente/uniforme/
   un solo uso/expirado) y caso básico anti-IDOR.
-- Ejecución: `cd backend && python -m pytest`.
+
+### 9.1 Aislamiento de la base de datos de pruebas (MB-7-TEST-SAFETY)
+
+La suite hace `TRUNCATE ... CASCADE` antes y después de cada test. Por
+construcción **borra datos**, así que jamás debe apuntar a la base de
+desarrollo (`talento_alto_potencial`).
+
+Decisión: la suite usa **siempre** una base desechable cuyo nombre empieza
+por `talento_test`, creada automáticamente por
+`db/init/02_bd_pruebas.sql` (entrypoint de Postgres). La barrera es
+`backend/tests/db_guardia.py`, aplicada en **dos** puntos:
+
+1. **Al importar `conftest.py`**, antes de que exista el engine: se deriva
+   la URL de pruebas y se verifica. Si no puede demostrarse que es una
+   base de pruebas, la importación **aborta** y no se ejecuta nada.
+2. **En cada test**, con la conexión abierta: se comprueba
+   `current_database()` (lo que el servidor responde, no lo configurado)
+   justo antes de cada `TRUNCATE`.
+
+Es **fail-closed**: si la base no es demostrablemente de pruebas, se
+rechaza. La base de desarrollo se rechaza **por nombre**, aunque llegue
+desde otro host o puerto. El usuario **no necesita recordar ninguna
+variable**: si no define `TEST_DATABASE_URL`, la suite la deriva sola.
+
+`no_db` (marcador en pruebas puramente estáticas) es una **optimización**
+que evita abrir conexión; **no** es la barrera de seguridad.
+
+Comandos oficiales (una sola ruta):
+
+```bash
+# 1) Crear/verificar la base de pruebas (idempotente; la crea sola el entrypoint)
+docker compose up -d db
+
+# 2) Ejecutar la suite completa (SIEMPRE contra 'talento_test')
+cd backend && python -m pytest
+
+# 3) Destruir la base de pruebas (opcional: es desechable)
+docker exec talento_db psql -U talento -d postgres -c "DROP DATABASE IF EXISTS talento_test;"
+```
+
+Ejecución: `cd backend && python -m pytest` (ver §9.1 para el aislamiento).
 
 ## 10. Nota sobre emails de dominio `.local`
 

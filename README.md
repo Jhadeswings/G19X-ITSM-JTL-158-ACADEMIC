@@ -83,6 +83,43 @@ npm install
 npm run dev
 ```
 
+## Ejecutar la suite backend
+
+> **La suite NUNCA debe apuntar a la base de desarrollo.** Hace
+> `TRUNCATE ... CASCADE` en cada test: es una base **desechable**.
+
+Un solo camino oficial:
+
+```bash
+# 1) Crear/verificar la base de pruebas (idempotente; el entrypoint de
+#    Postgres la crea sola la primera vez: 'talento_test')
+docker compose up -d db
+
+# 2) Ejecutar la suite (siempre contra 'talento_test')
+cd backend && python -m pytest
+
+# 3) Destruir la base de pruebas (opcional: es desechable)
+docker exec talento_db psql -U talento -d postgres -c "DROP DATABASE IF EXISTS talento_test;"
+```
+
+No hace falta configurar nada: la suite deriva sola la URL de pruebas a
+partir de la de desarrollo, conservando usuario, contraseña, host y puerto
+y cambiando solo el nombre de la base.
+
+**Si la suite apunta a la base de desarrollo, se aborta antes de ejecutar
+nada** (`BaseDeDatosNoPermitida`), con un mensaje explícito. La barrera vive
+en `backend/tests/db_guardia.py` y se aplica dos veces: al importar
+`conftest.py` (antes de crear el engine) y en cada test, comprobando
+`current_database()` justo antes de cada `TRUNCATE`.
+
+Para usar una base de pruebas propia:
+
+```bash
+TEST_DATABASE_URL="postgresql://usuario:clave@host:5433/mi_bd_de_pruebas" python -m pytest
+```
+
+El nombre **debe** empezar por `talento_test`.
+
 ## Notas de fase (scaffolding)
 
 - No hay tablas de dominio todavía; `alembic/versions/` está vacía y `alembic upgrade head` es *no-op*.
