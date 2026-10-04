@@ -18,6 +18,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.core.normalizacion import normalizar_nombre
+from app.models.participacion import Participacion
 from app.models.proyecto import Proyecto
 from app.schemas.proyecto import (
     ProyectoCreateIn,
@@ -128,6 +129,55 @@ def actualizar_proyecto_rh(
     db.commit()
     db.refresh(proyecto)
     return proyecto
+
+
+def listar_proyectos_propio_empleado(
+    db: Session,
+    *,
+    empleado_id: int,
+    pagina: int = 1,
+    por_pagina: int = POR_PAGINA_DEFECTO,
+) -> tuple[list[Proyecto], int]:
+    """Lista paginada de los proyectos del catálogo en los que el empleado tiene
+    participación (ET §31 ``GET /me/projects``, PRD §21.1).
+
+    La pertenencia NO es un atributo del proyecto: el catálogo es compartido por
+    toda la organización (PRD §11) y ``proyectos`` no tiene ``empleado_id``. La
+    única relación real entre un empleado y un proyecto es ``participaciones``
+    (FK ``proyecto_id``, ET §9), que además es UNIQUE por empleado/proyecto. Por
+    tanto un proyecto es "del empleado" si y solo si existe su participación, y
+    el JOIN por ``Participacion`` es exactamente lo que evita exponer proyectos
+    ajenos (anti-IDOR, §32). No se añade ningún campo ni filtro nuevo: el
+    proyecto NO aparece sin participación, porque no hay relación que lo
+    justifique.
+
+    ORDEN: ``proyectos.id`` descendente. No es una preferencia de esta función
+    sino el orden de clave primaria de un catálogo sin columna de fecha
+    propia, y da el mismo resultado que ``ORDER BY id DESC`` que ya usa el
+    servicio para el catálogo completo. NO es "proyectos recientes": no se
+    inventa ninguna noción de actividad reciente; si el orden se cambiara por
+    fecha, tendría que ser una regla documentada del modelo, no de la vista.
+
+    Reutiliza ``POR_PAGINA_DEFECTO``/``MAX_POR_PAGINA`` del mismo módulo, para
+    que el paginado sea idéntico al del resto del catálogo.
+    """
+    por_pagina = min(max(por_pagina, 1), MAX_POR_PAGINA)
+    pagina = max(pagina, 1)
+
+    total = db.scalar(
+        select(func.count())
+        .select_from(Participacion)
+        .where(Participacion.empleado_id == empleado_id)
+    )
+    proyectos = db.scalars(
+        select(Proyecto)
+        .join(Participacion, Participacion.proyecto_id == Proyecto.id)
+        .where(Participacion.empleado_id == empleado_id)
+        .order_by(Proyecto.id.desc())
+        .offset((pagina - 1) * por_pagina)
+        .limit(por_pagina)
+    ).all()
+    return list(proyectos), int(total or 0)
 
 
 def listar_proyectos(

@@ -8,7 +8,11 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { solicitar } from '../clienteApi.js'
-import { buscarProyectos, crearProyecto } from '../proyectos.js'
+import {
+  buscarProyectos,
+  crearProyecto,
+  listarMisProyectos,
+} from '../proyectos.js'
 
 vi.mock('../clienteApi.js', () => ({ solicitar: vi.fn() }))
 
@@ -213,5 +217,101 @@ describe('proyectos — alta (POST /me/projects)', () => {
     await expect(
       crearProyecto('token-empleado', { nombre: 'Proyecto Roble' }),
     ).rejects.toBe(error)
+  })
+})
+
+// MB-7-1: listado propio de proyectos (ET §31, PRD §21.1).
+// Solo se verifica TRANSPORTE: ruta exacta, paginación opcional, `{ token }`,
+// ausencia total de `empleado_id`, respuesta sin transformar y propagación
+// de errores. La pertenencia (participación) y el orden son del backend.
+describe('proyectos — listado propio (GET /me/projects)', () => {
+  /** Respuesta real del backend: ProyectoPageOut con un proyecto. */
+  const PAGINA = {
+    total: 1,
+    pagina: 1,
+    por_pagina: 20,
+    items: [
+      {
+        id: 7,
+        nombre: 'Proyecto Roble',
+        nombre_normalizado: 'proyecto roble',
+        area: 'TI',
+        cliente: null,
+        estado: 'EN_PROCESO',
+        created_at: '2026-06-01T10:00:00',
+        updated_at: '2026-06-01T10:00:00',
+      },
+    ],
+  }
+
+  it('llama a la ruta exacta con el token y sin paginación cuando se omite', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PAGINA)
+
+    await listarMisProyectos('token-empleado')
+
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/me/projects', {
+      token: 'token-empleado',
+    })
+  })
+
+  it('envía la paginación solo si se indica', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PAGINA)
+
+    await listarMisProyectos('token-empleado', { pagina: 2, por_pagina: 5 })
+
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toContain('/api/v1/me/projects?')
+    expect(ruta).toContain('pagina=2')
+    expect(ruta).toContain('por_pagina=5')
+    expect(opciones).toEqual({ token: 'token-empleado' })
+  })
+
+  it('no envía paginación parcial si solo se indica una', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PAGINA)
+
+    await listarMisProyectos('token-empleado', { pagina: 3 })
+
+    const [ruta] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toContain('pagina=3')
+    expect(ruta).not.toContain('por_pagina')
+  })
+
+  it('NO acepta ni envía empleado_id: la identidad la deriva el token', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PAGINA)
+
+    await listarMisProyectos('token-empleado')
+
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).not.toContain('empleado_id')
+    expect(Object.keys(opciones)).toEqual(['token'])
+  })
+
+  it('no transforma la respuesta del backend', async () => {
+    const respuesta = {
+      total: 0,
+      pagina: 1,
+      por_pagina: 20,
+      items: [],
+    }
+    vi.mocked(solicitar).mockResolvedValue(respuesta)
+
+    const resultado = await listarMisProyectos('token-empleado')
+
+    expect(resultado).toBe(respuesta)
+    expect(resultado).toEqual({ total: 0, pagina: 1, por_pagina: 20, items: [] })
+  })
+
+  it('propaga el 401 de la sesión expirada', async () => {
+    const error = errorDe(401, 'Credenciales inválidas.')
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(listarMisProyectos('token-empleado')).rejects.toBe(error)
+  })
+
+  it('propaga el 403 de rol no autorizado sin reinterpretar', async () => {
+    const error = errorDe(403, 'Solo el rol Empleado puede consultar.')
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(listarMisProyectos('token-empleado')).rejects.toBe(error)
   })
 })

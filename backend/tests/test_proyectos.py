@@ -4,13 +4,18 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.normalizacion import normalizar_nombre
+from app.models.auditoria_modificacion import AuditoriaModificacion
 from app.models.participacion import Participacion
 from app.models.proyecto import Proyecto
+from app.schemas.proyecto import ProyectoOut
 from tests.helpers import (
     URL_BUSQUEDA_PROYECTOS,
+    URL_ME_PARTICIPACIONES,
     URL_ME_PROYECTOS,
     URL_RH_PROYECTOS,
     cabecera,
+    crear_cuenta,
+    crear_empleado,
     login_y_token,
 )
 
@@ -258,3 +263,182 @@ class TestBusquedaProyectos:
         assert client.get(
             f"{URL_BUSQUEDA_PROYECTOS}?nombre=   ", headers=cabecera(token_empleado)
         ).status_code == 422
+
+
+class TestListarMisProyectos:
+    """`GET /me/projects` (MB-7-1, ET §31, PRD §21.1).
+
+    El listado propio del Empleado. La pertenencia NO es un atributo del
+    proyecto: el catálogo es compartido (PRD §11) y `proyectos` no tiene
+    `empleado_id`. La única relación real es `participaciones` (§9), así que
+    un proyecto es del empleado si y solo si tiene participación con él, y el
+    JOIN es lo que impide exponer proyectos ajenos (§32).
+
+    Suite contra la base aislada `talento_test` (barrera `tests/db_guardia.py`).
+    """
+
+    @pytest.fixture()
+    def token_empleado_b(self, client, db):
+        empleado_b = crear_empleado(db, nombre="Empleado B")
+        crear_cuenta(db, rol="EMPLEADO", email="b@empresa.dev", empleado=empleado_b)
+        return login_y_token(client, "b@empresa.dev")
+
+    @staticmethod
+    def registrar(client, token: str, proyecto_id: int) -> None:
+        respuesta = client.post(
+            URL_ME_PARTICIPACIONES,
+            json={
+                "proyecto_id": proyecto_id,
+                "rol": "Desarrollador",
+                "en_equipo": True,
+                "coordino_tareas": False,
+                "explico_a_publico_distinto": False,
+                "resolvio_problema": False,
+                "horas": 40,
+            },
+            headers=cabecera(token),
+        )
+        assert respuesta.status_code == 201, respuesta.text
+
+    def test_lista_sus_proyectos(self, client, db, token_empleado):
+        """1. El Empleado autenticado lista los proyectos con su participación."""
+        proyecto = sembrar_proyecto(db, "Proyecto Alfa")
+        self.registrar(client, token_empleado, proyecto.id)
+
+        respuesta = client.get(URL_ME_PROYECTOS, headers=cabecera(token_empleado))
+
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert datos["total"] == 1
+        assert [p["id"] for p in datos["items"]] == [proyecto.id]
+        assert datos["items"][0]["nombre"] == "Proyecto Alfa"
+
+    def test_no_requiere_empleado_id(self, client, db, token_empleado):
+        """2. No requiere `empleado_id`: se deriva del token (§32).
+
+        Un `empleado_id` en la query se ignora, no cambia el resultado.
+        """
+        propio = sembrar_proyecto(db, "Proyecto Propio")
+        ajeno = sembrar_proyecto(db, "Proyecto Ajeno")
+        self.registrar(client, token_empleado, propio.id)
+
+        respuesta = client.get(
+            f"{URL_ME_PROYECTOS}?empleado_id=999999", headers=cabecera(token_empleado)
+        )
+
+        assert respuesta.status_code == 200, respuesta.text
+        ids = [p["id"] for p in respuesta.json()["items"]]
+        assert ids == [propio.id]
+        assert ajeno.id not in ids
+
+    def test_no_expone_proyectos_ajenos(
+        self, client, db, token_empleado, token_empleado_b
+    ):
+        """3. No devuelve proyectos de otro empleado."""
+        ajeno = sembrar_proyecto(db, "Proyecto Ajeno")
+        propio = sembrar_proyecto(db, "Proyecto Propio")
+        self.registrar(client, token_empleado, propio.id)
+        self.registrar(client, token_empleado_b, ajeno.id)
+
+        respuesta = client.get(URL_ME_PROYECTOS, headers=cabecera(token_empleado))
+
+        assert respuesta.status_code == 200, respuesta.text
+        ids = [p["id"] for p in respuesta.json()["items"]]
+        assert ids == [propio.id]
+        assert ajeno.id not in ids
+
+    def test_sin_participacion_no_aparece(self, client, db, token_empleado):
+        """El catálogo compartido NO se filtra al empleado: sin participación no
+        hay relación que lo justifique, así que no aparece."""
+        sembrar_proyecto(db, "Proyecto Sin Vincular")
+
+        respuesta = client.get(URL_ME_PROYECTOS, headers=cabecera(token_empleado))
+
+        assert respuesta.json()["items"] == []
+
+    def test_contrato_de_salida(self, client, db, token_empleado):
+        """4. Respeta `ProyectoPageOut`: envelope de página + campos del proyecto."""
+        proyecto = sembrar_proyecto(db, "Proyecto Alfa")
+        self.registrar(client, token_empleado, proyecto.id)
+
+        respuesta = client.get(
+            f"{URL_ME_PROYECTOS}?pagina=1&por_pagina=10",
+            headers=cabecera(token_empleado),
+        )
+
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert set(datos) == {"total", "pagina", "por_pagina", "items"}
+        assert datos["pagina"] == 1
+        assert datos["por_pagina"] == 10
+        # Los campos del item son los de `ProyectoOut`, sin transformación.
+        assert set(datos["items"][0]) == set(ProyectoOut.model_fields)
+
+    def test_orden_por_id_descendente(self, client, db, token_empleado):
+        """Orden documentado: `proyectos.id` descendente. NO es una noción de
+        'proyectos recientes': esa regla no existe en el modelo."""
+        primero = sembrar_proyecto(db, "Proyecto Uno")
+        segundo = sembrar_proyecto(db, "Proyecto Dos")
+        self.registrar(client, token_empleado, primero.id)
+        self.registrar(client, token_empleado, segundo.id)
+
+        respuesta = client.get(URL_ME_PROYECTOS, headers=cabecera(token_empleado))
+
+        assert [p["id"] for p in respuesta.json()["items"]] == [segundo.id, primero.id]
+
+    def test_paginacion(self, client, db, token_empleado):
+        """El paginado recorta la página, no el total."""
+        proyectos = [sembrar_proyecto(db, f"Proyecto {i}") for i in range(3)]
+        for proyecto in proyectos:
+            self.registrar(client, token_empleado, proyecto.id)
+
+        respuesta = client.get(
+            f"{URL_ME_PROYECTOS}?pagina=1&por_pagina=2",
+            headers=cabecera(token_empleado),
+        )
+
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert datos["total"] == 3
+        assert len(datos["items"]) == 2
+
+    def test_401_sin_autenticacion(self, client):
+        """5."""
+        assert client.get(URL_ME_PROYECTOS).status_code == 401
+
+    def test_403_para_rol_rh(self, client, token_rh):
+        """6. RH no entra al router del Empleado."""
+        respuesta = client.get(URL_ME_PROYECTOS, headers=cabecera(token_rh))
+        assert respuesta.status_code == 403
+
+    def test_empleado_sin_datos(self, client, token_empleado):
+        """7. Datos vacíos: 200 con lista vacía y total 0 (nunca 404)."""
+        respuesta = client.get(URL_ME_PROYECTOS, headers=cabecera(token_empleado))
+
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert datos["total"] == 0
+        assert datos["items"] == []
+
+    def test_es_solo_lectura(self, client, db, token_empleado):
+        """8. No crea, no modifica y no audita nada."""
+        proyecto = sembrar_proyecto(db, "Proyecto Alfa")
+        self.registrar(client, token_empleado, proyecto.id)
+        antes = (
+            int(db.scalar(select(func.count()).select_from(Proyecto)) or 0),
+            contar_participaciones(db),
+            len(db.scalars(select(AuditoriaModificacion)).all()),
+            proyecto.estado,
+        )
+
+        ok = client.get(URL_ME_PROYECTOS, headers=cabecera(token_empleado))
+        assert ok.status_code == 200
+
+        db.expire_all()
+        despues = (
+            int(db.scalar(select(func.count()).select_from(Proyecto)) or 0),
+            contar_participaciones(db),
+            len(db.scalars(select(AuditoriaModificacion)).all()),
+            db.get(Proyecto, proyecto.id).estado,
+        )
+        assert despues == antes
