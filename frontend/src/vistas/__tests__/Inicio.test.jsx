@@ -121,10 +121,51 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
   it('presenta los bloques del resumen en el orden del PRD', async () => {
     const { container } = await montar()
 
-    const titulos = [...container.querySelectorAll('.inicio-bloque > h2')].map(
-      (nodo) => nodo.textContent.trim(),
+    // Orden del DOM: resumen superior (3 tarjetas `MetricCard`, también h2) →
+    // zona principal (2 paneles) → próximo paso.
+    const titulos = [...container.querySelectorAll('h2')].map((n) =>
+      n.textContent.trim(),
     )
-    expect(titulos).toEqual(['Tus proyectos', 'Resumen de competencias', 'Próximo paso'])
+    expect(titulos).toEqual([
+      'Mi progreso',
+      'Proyectos',
+      'Capacitaciones',
+      'Tus proyectos',
+      'Resumen de competencias',
+      'Próximo paso',
+    ])
+  })
+
+  it('el resumen superior tiene TRES tarjetas de tamaño equivalente', async () => {
+    const { container } = await montar()
+
+    const tarjetas = container.querySelectorAll('.inicio-metricas .metric-card')
+    expect(tarjetas).toHaveLength(3)
+    // Misma rejilla de 3 columnas y `stretch`: ancho y altura coherentes.
+    const rejilla = container.querySelector('.inicio-metricas')
+    expect(rejilla).toBeInTheDocument()
+    // Cada tarjeta lleva el mismo ancla visual (total o variante de texto).
+    expect(container.querySelectorAll('.inicio-metricas .inicio-total')).toHaveLength(3)
+  })
+
+  it('la zona principal son DOS paneles alineados', async () => {
+    const { container } = await montar()
+
+    expect(container.querySelectorAll('.inicio-principal')).toHaveLength(1)
+    expect(container.querySelectorAll('.inicio-panel')).toHaveLength(2)
+    // Proyectos a la izquierda, competencias a la derecha.
+    const paneles = container.querySelectorAll('.inicio-panel')
+    expect(paneles[0].textContent).toContain('Tus proyectos')
+    expect(paneles[1].textContent).toContain('Resumen de competencias')
+  })
+
+  it('ocupa todo el ancho disponible del shell', async () => {
+    const { container } = await montar()
+
+    // Sin max-width propia: la vista se apoya en el ancho de contenido.
+    const estilos = container.querySelector('.inicio-empleado')
+    expect(estilos.className).toContain('inicio-empleado')
+    expect(estilos.style.maxWidth).toBe('')
   })
 
   it('NO monta el bloque independiente de recomendación IA', async () => {
@@ -162,7 +203,9 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
     )
     await screen.findByRole('heading', { name: 'Inicio', level: 1 })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ver mi progreso' }))
+    // Hay dos accesos a Mi progreso (tarjeta del resumen y próximo paso); se
+    // dispara el de la tarjeta del resumen.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ir a Mi progreso' })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Ir a Mis proyectos' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ir a Mis capacitaciones' }))
 
@@ -228,7 +271,7 @@ describe('Inicio — proyectos (GET /me/projects)', () => {
 
     expect(await screen.findByText('Todavía no tienes proyectos')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Ir a Mis proyectos' }),
+      screen.getByRole('button', { name: 'Ver mis proyectos' }),
     ).toBeInTheDocument()
   })
 })
@@ -320,7 +363,7 @@ describe('Inicio — próximo paso honesto (sin regla automática)', () => {
       .getByRole('heading', { name: 'Próximo paso', level: 2 })
       .closest('section')
     expect(
-      within(bloque).getByText('Todavía no hay un próximo paso definido'),
+      within(bloque).getByText(/Todavía no hay un próximo paso definido/),
     ).toBeInTheDocument()
     // No elige competencia, proyecto ni capacitación por su cuenta.
     const texto = bloque.textContent.toLowerCase()
@@ -337,7 +380,9 @@ describe('Inicio — próximo paso honesto (sin regla automática)', () => {
       .closest('section')
     expect(bloque.className).toContain('inicio-bloque--reservado')
     expect(bloque).not.toHaveAttribute('role', 'alert')
-    expect(screen.getByRole('button', { name: 'Ir a Mi progreso' })).toBeInTheDocument()
+    expect(
+      within(bloque).getByRole('button', { name: 'Ir a Mi progreso' }),
+    ).toBeInTheDocument()
   })
 })
 

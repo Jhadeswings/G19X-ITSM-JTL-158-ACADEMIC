@@ -1,66 +1,88 @@
 /* Inicio del Empleado (PRD §21.1).
-   Solo composición: los bloques usan los tokens y tarjetas ya existentes
-   (`.metric-card`, `.competencias`, `.estado-vacio`). Aquí únicamente se
-   ordena la pila de la vista y se define la rejilla de sus tarjetas. */
+
+   Inicio es un RESUMEN: tres áreas (Mi progreso / Proyectos / Capacitaciones)
+   y dos paneles principales en paralelo. Reutiliza los tokens y componentes
+   existentes (`.metric-card`, `.ui-button`, `.ui-badge`, `.estado-*`) y el ancho
+   de contenido del shell: aquí no se inventa una `max-width` nueva ni una paleta
+   propia.
+
+   La vista ocupa TODO el ancho disponible del shell. Antes se dejaba como una
+   columna angosta, lo que producía márgenes enormes y tarjetas microscópicas. */
 
 .inicio-empleado {
   display: flex;
   flex-direction: column;
-  gap: 30px;
-}
-
-.inicio-bloque {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-.inicio-bloque h2 {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 0;
-  font-size: 24px;
-  letter-spacing: -.03em;
-}
-
-.inicio-bloque h2 svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 1.7;
-}
-
-/* Bloque reservado ("Próximo paso"): sin contraste de emphasis para que no
-   se lea como contenido definitivo. */
-.inicio-bloque--reservado {
-  padding: clamp(20px, 2.4vw, 28px);
-  background: #f8faf9;
-  border: 1px dashed var(--line-soft);
-  border-radius: 13px;
-}
-
-.inicio-metricas {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 26px;
   width: 100%;
 }
 
-/* Total de un área (proyectos / capacitaciones). Es el `total` LITERAL del
-   contrato: solo cambia de tamaño y color, nunca es una métrica calculada. */
+/* --- Resumen superior: TRES tarjetas equivalentes ---------------------
+   `1fr 1fr 1fr` + `align-items: stretch` garantizan el mismo ancho y la misma
+   altura, para que la fila se lea equilibrada. */
+.inicio-metricas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  align-items: stretch;
+}
+
+/* Ancla visual de cada tarjeta del resumen. Cuando no hay número del contrato
+   (Mi progreso) se usa la variante de texto, para que la fila conserve la
+   misma altura y ritmo sin inventar ninguna métrica. */
 .inicio-total {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   color: var(--color-text-primary);
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: -.03em;
-  line-height: 1.1;
+  letter-spacing: -.035em;
+  line-height: 1;
+}
+
+.inicio-total--texto {
+  font-size: 17px;
+  letter-spacing: -.02em;
+  line-height: 1.3;
+}
+
+/* --- Zona principal: DOS columnas alineadas ---------------------------
+   Ambas cajas empiezan en el MISMO eje superior y reparten el ancho 1:1. */
+.inicio-principal {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  align-items: start;
+}
+
+.inicio-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 20px 22px 22px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.inicio-panel h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.inicio-panel__intro {
+  margin: -4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 /* --- Tus proyectos ---
-   Filas compactas: nombre a la izquierda y datos a la derecha. Sin tarjetas
-   grandes ni gráficos: el detalle vive en «Mis proyectos». */
+   Filas compactas: nombre a la izquierda, área + estado a la derecha. */
 .inicio-proyectos {
   display: flex;
   flex-direction: column;
@@ -75,8 +97,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 14px;
-  padding: 11px 14px;
+  gap: 6px 12px;
+  padding: 10px 13px;
   background: #f8faf9;
   border: 1px solid var(--line-soft);
   border-radius: 9px;
@@ -91,7 +113,7 @@
 .inicio-proyectos__datos {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
 }
 
 .inicio-proyectos__area {
@@ -99,21 +121,18 @@
   font-size: 12px;
 }
 
-/* Nota auxiliar (p. ej. "Muestras 3 de 7"): informa del recorte sin inventar
-   ninguna métrica; el total y el recorte salen del contrato. */
+/* Nota del recorte: los dos números salen del contrato, no de un cálculo. */
 .inicio-nota {
-  margin: 10px 0 0;
+  margin: 0;
   color: var(--color-text-secondary);
   font-size: 12px;
 }
 
 /* --- Resumen de competencias ---
-   Una fila por competencia: nombre + nivel/etiqueta. Reemplaza las cinco
-   `CompetenciaCard` completas, que pertenecen a «Mi progreso» (§21.2). */
+   Cinco filas, sin evidencia ni barras grandes (§21.2 conserva el detalle). */
 .inicio-competencias {
   display: flex;
   flex-direction: column;
-  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -124,8 +143,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 14px;
-  padding: 12px 2px;
+  gap: 6px 12px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line-soft);
 }
 
@@ -139,6 +158,31 @@
   font-weight: 600;
 }
 
+.inicio-competencias__nivel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Marca ligera del NIVEL RECIBIDO: cinco segmentos fijos, se activan los
+   primeros `nivel`. No calcula nada (solo compara `n <= nivel`) y el texto
+   `nivel · etiqueta` sigue visible, así que no depende del color. */
+.inicio-nivel {
+  display: flex;
+  gap: 3px;
+}
+
+.inicio-nivel__paso {
+  width: 16px;
+  height: 4px;
+  background: #e3eae8;
+  border-radius: 2px;
+}
+
+.inicio-nivel__paso[data-activo] {
+  background: var(--color-primary);
+}
+
 /* `INSUFFICIENT_DATA` es un estado VÁLIDO (§14): se nombra, nunca se
    convierte en nivel 0 ni en una barra vacía. */
 .inicio-competencias__sin-datos {
@@ -147,17 +191,68 @@
   font-style: italic;
 }
 
-.inicio-metricas .metric-card .categorias {
-  margin: 0;
+/* --- Próximo paso ---
+   Orientación y visualmente SECUNDARIO: fila horizontal compacta, sin la caja
+   grande con borde discontinuo que antes ocupaba media pantalla. */
+.inicio-bloque--reservado {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 16px 20px;
+  background: #f8faf9;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
 }
 
-/* Densidad de Empleado (Style Guide §24): en pantallas medianas las tres
-   tarjetas del resumen se apilan en dos columnas y luego en una. */
+.inicio-bloque--reservado__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.inicio-bloque--reservado h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.inicio-bloque--reservado h2 svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
+  stroke-width: 1.8;
+}
+
+.inicio-bloque--reservado p {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* --- Responsive (§7 / densidad de Empleado, Style Guide §24) --- */
+@media (max-width: 1100px) {
+  .inicio-total { font-size: 30px; }
+}
+
 @media (max-width: 900px) {
+  /* Las dos columnas siguen, más compactas; las 3 tarjetas pasan a 2+1. */
   .inicio-metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inicio-panel { padding: 18px; }
 }
 
 @media (max-width: 760px) {
-  .inicio-metricas { grid-template-columns: 1fr; }
-  .inicio-total { font-size: 24px; }
+  .inicio-metricas,
+  .inicio-principal { grid-template-columns: 1fr; }
+  .inicio-total { font-size: 26px; }
+  .inicio-empleado { gap: 20px; }
+  .inicio-bloque--reservado { align-items: flex-start; }
 }
