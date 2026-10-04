@@ -47,24 +47,117 @@
   width: 100%;
 }
 
-.inicio-lista {
+/* Total de un área (proyectos / capacitaciones). Es el `total` LITERAL del
+   contrato: solo cambia de tamaño y color, nunca es una métrica calculada. */
+.inicio-total {
+  margin: 0 0 12px;
+  color: var(--color-text-primary);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1.1;
+}
+
+/* --- Tus proyectos ---
+   Filas compactas: nombre a la izquierda y datos a la derecha. Sin tarjetas
+   grandes ni gráficos: el detalle vive en «Mis proyectos». */
+.inicio-proyectos {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.inicio-lista li {
-  padding: 6px 10px;
+.inicio-proyectos__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding: 11px 14px;
+  background: #f8faf9;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+}
+
+.inicio-proyectos__nombre {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.inicio-proyectos__datos {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inicio-proyectos__area {
   color: var(--color-text-secondary);
-  background: #f7f9f8;
-  border: 1px solid #e7ecea;
-  border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+/* Nota auxiliar (p. ej. "Muestras 3 de 7"): informa del recorte sin inventar
+   ninguna métrica; el total y el recorte salen del contrato. */
+.inicio-nota {
+  margin: 10px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+/* --- Resumen de competencias ---
+   Una fila por competencia: nombre + nivel/etiqueta. Reemplaza las cinco
+   `CompetenciaCard` completas, que pertenecen a «Mi progreso» (§21.2). */
+.inicio-competencias {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inicio-competencias__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.inicio-competencias__fila:last-child {
+  border-bottom: 0;
+}
+
+.inicio-competencias__nombre {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* `INSUFFICIENT_DATA` es un estado VÁLIDO (§14): se nombra, nunca se
+   convierte en nivel 0 ni en una barra vacía. */
+.inicio-competencias__sin-datos {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-style: italic;
 }
 
 .inicio-metricas .metric-card .categorias {
   margin: 0;
+}
+
+/* Densidad de Empleado (Style Guide §24): en pantallas medianas las tres
+   tarjetas del resumen se apilan en dos columnas y luego en una. */
+@media (max-width: 900px) {
+  .inicio-metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .inicio-metricas { grid-template-columns: 1fr; }
+  .inicio-total { font-size: 24px; }
 }

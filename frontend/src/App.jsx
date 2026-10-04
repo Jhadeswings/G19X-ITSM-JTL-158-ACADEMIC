@@ -160,6 +160,7 @@ function App() {
           alSesionExpirada={cerrarSesion}
           onIrAProgreso={() => setSeccion('mi-progreso')}
           onIrAProyectos={() => setSeccion('mis-proyectos')}
+          onIrACapacitaciones={() => setSeccion('mis-capacitaciones')}
         />
       ) : seccion === 'mi-progreso' ? (
         <MiProgreso token={sesion.token} alSesionExpirada={cerrarSesion} />
