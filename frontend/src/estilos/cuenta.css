@@ -13,26 +13,31 @@
    exige al rol Empleado. Los datos laborales son de solo lectura: no hay
    inputs ni controles de edición, y este archivo no añade ninguno. */
 
-/* La pantalla es una columna CONTENIDA y centrada (patrón del sistema para
-   bloques contenidos, como `employee-success`/`employee-onboarding`). El ancho
-   vive AQUÍ y en ningún otro sitio: las dos tarjetas son hijos directos de esta
-   columna, sin `max-width` propio, de modo que comparten exactamente el mismo
-   eje izquierdo y derecho y sus bordes coinciden.
+/* El ancho de esta pantalla NO se fija aquí: es el ANCHO ESTÁNDAR del área de
+   contenido del Empleado.
 
-   840px es el ancho que deja los cuatro datos de información con holgura (nombre
-   y correo en una sola línea en escritorio) sin llegar al ancho completo del
-   shell (con vacío a la derecha) ni a una tarjeta excesivamente ancha. */
-.mi-cuenta { display: flex; flex-direction: column; gap: 22px; max-width: 840px; margin: 0 auto; }
+   Todas las vistas del rol dejan el ancho en manos del shell —
+   `.app-content { width: min(100%, var(--content-width)) }` con
+   `--content-width: 1240px` (tokens.css)— y ninguna define `max-width` en su
+   raíz: ni `.growth-experience` (Mi progreso), ni `.mis-proyectos`, ni
+   `.capacitaciones-registro`, ni `.historial-evolucion`, ni `.inicio-empleado`.
+
+   "Mi cuenta" era la única excepción (`max-width: 840px; margin: 0 auto`), lo que
+   la hacía visiblemente más angosta que el resto de secciones. Aquí se replica
+   el patrón de Inicio: `width: 100%` y nada más. El límite, el centrado y el
+   padding vertical los pone el shell, igual que en las demás vistas. */
+.mi-cuenta { display: flex; flex-direction: column; gap: 22px; width: 100%; }
 
 /* --- Información de la cuenta (solo lectura) ---
    Título en banda de encabezado propia (borde inferior, patrón de las tarjetas
    con franja de `alta.css`): separa jerárquicamente el nombre de la sección del
    contenido y hace que las dos secciones de la pantalla se lean iguales.
-   Los cuatro datos van SIEMPRE en una sola fila en escritorio (referencia):
-   con `auto-fit`/`minmax(180px)` la cuarta columna caía a una segunda fila al
-   estar la vista limitada a un ancho contenido, así que la rejilla se
-   fija a 4 columnas `minmax(0, 1fr)` (equitativas y sin desbordar). En `≤760px`
-   la media query inferior ya la colapsa a una sola columna. */
+
+   Los cuatro datos van SIEMPRE en una sola fila en escritorio (referencia), con
+   cuatro columnas `minmax(0, 1fr)`: equitativas, sin desbordar y —porque el
+   ancho ya no está contenido en 840px— con sitio de sobra para el correo. A
+   ≤900px la rejilla pasa a 2 columnas para que ninguna celda quede estrangulada,
+   y a ≤760px a una sola columna. */
 .cuenta-datos { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
 .cuenta-datos__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
 .cuenta-datos__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
@@ -46,11 +51,10 @@
    encabezado + cuerpo, mismo borde, mismo radio, mismo `overflow: hidden` y
    NINGÚN `max-width` propio.
 
-   El ancho lo fija la columna `.mi-cuenta`, igual que para la tarjeta de datos:
-   así ambas comparten exactamente el mismo eje izquierdo y derecho. Antes esta
-   tarjeta se contenía a 660px dentro de una columna de 840px y quedaba más
-   estrecha que "Información de la cuenta", lo que rompía la alineación de las
-   dos cajas de la pantalla.
+   El ancho lo fija el shell, igual que para la tarjeta de datos: así ambas
+   comparten exactamente el mismo eje izquierdo y derecho. Esta tarjeta tuvo un
+   `max-width` propio (660px) que la hacía más estrecha que "Información de la
+   cuenta" y rompía la alineación de las dos cajas; ya no lo tiene.
 
    El cuerpo es una composición de dos columnas: "Contraseña actual" abre en
    ancho completo y el par "Nueva contraseña / Confirma" comparte fila. La
@@ -76,10 +80,13 @@
 /* El orden de los hijos es estable porque `CambioPasswordCuenta` es un
    componente cerrado (MB-6-3): 1 = etiqueta del grupo, 2 = contraseña actual,
    3 = nueva, 4 = confirmación y, después, la política, los mensajes y la
-   acción. El par 3/4 comparte fila dentro del ancho completo de la tarjeta:
-   con la rejilla de 2 columnas iguales cada campo ocupa media tarjeta, y el
-   hueco entre ellos es el `column-gap`, así que ambos quedan equilibrados y el
-   formulario aprovecha todo el ancho disponible. */
+   acción.
+
+   El cuerpo usa TODO el ancho de la tarjeta: "Contraseña actual" abre en una
+   fila completa y el par nueva/confirmación se reparte en dos columnas
+   iguales, con el `column-gap` entre ellas. Así el formulario aprovecha el ancho
+   estándar de la vista en lugar de quedar encogido dentro de una caja ancha, y
+   los dos campos quedan exactamente igual de anchos. */
 .cuenta-password > .form-field:nth-child(3),
 .cuenta-password > .form-field:nth-child(4) { grid-column: auto; }
 
@@ -108,12 +115,19 @@
    botón se perciba desligado del formulario. */
 .cuenta-password > .ui-button { justify-self: start; min-height: 40px; margin-top: 4px; }
 
+/* Breakpoint estándar del proyecto (`responsive.css`, `inicio.css`): con menos
+   ancho, las cuatro columnas de información dejarían la celda del correo
+   demasiado estrecha, así que pasan a 2 × 2. No limita el ancho de las
+   tarjetas: las dos siguen midiendo exactamente lo mismo. */
+@media (max-width: 900px) {
+  .cuenta-datos__lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* Adaptación a pantallas estrechas (§7): sin desbordamiento horizontal.
    Las dos tarjetas siguen teniendo EXACTAMENTE el mismo ancho disponible,
-   porque el límite es el de la columna `.mi-cuenta` y ninguna tarjeta lo
-   restringe. "Información de la cuenta" colapsa a una columna y el formulario
-   de Seguridad también, para que los labels y los valores se lean igual en
-   móvil. */
+   porque ninguna define `max-width` y el límite lo pone la columna del shell.
+   "Información de la cuenta" colapsa a una columna y el formulario de
+   Seguridad también, para que los labels y los valores se lean igual en móvil. */
 @media (max-width: 760px) {
   .cuenta-datos__encabezado, .cuenta-seguridad__encabezado { padding: 16px 18px; }
   .cuenta-datos__lista { grid-template-columns: 1fr; padding: 18px; }
