@@ -7,7 +7,15 @@ import { Input } from './ui/Input.jsx'
 import BrandMark from './BrandMark.jsx'
 import ContextualNetwork from './ContextualNetwork.jsx'
 
-export default function InicioSesion({ onExito }) {
+/**
+ * @param {object} props
+ * @param {(sesion: object) => void} props.onExito
+ * @param {'inactividad'|null} [props.motivoCierre] si la sesión anterior se
+ *   cerró por inactividad, se explica en el login. El logout manual y el
+ *   rechazo del backend llegan como `null` y NO muestran mensaje (comportamiento
+ *   previo intacto).
+ */
+export default function InicioSesion({ onExito, motivoCierre = null }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -53,6 +61,12 @@ export default function InicioSesion({ onExito }) {
             <h2 id="access-title">Inicia sesión</h2>
             <p>Continúa a tu espacio de talento.</p>
           </div>
+          {motivoCierre === 'inactividad' && (
+            <Alert tone="info" className="auth-access__aviso">
+              Tu sesión se cerró por inactividad. Inicia sesión nuevamente para
+              continuar.
+            </Alert>
+          )}
           <form className="auth-form" onSubmit={manejarEnvio} aria-busy={enviando}>
             <div className="field-control">
               <label htmlFor="email">Correo de acceso</label>

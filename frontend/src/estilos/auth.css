@@ -31,3 +31,12 @@
 .onboarding-action__icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 28px; color: var(--color-brand-deep); background: var(--color-primary-soft); border-radius: 14px; }
 .onboarding-action__icon svg { width: 23px; }
 .onboarding-action__intro { margin-bottom: 30px; }
+
+/* --- Aviso de sesión por vencer (Bloque F) -------------------------------
+ * Overlay bloqueante y de un solo uso: NO es un sistema genérico de modal.
+ * Reutiliza los tokens de superficie y borde del sistema; no crea paleta. */
+
+.sesion-aviso { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px; background: rgba(18,26,38,0.55); }
+.sesion-aviso__caja { display: grid; gap: 16px; width: min(100%,440px); padding: 24px; background: var(--color-surface); border: 1px solid var(--line-soft); border-radius: var(--radius-card); box-shadow: var(--shadow-float); }
+.sesion-aviso__contador { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--color-text-secondary); font-size: 14px; font-variant-numeric: tabular-nums; }
+.sesion-aviso__contador svg { width: 16px; height: 16px; }

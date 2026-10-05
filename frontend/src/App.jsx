@@ -29,6 +29,8 @@ import {
 import { obtenerCuenta } from './api/cuenta.js'
 import CambioContrasena from './componentes/CambioContrasena.jsx'
 import InicioSesion from './componentes/InicioSesion.jsx'
+import AvisoInactividad from './componentes/AvisoInactividad.jsx'
+import useInactividad from './lib/useInactividad.js'
 import Layout from './componentes/Layout.jsx'
 import {
   SECCIONES_EMPLEADO,
@@ -53,6 +55,8 @@ function App() {
   // Proyecto que Inicio pide abrir en «Mis proyectos» (MB-7-2E). Solo el id:
   // la identidad del empleado la sigue derivando el backend del token.
   const [proyectoPendiente, setProyectoPendiente] = useState(null)
+  // Motivo del cierre, SOLO para informar en el login. `null` = sin mensaje.
+  const [motivoCierre, setMotivoCierre] = useState(null)
 
   const esEmpleadoActivo =
     sesion?.rol === 'EMPLEADO' && sesion?.mustChangePassword === false
@@ -63,11 +67,25 @@ function App() {
     setSesion(sesionNueva)
   }, [])
 
-  const cerrarSesion = useCallback(() => {
+  const cerrarSesion = useCallback((motivo = 'voluntaria') => {
+    // Un solo punto de salida: limpiar storage, reiniciar navegación y sesión.
     limpiarSesion()
     setSeccion(SECCION_INICIAL)
+    setProyectoPendiente(null)
     setSesion(null)
+    // Solo el cierre por INACTIVIDAD deja rastro en el login. El logout manual
+    // y el 401 del backend siguen sin mensaje, exactamente como antes.
+    setMotivoCierre(motivo === 'inactividad' ? 'inactividad' : null)
   }, [])
+
+  // Sesión por inactividad (Bloque F): renueva mientras hay actividad y, si la
+  // hay, cierra la sesión. `cerrarSesion` ya es estable, así que el efecto no
+  // se realimenta.
+  const { aviso, seguirConectado } = useInactividad({
+    token: sesion?.token ?? null,
+    onCerrar: cerrarSesion,
+    onRenovar: setSesion,
+  })
 
   const alCambiarPassword = useCallback(() => {
     setSesion(actualizarSesion({ mustChangePassword: false }))
@@ -97,7 +115,7 @@ function App() {
   }, [esEmpleadoActivo, sesion?.token])
 
   if (!sesion) {
-    return <InicioSesion onExito={iniciar} />
+    return <InicioSesion onExito={iniciar} motivoCierre={motivoCierre} />
   }
 
   if (sesion.mustChangePassword) {
@@ -120,13 +138,14 @@ function App() {
       SECCIONES_RH.find((item) => item.id === SECCION_RH_INICIAL)
 
     return (
-      <Layout
+      <>
+        <Layout
         titulo={activaRh.titulo}
         rol="RH"
         secciones={SECCIONES_RH}
         activa={activaRh.id}
         onSeleccionar={setSeccion}
-        onCerrarSesion={cerrarSesion}
+        onCerrarSesion={() => cerrarSesion('voluntaria')}
       >
         {activaRh.id === 'inicio' ? (
           <InicioRH
@@ -140,6 +159,10 @@ function App() {
           <SeccionTemporal titulo={activaRh.titulo} />
         )}
       </Layout>
+        {aviso !== null && (
+          <AvisoInactividad segundos={aviso} alSeguirConectado={seguirConectado} />
+        )}
+      </>
     )
   }
 
@@ -148,15 +171,16 @@ function App() {
     SECCIONES_EMPLEADO[0]
 
   return (
-    <Layout
-      titulo={activa.titulo}
-      cuenta={cuenta}
-      rol="EMPLEADO"
-      secciones={SECCIONES_EMPLEADO}
-      activa={seccion}
-      onSeleccionar={setSeccion}
-      onCerrarSesion={cerrarSesion}
-    >
+    <>
+      <Layout
+        titulo={activa.titulo}
+        cuenta={cuenta}
+        rol="EMPLEADO"
+        secciones={SECCIONES_EMPLEADO}
+        activa={seccion}
+        onSeleccionar={setSeccion}
+        onCerrarSesion={() => cerrarSesion('voluntaria')}
+      >
       {seccion === 'inicio' ? (
         <Inicio
           token={sesion.token}
@@ -188,6 +212,10 @@ function App() {
         <SeccionTemporal titulo={activa.titulo} />
       )}
     </Layout>
+      {aviso !== null && (
+        <AvisoInactividad segundos={aviso} alSeguirConectado={seguirConectado} />
+      )}
+    </>
   )
 }
 

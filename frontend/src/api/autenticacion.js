@@ -86,6 +86,34 @@ export function limpiarSesion() {
 }
 
 /**
+ * Renueva el access token de una sesión todavía válida (Bloque F: sesión por
+ * inactividad).
+ *
+ * NO es un refresh token: no hay segundo token ni estado en el backend. El
+ * endpoint reemite el mismo JWT de acceso. Solo funciona con un token vigente:
+ * si expiró o la cuenta se desactivó, el backend responde 401 y esta función
+ * lo propulsa tal cual, para que la vista cierre la sesión y NO intente
+ * revivirla.
+ *
+ * Es TRANSPORTE PURO: no guarda nada, no decide nada y no reintenta.
+ *
+ * @param {string} token token de la sesión actual.
+ * @returns {Promise<{token: string, rol: string, mustChangePassword: boolean}>}
+ *   Misma forma que devuelve `iniciarSesion`, porque el contrato es el mismo.
+ */
+export async function renovarSesion(token) {
+  const datos = await solicitar('/api/v1/auth/renew', {
+    metodo: 'POST',
+    token,
+  })
+  return {
+    token: datos.access_token,
+    rol: datos.rol,
+    mustChangePassword: datos.must_change_password === true,
+  }
+}
+
+/**
  * Inicia sesión y devuelve la sesión que describe el backend.
  * @returns {Promise<{token: string, rol: string, mustChangePassword: boolean}>}
  */
