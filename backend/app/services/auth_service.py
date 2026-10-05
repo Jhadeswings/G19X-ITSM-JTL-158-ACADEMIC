@@ -94,6 +94,28 @@ def login(db: Session, email: str, password: str) -> tuple[CuentaAcceso, str]:
     return cuenta, token
 
 
+def renovar_access_token(cuenta: CuentaAcceso) -> str:
+    """Emite un JWT de acceso NUEVO para una cuenta YA autenticada.
+
+    Renovación stateless: no guarda nada en la base de datos, no registra
+    sesiones y NO introduce un refresh token (siguen sin existir, tal como fija
+    ``DECISIONES_TECNICAS.md`` §1). Solo prolonga la vida del token de acceso.
+
+    La cuenta que se usa es SIEMPRE la que ``app.api.deps`` ya cargó y validó
+    desde la base de datos, nunca los claims del token entrante: así un token
+    con ``rol`` o ``empleado_id`` obsoletos no se perpetúa, y una cuenta
+    desactivada ya habría sido rechazada con 401 antes de llegar aquí.
+
+    NO puede revivir una sesión caducada: si el token presentado expiró, la
+    validación de ``decodificar_access_token`` falla antes y el endpoint nunca
+    llega a emitirse. El frontend es responsable de no llamar a este endpoint
+    en bucle (debe aplicar su propia cadence/throttle).
+    """
+    return crear_access_token(
+        cuenta_id=cuenta.id, rol=cuenta.rol, empleado_id=cuenta.empleado_id
+    )
+
+
 def cambiar_password(
     db: Session,
     cuenta: CuentaAcceso,

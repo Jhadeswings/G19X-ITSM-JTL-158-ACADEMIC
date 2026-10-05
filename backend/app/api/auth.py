@@ -2,6 +2,7 @@
 
 Solo los endpoints reales de esta fase (Especificación Técnica §31):
 - POST /auth/login
+- POST /auth/renew (renovación stateless del access token; no es refresh token)
 - POST /auth/password/change
 - POST /auth/recovery/request
 - POST /auth/recovery/reset
@@ -35,6 +36,41 @@ def login(datos: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
     cuenta, token = auth_service.login(db, datos.email, datos.password)
     return TokenOut(
         access_token=token,
+        rol=cuenta.rol,
+        must_change_password=cuenta.must_change_password,
+    )
+
+
+@router.post("/renew", response_model=TokenOut)
+def renovar_sesion(
+    cuenta: CuentaAcceso = Depends(get_current_user_allow_pending),
+) -> TokenOut:
+    """Renueva el JWT de acceso de una sesión todavía válida.
+
+    Responde EXACTAMENTE el mismo contrato que ``POST /auth/login``
+    (``TokenOut``), para que el cliente pueda reutilizar su traducción
+    existente sin tratarlo como un caso especial.
+
+    No es un refresh token: no hay segundo token, ni tabla de sesiones, ni
+    estado nuevo en la base de datos (JWT stateless, `DECISIONES_TECNICAS.md`
+    §1). El propio access token se reemite con la misma firma y expiración.
+
+    Solo renueva si la sesión sigue siendo válida, y eso lo decide la
+    validación compartida (`get_current_user_allow_pending`):
+
+    - token expirado, con firma inválida o ausente → **401**, igual que en
+      cualquier otro endpoint protegido. Una sesión caducada NO se revive;
+    - cuenta desactivada o inexistente → **401** (la cuenta se recarga desde la
+      base de datos en cada request);
+    - `must_change_password=true` → se renueva igualmente, igual que en
+      ``/auth/password/change``, para no bloquear el primer acceso.
+
+    El ritmo de renovación NO lo impone el backend: es responsabilidad del
+    cliente (throttle/debounce), porque el backend es stateless y no debe
+    llevar la cuenta de peticiones.
+    """
+    return TokenOut(
+        access_token=auth_service.renovar_access_token(cuenta),
         rol=cuenta.rol,
         must_change_password=cuenta.must_change_password,
     )

@@ -15,6 +15,7 @@ from app.models.empleado import Empleado
 PASSWORD_PRUEBA = "Clave1234"
 
 URL_LOGIN = "/api/v1/auth/login"
+URL_RENOVAR = "/api/v1/auth/renew"
 URL_ME = "/api/v1/me"
 URL_CAMBIO = "/api/v1/auth/password/change"
 URL_RECUPERACION = "/api/v1/auth/recovery/request"
