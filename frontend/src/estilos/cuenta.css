@@ -14,13 +14,14 @@
    inputs ni controles de edición, y este archivo no añade ninguno. */
 
 /* La pantalla es una columna CONTENIDA y centrada (patrón del sistema para
-   bloques contenidos, como `employee-success`/`employee-onboarding`): al fijar
-   aquí la anchura, las DOS tarjetas comparten el mismo ancho y quedan alineadas
-   entre sí. 840px es el ancho que deja los cuatro datos de información con
-   holgura (nombre y correo en una sola línea en escritorio) sin llegar al ancho
-   completo del shell (con vacío a la derecha) ni a una tarjeta excesivamente
-   ancha. La tarjeta de "Seguridad" se contiene más (ver abajo) porque su
-   formulario es mucho más corto que la lista de datos. */
+   bloques contenidos, como `employee-success`/`employee-onboarding`). El ancho
+   vive AQUÍ y en ningún otro sitio: las dos tarjetas son hijos directos de esta
+   columna, sin `max-width` propio, de modo que comparten exactamente el mismo
+   eje izquierdo y derecho y sus bordes coinciden.
+
+   840px es el ancho que deja los cuatro datos de información con holgura (nombre
+   y correo en una sola línea en escritorio) sin llegar al ancho completo del
+   shell (con vacío a la derecha) ni a una tarjeta excesivamente ancha. */
 .mi-cuenta { display: flex; flex-direction: column; gap: 22px; max-width: 840px; margin: 0 auto; }
 
 /* --- Información de la cuenta (solo lectura) ---
@@ -41,44 +42,44 @@
 .cuenta-datos__lista dd { margin: 0; color: var(--color-text-primary); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 
 /* --- Seguridad ---
-   Misma estructura de tarjeta que "Información de la cuenta" (banda de
-   encabezado "Seguridad" + cuerpo), pero con una anchura PROPORCIONADA al
-   contenido y no al resto de la vista: el cuerpo es un formulario corto de
-   tres campos, y a 840px la tarjeta quedaba mucho más ancha que su propio
-   formulario, con una franja de vacío a la derecha que se leía como un error
-   de composición en lugar de como una decisión.
+   MISMA estructura de tarjeta que "Información de la cuenta": banda de
+   encabezado + cuerpo, mismo borde, mismo radio, mismo `overflow: hidden` y
+   NINGÚN `max-width` propio.
 
-   Por eso la tarjeta se contiene a 660px y se alinea con el MISMO borde
-   izquierdo que "Información de la cuenta" (sin centrarla aparte: el bloque
-   pertenece a la columna de la vista, no flota suelto). A 660px los dos
-   campos del par quedan en ~296px cada uno: suficiente para escribir una
-   contraseña con comodidad y equilibrados entre sí. El ancho real sigue
-   gobernado por la columna `.mi-cuenta` y por el shell del Empleado, así que
-   nunca hay tarjeta más ancha que su contenedor.
+   El ancho lo fija la columna `.mi-cuenta`, igual que para la tarjeta de datos:
+   así ambas comparten exactamente el mismo eje izquierdo y derecho. Antes esta
+   tarjeta se contenía a 660px dentro de una columna de 840px y quedaba más
+   estrecha que "Información de la cuenta", lo que rompía la alineación de las
+   dos cajas de la pantalla.
 
    El cuerpo es una composición de dos columnas: "Contraseña actual" abre en
    ancho completo y el par "Nueva contraseña / Confirma" comparte fila. La
    jerarquía interna sigue siendo: título de sección (h2) → etiqueta del
    grupo (h3 del componente) → campos → política → mensajes de estado →
    acción principal. */
-.cuenta-seguridad { display: flex; flex-direction: column; max-width: 660px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
+.cuenta-seguridad { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
 .cuenta-seguridad__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
 .cuenta-seguridad__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
 
 /* Clases del formulario (componente `CambioPasswordCuenta`): cuerpo de la
-   sección. Hereda el ancho de la tarjeta (660px) —sin `max-width` propio— y
-   todos los hijos abarcan el ancho completo por defecto; SOLO el par
-   nueva/confirmación comparte fila. El `row-gap` de 14px mantiene el formulario
-   compacto —la referencia muestra los campos más juntos de lo que permite un
-   gap de 16px— sin que las etiquetas y los inputs se toquen. */
-.cuenta-password { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; padding: 18px 24px 24px; }
+   sección. Hereda el ancho de la tarjeta —sin `max-width` propio— y todos los
+   hijos abarcan el ancho completo por defecto; SOLO el par nueva/confirmación
+   comparte fila. El `row-gap` de 14px mantiene el formulario compacto —la
+   referencia muestra los campos más juntos de lo que permite un gap de 16px—
+   sin que las etiquetas y los inputs se toquen.
+
+   El `padding` es IDENTICO al de `.cuenta-datos__lista`: ambas tarjetas
+   comparten así el mismo aire interior y se leen como el mismo sistema visual. */
+.cuenta-password { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; padding: 20px 24px 24px; }
 .cuenta-password > * { grid-column: 1 / -1; }
 
 /* El orden de los hijos es estable porque `CambioPasswordCuenta` es un
    componente cerrado (MB-6-3): 1 = etiqueta del grupo, 2 = contraseña actual,
    3 = nueva, 4 = confirmación y, después, la política, los mensajes y la
-   acción. El par 3/4 comparte fila: ~296px cada campo dentro de la tarjeta de
-   660px, anchura cómoda para escribir contraseñas y equilibrada entre los dos. */
+   acción. El par 3/4 comparte fila dentro del ancho completo de la tarjeta:
+   con la rejilla de 2 columnas iguales cada campo ocupa media tarjeta, y el
+   hueco entre ellos es el `column-gap`, así que ambos quedan equilibrados y el
+   formulario aprovecha todo el ancho disponible. */
 .cuenta-password > .form-field:nth-child(3),
 .cuenta-password > .form-field:nth-child(4) { grid-column: auto; }
 
@@ -108,16 +109,14 @@
 .cuenta-password > .ui-button { justify-self: start; min-height: 40px; margin-top: 4px; }
 
 /* Adaptación a pantallas estrechas (§7): sin desbordamiento horizontal.
-   La tarjeta de Seguridad recupera el ancho disponible (`max-width: none`):
-   a una sola columna los campos no necesitan la contención de escritorio y
-   ocuparla sería dejar la mitad de la pantalla vacía. Una sola columna: los
-   campos siguen cómodos y legibles, el hint queda bajo el conjunto de nueva
-   contraseña y el botón mantiene su relación con el formulario ocupando el
-   ancho completo. */
+   Las dos tarjetas siguen teniendo EXACTAMENTE el mismo ancho disponible,
+   porque el límite es el de la columna `.mi-cuenta` y ninguna tarjeta lo
+   restringe. "Información de la cuenta" colapsa a una columna y el formulario
+   de Seguridad también, para que los labels y los valores se lean igual en
+   móvil. */
 @media (max-width: 760px) {
   .cuenta-datos__encabezado, .cuenta-seguridad__encabezado { padding: 16px 18px; }
   .cuenta-datos__lista { grid-template-columns: 1fr; padding: 18px; }
-  .cuenta-seguridad { max-width: none; }
   .cuenta-password { grid-template-columns: 1fr; max-width: 100%; padding: 18px; }
   .cuenta-password > .ui-button { justify-self: stretch; width: 100%; }
 }
