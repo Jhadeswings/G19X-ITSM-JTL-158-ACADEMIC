@@ -50,6 +50,9 @@ function App() {
   const [sesion, setSesion] = useState(obtenerSesion)
   const [seccion, setSeccion] = useState(SECCION_INICIAL)
   const [cuenta, setCuenta] = useState(null)
+  // Proyecto que Inicio pide abrir en «Mis proyectos» (MB-7-2E). Solo el id:
+  // la identidad del empleado la sigue derivando el backend del token.
+  const [proyectoPendiente, setProyectoPendiente] = useState(null)
 
   const esEmpleadoActivo =
     sesion?.rol === 'EMPLEADO' && sesion?.mustChangePassword === false
@@ -161,11 +164,20 @@ function App() {
           onIrAProgreso={() => setSeccion('mi-progreso')}
           onIrAProyectos={() => setSeccion('mis-proyectos')}
           onIrACapacitaciones={() => setSeccion('mis-capacitaciones')}
+          onIrAProyecto={(proyectoId) => {
+            setProyectoPendiente(proyectoId)
+            setSeccion('mis-proyectos')
+          }}
         />
       ) : seccion === 'mi-progreso' ? (
         <MiProgreso token={sesion.token} alSesionExpirada={cerrarSesion} />
       ) : seccion === 'mis-proyectos' ? (
-        <MisProyectos token={sesion.token} alSesionExpirada={cerrarSesion} />
+        <MisProyectos
+          token={sesion.token}
+          alSesionExpirada={cerrarSesion}
+          proyectoId={proyectoPendiente}
+          alProyectoAplicado={() => setProyectoPendiente(null)}
+        />
       ) : seccion === 'mis-capacitaciones' ? (
         <MisCapacitaciones token={sesion.token} alSesionExpirada={cerrarSesion} />
       ) : seccion === 'mi-historial' ? (

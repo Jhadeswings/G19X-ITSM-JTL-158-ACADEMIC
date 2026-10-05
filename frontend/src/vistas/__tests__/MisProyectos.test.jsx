@@ -18,7 +18,7 @@ import {
   crearParticipacion,
   listarParticipaciones,
 } from '../../api/participaciones.js'
-import { buscarProyectos, crearProyecto } from '../../api/proyectos.js'
+import { buscarProyectos, crearProyecto, listarMisProyectos } from '../../api/proyectos.js'
 import MisProyectos from '../MisProyectos.jsx'
 
 vi.mock('../../api/participaciones.js', () => ({
@@ -29,6 +29,7 @@ vi.mock('../../api/participaciones.js', () => ({
 vi.mock('../../api/proyectos.js', () => ({
   buscarProyectos: vi.fn(),
   crearProyecto: vi.fn(),
+  listarMisProyectos: vi.fn(),
 }))
 
 const EXACTA = {
@@ -1404,5 +1405,67 @@ describe('MisProyectos — MB-5B-2: edición controlada de la participación', (
 })
     expect(listarParticipaciones).not.toHaveBeenCalled()
     expect(crearParticipacion).not.toHaveBeenCalled()
+  })
+})
+
+// --- MB-7-2E: entrada desde Inicio con un proyecto ya elegido -------------
+describe('MisProyectos — proyecto recibido desde Inicio', () => {
+  const PROYECTO = {
+    id: 42,
+    nombre: 'Desarrollador móvil',
+    nombre_normalizado: 'desarrollador movil',
+    area: 'Tecnología',
+    cliente: null,
+    estado: 'EN_PROCESO',
+    created_at: '2026-06-01T10:00:00',
+    updated_at: '2026-06-01T10:00:00',
+  }
+
+  function pagina(items) {
+    return { total: items.length, pagina: 1, por_pagina: 20, items }
+  }
+
+  beforeEach(() => {
+    vi.mocked(listarMisProyectos).mockReset()
+    vi.mocked(listarMisProyectos).mockResolvedValue(pagina([PROYECTO]))
+    vi.mocked(listarParticipaciones).mockResolvedValue(SIN_PARTICIPACIONES)
+  })
+
+  it('selecciona el proyecto recibido y abre el paso 03', async () => {
+    render(<MisProyectos token="token-empleado" alSesionExpirada={vi.fn()} proyectoId={42} />)
+
+    // El paso 03 solo existe con proyecto seleccionado, y muestra su nombre.
+    const paso = await screen.findByRole('region', { name: /Registrar la participación/ })
+    expect(paso).toHaveTextContent(PROYECTO.nombre)
+    expect(listarMisProyectos).toHaveBeenCalledWith('token-empleado')
+  })
+
+  it('solo transmite el id: la identidad la deriva el token', async () => {
+    render(<MisProyectos token="token-empleado" alSesionExpirada={vi.fn()} proyectoId={42} />)
+
+    await screen.findByRole('region', { name: /Registrar la participación/ })
+    // `GET /me/projects` se pide con el token, sin `empleado_id` ni rol.
+    expect(listarMisProyectos).toHaveBeenCalledWith('token-empleado')
+    expect(listarMisProyectos.mock.calls[0]).toHaveLength(1)
+    // La participación se sigue detectando con el endpoint propio, sin filtro.
+    await waitFor(() => expect(listarParticipaciones).toHaveBeenCalled())
+  })
+
+  it('ignora un proyecto que no pertenece al empleado', async () => {
+    vi.mocked(listarMisProyectos).mockResolvedValue(pagina([]))
+    render(<MisProyectos token="token-empleado" alSesionExpirada={vi.fn()} proyectoId={99} />)
+
+    await waitFor(() => expect(listarMisProyectos).toHaveBeenCalled())
+    // Sin selección, el paso 03 no existe y la vista sigue su flujo normal.
+    expect(
+      screen.queryByRole('region', { name: /Registrar la participación/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('sin proyectoId no consulta el listado propio', async () => {
+    render(<MisProyectos token="token-empleado" alSesionExpirada={vi.fn()} />)
+
+    await screen.findByRole('heading', { name: /Mis proyectos/ })
+    expect(listarMisProyectos).not.toHaveBeenCalled()
   })
 })

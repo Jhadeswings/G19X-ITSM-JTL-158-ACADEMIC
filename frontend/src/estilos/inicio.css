@@ -88,17 +88,39 @@
   list-style: none;
 }
 
+/* La fila es un `<button>` (MB-7-2E): hereda el aspecto sobrio de la lista y
+   añade solo hover/focus. Sin iconografía ni flecha añadida. */
 .inicio-proyectos__item {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 6px 14px;
+  width: 100%;
   min-height: 46px;
   padding: 11px 14px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   background: #fff;
   border: 1px solid var(--line-soft);
   border-radius: 9px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.inicio-proyectos__item:hover:not(:disabled) {
+  background: #f8faf9;
+  border-color: #c8ddda;
+}
+
+.inicio-proyectos__item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.inicio-proyectos__item:disabled {
+  cursor: default;
 }
 
 .inicio-proyectos__nombre {
@@ -155,11 +177,35 @@
   font-weight: 600;
 }
 
-/* `INSUFFICIENT_DATA` es un estado VÁLIDO (§14): se nombra, nunca se
-   convierte en nivel 0 ni en una barra vacía. */
-.inicio-competencias__sin-datos {
+/* Nivel y etiqueta en DOS columnas de ancho fijo: así todos los números
+   comparten eje vertical entre sí y todas las etiquetas el suyo. Sin chip,
+   sin fondo, sin borde: es una lista, no un conjunto de cápsulas. */
+.inicio-competencias__nivel {
+  display: grid;
+  grid-template-columns: 24px minmax(90px, auto);
+  align-items: baseline;
+  gap: 0 12px;
+  margin-left: auto;
+}
+
+.inicio-competencias__numero {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.inicio-competencias__etiqueta {
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: 14px;
+}
+
+/* `INSUFICIENT_DATA` es un estado VÁLIDO (§14): ocupa la columna del estado,
+   nunca se convierte en nivel 0 ni en una barra vacía. */
+.inicio-competencias__sin-datos {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: 14px;
   font-style: italic;
 }
 

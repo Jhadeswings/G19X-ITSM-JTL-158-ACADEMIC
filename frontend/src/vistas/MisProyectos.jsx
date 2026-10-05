@@ -47,14 +47,18 @@
 // formulario §18.3. La confirmación del registro NUNCA depende de
 // `participacion.proyecto`: el nombre mostrado sale del proyecto seleccionado.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowRight, CheckCircle2, ClipboardCheck, FolderKanban, Pencil, Repeat2, Save, Search } from 'lucide-react'
 import {
   actualizarParticipacion,
   crearParticipacion,
   listarParticipaciones,
 } from '../api/participaciones.js'
-import { buscarProyectos, crearProyecto } from '../api/proyectos.js'
+import {
+  buscarProyectos,
+  crearProyecto,
+  listarMisProyectos,
+} from '../api/proyectos.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
@@ -163,7 +167,12 @@ function edicionInicial() {
   return { activa: false, fase: 'inactiva', error: null }
 }
 
-export default function MisProyectos({ token, alSesionExpirada }) {
+export default function MisProyectos({
+  token,
+  alSesionExpirada,
+  proyectoId = null,
+  alProyectoAplicado,
+}) {
   const [nombreEscrito, setNombreEscrito] = useState('')
   const [consultaEjecutada, setConsultaEjecutada] = useState('')
   const [avisoBusqueda, setAvisoBusqueda] = useState(null)
@@ -188,6 +197,41 @@ export default function MisProyectos({ token, alSesionExpirada }) {
   const [edicion, setEdicion] = useState(edicionInicial)
   const [formEdicion, setFormEdicion] = useState({ rol: '', entregables: '', horas: '' })
   const [avisosEdicion, setAvisosEdicion] = useState(avisosIniciales)
+
+  // --- Entrada desde Inicio (MB-7-2E) -------------------------------------
+  // Al llegar desde «Inicio» con el `proyectoId` de una fila pulsada, esta vista
+  // lo selecciona y reutiliza su PROPIO flujo (`seleccionarProyecto` →
+  // `detectarParticipacion`): el detalle de la participación se muestra aquí, no
+  // se duplica en Inicio.
+  //
+  // Solo se transmite el IDENTIFICADOR del proyecto: nada de `empleado_id`, rol
+  // ni datos de la participación. El objeto del proyecto se resuelve con
+  // `GET /me/projects` —endpoint de solo lectura ya existente (MB-7-1)— porque
+  // el paso 03 necesita su `nombre`, y la identidad del Empleado sigue
+  // derivándose del token (§32). No se crea endpoint ni vista nuevos.
+  useEffect(() => {
+    if (proyectoId === null || proyectoId === undefined) return undefined
+    let vigente = true
+
+    listarMisProyectos(token)
+      .then((pagina) => {
+        const proyecto = pagina?.items?.find((p) => p.id === Number(proyectoId))
+        // Si el proyecto no está entre los del empleado, no se selecciona nada:
+        // la vista conserva su flujo de búsqueda normal.
+        if (vigente && proyecto) seleccionarProyecto(proyecto)
+      })
+      .catch(() => {
+        // Un fallo al resolver NO interrumpe la vista: el usuario sigue
+        // pudiendo buscar y registrar desde el flujo habitual.
+      })
+      .finally(() => {
+        if (vigente) alProyectoAplicado?.()
+      })
+
+    return () => {
+      vigente = false
+    }
+  }, [proyectoId])
 
   function buscar(nombre) {
     setConsultaEjecutada(nombre)

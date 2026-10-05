@@ -280,7 +280,7 @@ describe('Inicio — proyectos (GET /me/projects)', () => {
       proyectos: paginaProyectos([proyecto(1, 'Proyecto Roble', 'Operaciones')]),
     })
 
-    const fila = screen.getByText('Proyecto Roble').closest('li')
+    const fila = screen.getByRole('button', { name: /Proyecto Roble/ })
     expect(within(fila).getByText('Operaciones')).toBeInTheDocument()
     expect(within(fila).getByText('EN_PROCESO')).toBeInTheDocument()
     const texto = container.textContent.toLowerCase()
@@ -289,13 +289,48 @@ describe('Inicio — proyectos (GET /me/projects)', () => {
     }
   })
 
+  it('cada fila de proyecto es interactiva y lleva a Mis proyectos', async () => {
+    const onIrAProyecto = vi.fn()
+    vi.mocked(obtenerResultadoActual).mockResolvedValue(resultado())
+    vi.mocked(listarMisProyectos).mockResolvedValue(
+      paginaProyectos([proyecto(7, 'Proyecto Roble'), proyecto(8, 'Proyecto Olmo')]),
+    )
+    vi.mocked(listarCapacitaciones).mockResolvedValue(paginaCapacitaciones(0))
+    render(
+      <Inicio
+        token="token-empleado"
+        alSesionExpirada={vi.fn()}
+        onIrAProyecto={onIrAProyecto}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Inicio', level: 1 })
+
+    // Semántica de botón nativa: la fila completa es el control.
+    const filas = screen.getAllByRole('button', { name: /Proyecto/ })
+    expect(filas).toHaveLength(2)
+    expect(filas[0]).toHaveClass('inicio-proyectos__item')
+
+    // Solo viaja el identificador del proyecto: ni empleado_id, ni rol, ni
+    // datos de la participación.
+    fireEvent.click(filas[1])
+    expect(onIrAProyecto).toHaveBeenCalledTimes(1)
+    expect(onIrAProyecto).toHaveBeenCalledWith(8)
+    expect(onIrAProyecto.mock.calls[0]).toHaveLength(1)
+  })
+
+  it('NO tiene botón "Ver mis proyectos": el acceso es cada fila', async () => {
+    const { container } = await montar()
+
+    expect(screen.queryByText('Ver mis proyectos')).not.toBeInTheDocument()
+    expect(container.querySelectorAll('.inicio-proyectos__item')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /Proyecto Roble/ })).toBeInTheDocument()
+  })
+
   it('muestra estado vacío sin mensaje motivacional', async () => {
     await montar({ proyectos: paginaProyectos([]) })
 
     expect(await screen.findByText('Todavía no tienes proyectos')).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Ver mis proyectos' }),
-    ).toBeInTheDocument()
+    expect(screen.queryByText('Ver mis proyectos')).not.toBeInTheDocument()
   })
 })
 
@@ -317,11 +352,21 @@ describe('Inicio — resumen de competencias (compacto)', () => {
     ])
   })
 
-  it('muestra nivel + etiqueta tal cual los devuelve el backend', async () => {
+  it('muestra nivel y etiqueta en columnas separadas, sin chip ni punto medio', async () => {
     await montar()
 
-    // `nivel` y `etiqueta` vienen del contrato; no se derivan aquí.
-    expect(screen.getByText('4 · Consolidado')).toBeInTheDocument()
+    // Número y etiqueta van en celdas propias: el 4 comparte eje con el resto
+    // de niveles y "Consolidado" con el resto de etiquetas.
+    const numero = document.querySelector('.inicio-competencias__numero')
+    const etiqueta = document.querySelector('.inicio-competencias__etiqueta')
+    expect(numero).toHaveTextContent('4')
+    expect(etiqueta).toHaveTextContent('Consolidado')
+    expect(numero.parentElement).toBe(etiqueta.parentElement)
+    // Sin `·` uniendo número y palabra.
+    expect(numero.parentElement.textContent).not.toContain('·')
+    // Sin apariencia de chip: ni badge, ni fondo, ni borde.
+    expect(etiqueta.className).not.toContain('ui-badge')
+    expect(document.querySelectorAll('.inicio-competencias .ui-badge')).toHaveLength(0)
   })
 
   it('presenta DI como "Datos insuficientes", nunca como nivel 0', async () => {
@@ -331,7 +376,7 @@ describe('Inicio — resumen de competencias (compacto)', () => {
       .getByRole('heading', { name: 'Resumen de competencias', level: 2 })
       .closest('section')
     expect(within(resumen).getAllByText('Datos insuficientes')).toHaveLength(4)
-    expect(within(resumen).queryByText(/^0 ·/)).not.toBeInTheDocument()
+    expect(within(resumen).queryByText('0')).not.toBeInTheDocument()
   })
 
   it('NO monta las cinco CompetenciaCard completas', async () => {
@@ -373,15 +418,16 @@ describe('Inicio — resumen de competencias (compacto)', () => {
     ).toBeInTheDocument()
   })
 
-  it('no usa barras ni segmentos para el nivel: solo nivel + etiqueta', async () => {
+  it('no usa barras ni segmentos para el nivel', async () => {
     const { container } = await montar()
 
-    // MB-7-2C: la referencia muestra únicamente `nombre → nivel · etiqueta`.
+    // MB-7-2C/2E: la referencia muestra número y etiqueta en columnas, sin
+    // ninguna marca visual del nivel.
     expect(container.querySelectorAll('.inicio-nivel')).toHaveLength(0)
     expect(container.querySelectorAll('.inicio-nivel__paso')).toHaveLength(0)
-    expect(container.querySelectorAll('.inicio-competencias__nivel')).toHaveLength(0)
-    // El texto del nivel sigue presente y es el del contrato.
-    expect(screen.getByText('4 · Consolidado')).toBeInTheDocument()
+    // El nivel sigue presente y es el del contrato.
+    expect(document.querySelector('.inicio-competencias__numero')).toHaveTextContent('4')
+    expect(document.querySelector('.inicio-competencias__etiqueta')).toBeInTheDocument()
   })
 
   it('el acceso a Mi progreso vive solo en competencias y Próximo paso', async () => {

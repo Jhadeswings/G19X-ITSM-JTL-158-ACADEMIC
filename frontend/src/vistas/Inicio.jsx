@@ -89,6 +89,7 @@ export default function Inicio({
   onIrAProgreso,
   onIrAProyectos,
   onIrACapacitaciones,
+  onIrAProyecto,
 }) {
   const [resultado, recargarResultado] = usarConsulta(
     obtenerResultadoActual,
@@ -191,7 +192,7 @@ export default function Inicio({
         <EstadoProyectos
           estado={proyectos}
           recargar={recargarProyectos}
-          onIrAProyectos={onIrAProyectos}
+          onIrAProyecto={onIrAProyecto}
         />
       </Panel>
 
@@ -229,11 +230,7 @@ export default function Inicio({
         <h2 id="inicio-proximo-paso">
           <Target aria-hidden="true" /> Próximo paso
         </h2>
-        <p>
-          Todavía no hay un próximo paso definido. El sistema aún no define una
-          regla para sugerirlo. Revisa tu resultado en Mi progreso para ver
-          dónde tienes evidencia y dónde no.
-        </p>
+        <p>Todavía no hay un próximo paso definido.</p>
         {onIrAProgreso && (
           <Button
             type="button"
@@ -269,7 +266,7 @@ function Panel({ id, titulo, children }) {
  * Solo se pintan campos que ya existen en `ProyectoOut`: nombre, área y estado.
  * No hay horas, porcentajes, scores ni "destacado".
  */
-function EstadoProyectos({ estado, recargar, onIrAProyectos }) {
+function EstadoProyectos({ estado, recargar, onIrAProyecto }) {
   if (estado.fase === 'cargando') return <EstadoCarga />
   if (estado.fase === 'error') {
     return (
@@ -294,14 +291,24 @@ function EstadoProyectos({ estado, recargar, onIrAProyectos }) {
       ) : (
         <ul className="inicio-proyectos">
           {seleccionados.map((proyecto) => (
-            <li key={proyecto.id} className="inicio-proyectos__item">
-              <span className="inicio-proyectos__nombre">{proyecto.nombre}</span>
-              <span className="inicio-proyectos__datos">
-                {proyecto.area && (
-                  <span className="inicio-proyectos__area">{proyecto.area}</span>
-                )}
-                <Badge tone="outline">{proyecto.estado}</Badge>
-              </span>
+            <li key={proyecto.id}>
+              {/* Cada fila es un control: lleva a «Mis proyectos» con ESE
+                  proyecto ya seleccionado, donde se muestra la participación
+                  registrada. Solo viaja su identificador. */}
+              <button
+                type="button"
+                className="inicio-proyectos__item"
+                onClick={() => onIrAProyecto?.(proyecto.id)}
+                disabled={!onIrAProyecto}
+              >
+                <span className="inicio-proyectos__nombre">{proyecto.nombre}</span>
+                <span className="inicio-proyectos__datos">
+                  {proyecto.area && (
+                    <span className="inicio-proyectos__area">{proyecto.area}</span>
+                  )}
+                  <Badge tone="outline">{proyecto.estado}</Badge>
+                </span>
+              </button>
             </li>
           ))}
         </ul>
@@ -313,12 +320,6 @@ function EstadoProyectos({ estado, recargar, onIrAProyectos }) {
           Muestras {MAX_PROYECTOS} de {total} proyectos registrados.
         </p>
       )}
-
-      {onIrAProyectos && (
-        <Button type="button" variant="secondary" onClick={onIrAProyectos}>
-          Ver mis proyectos
-        </Button>
-      )}
     </>
   )
 }
@@ -328,10 +329,12 @@ function EstadoProyectos({ estado, recargar, onIrAProyectos }) {
  * contrato. NO se usan `CompetenciaCard`: su evidencia, sus barras y "¿Cómo se
  * obtiene?" pertenecen a "Mi progreso" (§21.2).
  *
- * Cada fila es solo `nombre → nivel · etiqueta`, como en la referencia: sin
- * barras, segmentos ni indicadores visuales adicionales. No se calcula nada:
- * `nivel` y `etiqueta` se pintan tal cual los devuelve el backend, e
- * `INSUFFICIENT_DATA` se nombra (nunca se convierte en nivel 0, §14).
+ * Cada fila es una LISTA limpia de dos columnas —nombre a la izquierda y
+ * `nivel` + `etiqueta` a la derecha— sin chip, badge, cápsula ni borde: el nivel
+ * va en su propia columna y la etiqueta en otra, ambas alineadas, sin `·`.
+ * No se calcula nada: `nivel` y `etiqueta` se pintan tal cual los devuelve el
+ * backend, e `INSUFFICIENT_DATA` ocupa la columna del estado (nunca nivel 0,
+ * §14).
  */
 function Competencias({ competencias }) {
   return (
@@ -348,9 +351,16 @@ function Competencias({ competencias }) {
                 Datos insuficientes
               </span>
             ) : (
-              <Badge tone="neutral">
-                {competencia.nivel} · {competencia.etiqueta}
-              </Badge>
+              // Dos celdas fijas: el número comparte eje con el resto de
+              // niveles y la etiqueta con el resto de etiquetas.
+              <span className="inicio-competencias__nivel">
+                <span className="inicio-competencias__numero">
+                  {competencia.nivel}
+                </span>
+                <span className="inicio-competencias__etiqueta">
+                  {competencia.etiqueta}
+                </span>
+              </span>
             )}
           </li>
         )
