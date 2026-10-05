@@ -121,13 +121,12 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
   it('presenta los bloques del resumen en el orden del PRD', async () => {
     const { container } = await montar()
 
-    // Orden del DOM: resumen superior (3 tarjetas `MetricCard`, también h2) →
-    // zona principal (2 paneles) → próximo paso.
+    // Orden del DOM: fila superior (2 tarjetas `MetricCard`, también h2) →
+    // Tus proyectos → Resumen de competencias → Próximo paso.
     const titulos = [...container.querySelectorAll('h2')].map((n) =>
       n.textContent.trim(),
     )
     expect(titulos).toEqual([
-      'Mi progreso',
       'Proyectos',
       'Capacitaciones',
       'Tus proyectos',
@@ -136,21 +135,29 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
     ])
   })
 
-  it('el resumen superior tiene TRES tarjetas de tamaño equivalente', async () => {
+  it('la fila superior tiene DOS tarjetas: Proyectos y Capacitaciones', async () => {
     const { container } = await montar()
 
     const tarjetas = container.querySelectorAll('.inicio-metricas .metric-card')
-    expect(tarjetas).toHaveLength(3)
-    // Orden exacto de la referencia: Mi progreso, Proyectos, Capacitaciones.
+    expect(tarjetas).toHaveLength(2)
     expect([...tarjetas].map((t) => t.querySelector('h2').textContent.trim())).toEqual([
-      'Mi progreso',
       'Proyectos',
       'Capacitaciones',
     ])
-    // Cada tarjeta lleva icono, texto y botón en la MISMA posición: el prop
-    // `action` de `MetricCard` los ancla al pie en las tres.
-    expect(container.querySelectorAll('.inicio-metricas .metric-card__icon')).toHaveLength(3)
-    expect(container.querySelectorAll('.inicio-metricas .metric-card__action')).toHaveLength(3)
+    // Icono y botón en la misma posición en las dos (`metric-card__action`
+    // ancla el botón al pie con `margin-top: auto`).
+    expect(container.querySelectorAll('.inicio-metricas .metric-card__icon')).toHaveLength(2)
+    expect(container.querySelectorAll('.inicio-metricas .metric-card__action')).toHaveLength(2)
+  })
+
+  it('NO existe tarjeta superior de Mi progreso', async () => {
+    const { container } = await montar()
+
+    // MB-7-2D: la ficha se eliminó; el acceso a «Mi progreso» queda en el
+    // resumen de competencias y en Próximo paso.
+    expect(
+      within(container.querySelector('.inicio-metricas')).queryByText('Mi progreso'),
+    ).not.toBeInTheDocument()
   })
 
   it('las secciones se apilan a ancho completo, sin columnas angostas', async () => {
@@ -219,9 +226,9 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
     )
     await screen.findByRole('heading', { name: 'Inicio', level: 1 })
 
-    // Hay dos accesos a Mi progreso (tarjeta del resumen y próximo paso); se
-    // dispara el de la tarjeta del resumen.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Ver mi progreso' })[0])
+    // Acceso a «Mi progreso» desde el resumen de competencias (MB-7-2D: la
+    // tarjeta superior se eliminó, así que queda un único botón de ese texto).
+    fireEvent.click(screen.getByRole('button', { name: 'Ver mi progreso' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ir a Mis proyectos' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ir a Mis capacitaciones' }))
 
@@ -377,12 +384,16 @@ describe('Inicio — resumen de competencias (compacto)', () => {
     expect(screen.getByText('4 · Consolidado')).toBeInTheDocument()
   })
 
-  it('todos los CTA a Mi progreso usan el mismo texto', async () => {
+  it('el acceso a Mi progreso vive solo en competencias y Próximo paso', async () => {
     await montar()
 
+    // Botón de ancho completo del resumen de competencias.
     const botones = screen.getAllByRole('button', { name: 'Ver mi progreso' })
-    expect(botones).toHaveLength(3)
-    // No queda copy alternativo para la misma sección.
+    expect(botones).toHaveLength(1)
+    expect(botones[0].className).toContain('inicio-boton-ancho')
+    // Enlace discreto de Próximo paso.
+    expect(screen.getByRole('button', { name: 'Mi progreso' })).toBeInTheDocument()
+    // No queda copy alternativo de la sección.
     expect(
       screen.queryByRole('button', { name: /Ver detalle en Mi progreso|Ir a Mi progreso/ }),
     ).not.toBeInTheDocument()
@@ -423,9 +434,11 @@ describe('Inicio — próximo paso honesto (sin regla automática)', () => {
       .closest('section')
     expect(bloque.className).toContain('inicio-bloque--reservado')
     expect(bloque).not.toHaveAttribute('role', 'alert')
+    // Enlace discreto, sin tarjeta ni panel interior.
     expect(
-      within(bloque).getByRole('button', { name: 'Ver mi progreso' }),
+      within(bloque).getByRole('button', { name: 'Mi progreso' }),
     ).toBeInTheDocument()
+    expect(bloque.querySelectorAll('.inicio-panel')).toHaveLength(0)
   })
 })
 

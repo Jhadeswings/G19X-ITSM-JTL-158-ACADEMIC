@@ -16,14 +16,14 @@
   width: 100%;
 }
 
-/* --- Resumen superior: TRES tarjetas equivalentes ---------------------
-   `1fr 1fr 1fr` + `align-items: stretch` garantizan el mismo ancho y la misma
+/* --- Fila superior: DOS tarjetas equivalentes ------------------------
+   `1fr 1fr` + `align-items: stretch` garantizan el mismo ancho y la misma
    altura. Los botones usan el prop `action` de `MetricCard`, que los ancla al
-   pie (`margin-top: auto`): por eso los tres botones quedan alineados aunque el
-   dato de una sea un número y el de otra no. */
+   pie (`margin-top: auto`): por eso los dos botones quedan alineados aunque
+   el dato de una tarjeta sea un número y el de otra no. */
 .inicio-metricas {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   width: 100%;
   align-items: stretch;
@@ -179,13 +179,6 @@
   border-radius: 12px;
 }
 
-.inicio-bloque--reservado__texto {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
 .inicio-bloque--reservado h2 {
   display: flex;
   align-items: center;
@@ -209,6 +202,17 @@
   color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 1.55;
+}
+
+/* Enlace discreto del bloque: acompaña al mensaje sin competir con él ni
+   parecerse a la acción principal del bloque anterior. */
+.inicio-enlace {
+  min-height: 32px;
+  margin-top: 2px;
+  padding: 0 4px;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* --- Responsive (§7 / densidad de Empleado, Style Guide §24) --- */

@@ -30,7 +30,7 @@
 // cargó. El 401 de cualquier fuente delega en `alSesionExpirada`.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Compass, FolderKanban, GraduationCap, Target } from 'lucide-react'
+import { FolderKanban, GraduationCap, Target } from 'lucide-react'
 import { obtenerResultadoActual } from '../api/resultado.js'
 import { listarMisProyectos } from '../api/proyectos.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
@@ -129,25 +129,14 @@ export default function Inicio({
         description="Una lectura breve de tu progreso, tus proyectos y tus competencias."
       />
 
-      {/* --- Resumen superior: TRES tarjetas equivalentes ------------------
-          Réjilla de 3 columnas iguales + `stretch` = mismo ancho y altura.
-          Las tres usan el prop `action` de `MetricCard`, que ancla el botón al
-          pie con `margin-top: auto`: así el botón queda SIEMPRE en la misma
-          línea base, sea cual sea la altura del dato. Cada tarjeta lleva
-          etiqueta, icono arriba a la derecha, texto breve, dato y botón. */}
+      {/* --- Fila superior: DOS tarjetas (referencia definitiva) -------------
+          Solo Proyectos y Capacitaciones. La ficha de «Mi progreso» se
+          eliminó: el acceso a esa sección queda donde corresponde —el botón
+          del resumen de competencias y el enlace de Próximo paso—.
+          `1fr 1fr` + `stretch` = mismo ancho y misma altura; el prop `action`
+          de `MetricCard` ancla ambos botones a la misma línea base
+          (`margin-top: auto`). */}
       <div className="inicio-metricas">
-        <MetricCard
-          label="Mi progreso"
-          icon={Compass}
-          description="Tus cinco competencias, su evidencia y cómo se obtienen."
-          action={
-            onIrAProgreso && (
-              <Button type="button" variant="secondary" onClick={onIrAProgreso}>
-                Ver mi progreso
-              </Button>
-            )
-          }
-        />
         <MetricCard
           label="Proyectos"
           icon={FolderKanban}
@@ -226,28 +215,33 @@ export default function Inicio({
       </Panel>
 
       {/* --- Próximo paso --------------------------------------------------
-          Bloque de ORIENTACIÓN, visualmente secundario y compacto (Style
-          Guide): el sistema no define todavía una regla que determine el
-          próximo paso, así que este bloque lo dice con honestidad y ofrece el
-          acceso a la sección donde sí hay contexto. No afirma ninguna
-          prioridad calculada, no usa IA y no elige competencia, proyecto ni
-          capacitación. */}
+          Bloque de ORIENTACIÓN, visualmente secundario (Style Guide). NO es
+          una alerta ni una recomendación: el sistema no define todavía una
+          regla que determine el próximo paso, así que el texto lo dice con
+          honestidad. Sin tarjeta interior, sin segundo contenedor y sin cajas
+          anidadas: título, mensaje y enlace discreto en el mismo bloque. No
+          afirma ninguna prioridad calculada, no usa IA y no elige
+          competencia, proyecto ni capacitación. */}
       <section
         className="inicio-bloque inicio-bloque--reservado"
         aria-labelledby="inicio-proximo-paso"
       >
-        <div className="inicio-bloque--reservado__texto">
-          <h2 id="inicio-proximo-paso">
-            <Target aria-hidden="true" /> Próximo paso
-          </h2>
-          <p>
-            Todavía no hay un próximo paso definido: el sistema aún no define una
-            regla para sugerirlo. Revisa tu resultado en Mi progreso.
-          </p>
-        </div>
+        <h2 id="inicio-proximo-paso">
+          <Target aria-hidden="true" /> Próximo paso
+        </h2>
+        <p>
+          Todavía no hay un próximo paso definido. El sistema aún no define una
+          regla para sugerirlo. Revisa tu resultado en Mi progreso para ver
+          dónde tienes evidencia y dónde no.
+        </p>
         {onIrAProgreso && (
-          <Button type="button" variant="ghost" onClick={onIrAProgreso}>
-            Ver mi progreso
+          <Button
+            type="button"
+            variant="ghost"
+            className="inicio-enlace"
+            onClick={onIrAProgreso}
+          >
+            Mi progreso
           </Button>
         )}
       </section>
