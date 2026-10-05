@@ -18,7 +18,9 @@
 
 /* --- Resumen superior: TRES tarjetas equivalentes ---------------------
    `1fr 1fr 1fr` + `align-items: stretch` garantizan el mismo ancho y la misma
-   altura, para que la fila se lea equilibrada. */
+   altura. Los botones usan el prop `action` de `MetricCard`, que los ancla al
+   pie (`margin-top: auto`): por eso los tres botones quedan alineados aunque el
+   dato de una sea un número y el de otra no. */
 .inicio-metricas {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -27,34 +29,20 @@
   align-items: stretch;
 }
 
-/* Ancla visual de cada tarjeta del resumen. Cuando no hay número del contrato
-   (Mi progreso) se usa la variante de texto, para que la fila conserve la
-   misma altura y ritmo sin inventar ninguna métrica. */
-.inicio-total {
-  margin: 0 0 14px;
-  color: var(--color-text-primary);
-  font-size: 34px;
-  font-weight: 700;
-  letter-spacing: -.035em;
+/* Dato principal de las tarjetas del resumen: el `total` LITERAL del
+   contrato. Es texto, no un medidor: no hay porcentaje, ni barra, ni delta. */
+.inicio-valor {
+  margin: 20px 0 0;
+  color: var(--color-brand-deep);
+  font-size: clamp(34px, 3.4vw, 44px);
+  font-weight: 650;
+  letter-spacing: -.06em;
   line-height: 1;
 }
 
-.inicio-total--texto {
-  font-size: 17px;
-  letter-spacing: -.02em;
-  line-height: 1.3;
-}
-
-/* --- Zona principal: DOS columnas alineadas ---------------------------
-   Ambas cajas empiezan en el MISMO eje superior y reparten el ancho 1:1. */
-.inicio-principal {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  width: 100%;
-  align-items: start;
-}
-
+/* --- Secciones apiladas a ancho completo ---------------------------
+   Cada bloque ocupa todo el ancho de contenido: sin columnas angostas ni
+   contenedores anidados (referencia). */
 .inicio-panel {
   display: flex;
   flex-direction: column;
@@ -81,8 +69,16 @@
   line-height: 1.55;
 }
 
+/* Botón de cierre del bloque de competencias: ocupa el ancho del panel, como
+   en la referencia, en lugar de quedar pequeño y aislado. */
+.inicio-boton-ancho {
+  width: 100%;
+  margin-top: 4px;
+}
+
 /* --- Tus proyectos ---
-   Filas compactas: nombre a la izquierda, área + estado a la derecha. */
+   Filas compactas: nombre a la izquierda, área + estado a la derecha. Fondo
+   blanco, borde suave, esquinas redondeadas y altura constante. */
 .inicio-proyectos {
   display: flex;
   flex-direction: column;
@@ -97,9 +93,10 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px 12px;
-  padding: 10px 13px;
-  background: #f8faf9;
+  gap: 6px 14px;
+  min-height: 46px;
+  padding: 11px 14px;
+  background: #fff;
   border: 1px solid var(--line-soft);
   border-radius: 9px;
 }
@@ -192,17 +189,18 @@
 }
 
 /* --- Próximo paso ---
-   Orientación y visualmente SECUNDARIO: fila horizontal compacta, sin la caja
-   grande con borde discontinuo que antes ocupaba media pantalla. */
+   Bloque secundario y compacto: título corto, mensaje breve y CTA. Vuelve el
+   borde discontinuo para separar visualmente "orientación" de "dato", sin
+   ocupar la altura disponible ni parecer una tarjeta de contenido. */
 .inicio-bloque--reservado {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
   padding: 16px 20px;
   background: #f8faf9;
-  border: 1px solid var(--line-soft);
+  border: 1px dashed var(--line-soft);
   border-radius: 12px;
 }
 
@@ -232,27 +230,32 @@
 
 .inicio-bloque--reservado p {
   margin: 0;
-  max-width: 72ch;
+  max-width: 78ch;
   color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 1.55;
 }
 
 /* --- Responsive (§7 / densidad de Empleado, Style Guide §24) --- */
-@media (max-width: 1100px) {
-  .inicio-total { font-size: 30px; }
-}
-
 @media (max-width: 900px) {
-  /* Las dos columnas siguen, más compactas; las 3 tarjetas pasan a 2+1. */
+  /* Reducción razonable de columnas: las 3 tarjetas pasan a 2+1. */
   .inicio-metricas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .inicio-panel { padding: 18px; }
 }
 
 @media (max-width: 760px) {
-  .inicio-metricas,
-  .inicio-principal { grid-template-columns: 1fr; }
-  .inicio-total { font-size: 26px; }
+  /* Una columna: tarjetas apiladas, filas y competencias a ancho completo y
+     botones adaptados al ancho. */
+  .inicio-metricas { grid-template-columns: 1fr; }
   .inicio-empleado { gap: 20px; }
-  .inicio-bloque--reservado { align-items: flex-start; }
+  .inicio-proyectos__item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .inicio-competencias__fila {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
 }

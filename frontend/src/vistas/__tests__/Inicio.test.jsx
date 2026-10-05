@@ -141,22 +141,37 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
 
     const tarjetas = container.querySelectorAll('.inicio-metricas .metric-card')
     expect(tarjetas).toHaveLength(3)
-    // Misma rejilla de 3 columnas y `stretch`: ancho y altura coherentes.
-    const rejilla = container.querySelector('.inicio-metricas')
-    expect(rejilla).toBeInTheDocument()
-    // Cada tarjeta lleva el mismo ancla visual (total o variante de texto).
-    expect(container.querySelectorAll('.inicio-metricas .inicio-total')).toHaveLength(3)
+    // Orden exacto de la referencia: Mi progreso, Proyectos, Capacitaciones.
+    expect([...tarjetas].map((t) => t.querySelector('h2').textContent.trim())).toEqual([
+      'Mi progreso',
+      'Proyectos',
+      'Capacitaciones',
+    ])
+    // Cada tarjeta lleva icono, texto y botón en la MISMA posición: el prop
+    // `action` de `MetricCard` los ancla al pie en las tres.
+    expect(container.querySelectorAll('.inicio-metricas .metric-card__icon')).toHaveLength(3)
+    expect(container.querySelectorAll('.inicio-metricas .metric-card__action')).toHaveLength(3)
   })
 
-  it('la zona principal son DOS paneles alineados', async () => {
+  it('las secciones se apilan a ancho completo, sin columnas angostas', async () => {
     const { container } = await montar()
 
-    expect(container.querySelectorAll('.inicio-principal')).toHaveLength(1)
-    expect(container.querySelectorAll('.inicio-panel')).toHaveLength(2)
-    // Proyectos a la izquierda, competencias a la derecha.
+    // Cada bloque es un panel de ancho completo; NO existe la rejilla de dos
+    // columnas ni un contenedor que agrupe proyectos y competencias.
+    expect(container.querySelectorAll('.inicio-principal')).toHaveLength(0)
     const paneles = container.querySelectorAll('.inicio-panel')
+    expect(paneles).toHaveLength(2)
     expect(paneles[0].textContent).toContain('Tus proyectos')
     expect(paneles[1].textContent).toContain('Resumen de competencias')
+  })
+
+  it('el botón del resumen ocupa el ancho del bloque', async () => {
+    const { container } = await montar()
+
+    const boton = screen.getByRole('button', { name: 'Ver detalle en Mi progreso' })
+    expect(boton.className).toContain('inicio-boton-ancho')
+    expect(boton).toBeInTheDocument()
+    expect(container.querySelector('.inicio-boton-ancho')).toBe(boton)
   })
 
   it('ocupa todo el ancho disponible del shell', async () => {

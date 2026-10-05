@@ -129,68 +129,101 @@ export default function Inicio({
         description="Una lectura breve de tu progreso, tus proyectos y tus competencias."
       />
 
-      {/* --- Resumen superior: TRES tarjetas de tamaño equivalente ---------
-          La rejilla de 3 columnas iguales da altura y ancho coherentes; cada
-          tarjeta lleva un ancla visual (el total del contrato o el icono) para
-          que la fila se lea equilibrada y no como tres bloques dispares. */}
+      {/* --- Resumen superior: TRES tarjetas equivalentes ------------------
+          Réjilla de 3 columnas iguales + `stretch` = mismo ancho y altura.
+          Las tres usan el prop `action` de `MetricCard`, que ancla el botón al
+          pie con `margin-top: auto`: así el botón queda SIEMPRE en la misma
+          línea base, sea cual sea la altura del dato. Cada tarjeta lleva
+          etiqueta, icono arriba a la derecha, texto breve, dato y botón. */}
       <div className="inicio-metricas">
         <MetricCard
           label="Mi progreso"
           icon={Compass}
           description="Tus cinco competencias, su evidencia y cómo se obtienen."
-        >
-          <p className="inicio-total inicio-total--texto">Detalle completo</p>
-          {onIrAProgreso && (
-            <Button type="button" variant="secondary" onClick={onIrAProgreso}>
-              Ir a Mi progreso
-            </Button>
-          )}
-        </MetricCard>
-        <TarjetaTotal
-          icon={FolderKanban}
+          action={
+            onIrAProgreso && (
+              <Button type="button" variant="secondary" onClick={onIrAProgreso}>
+                Ver mi progreso
+              </Button>
+            )
+          }
+        />
+        <MetricCard
           label="Proyectos"
-          total={proyectos.datos?.total}
-          cargando={proyectos.fase === 'cargando'}
-          error={proyectos.fase === 'error'}
-          onIr={onIrAProyectos}
-          textoBoton="Ir a Mis proyectos"
-        />
-        <TarjetaTotal
-          icon={GraduationCap}
+          icon={FolderKanban}
+          description={
+            proyectos.fase === 'error'
+              ? 'No pudimos consultar el total.'
+              : 'Total de proyectos registrados.'
+          }
+          action={
+            onIrAProyectos && (
+              <Button type="button" variant="secondary" onClick={onIrAProyectos}>
+                Ir a Mis proyectos
+              </Button>
+            )
+          }
+        >
+          <p className="inicio-valor">
+            {proyectos.fase === 'cargando' || proyectos.fase === 'error'
+              ? '—'
+              : proyectos.datos?.total}
+          </p>
+        </MetricCard>
+        <MetricCard
           label="Capacitaciones"
-          total={capacitaciones.datos?.total}
-          cargando={capacitaciones.fase === 'cargando'}
-          error={capacitaciones.fase === 'error'}
-          onIr={onIrACapacitaciones}
-          textoBoton="Ir a Mis capacitaciones"
+          icon={GraduationCap}
+          description={
+            capacitaciones.fase === 'error'
+              ? 'No pudimos consultar el total.'
+              : 'Total de capacitaciones registradas.'
+          }
+          action={
+            onIrACapacitaciones && (
+              <Button type="button" variant="secondary" onClick={onIrACapacitaciones}>
+                Ir a Mis capacitaciones
+              </Button>
+            )
+          }
+        >
+          <p className="inicio-valor">
+            {capacitaciones.fase === 'cargando' || capacitaciones.fase === 'error'
+              ? '—'
+              : capacitaciones.datos?.total}
+          </p>
+        </MetricCard>
+      </div>
+
+      {/* --- Tus proyectos: listado compacto de filas -------------------- */}
+      <Panel titulo="Tus proyectos" id="inicio-proyectos">
+        <p className="inicio-panel__intro">
+          Proyectos del catálogo en los que tienes una participación registrada.
+        </p>
+        <EstadoProyectos
+          estado={proyectos}
+          recargar={recargarProyectos}
+          onIrAProyectos={onIrAProyectos}
         />
-      </div>
+      </Panel>
 
-      {/* --- Zona principal: DOS columnas alineadas en el mismo eje superior - */}
-      <div className="inicio-principal">
-        <Panel titulo="Tus proyectos" id="inicio-proyectos">
-          <p className="inicio-panel__intro">
-            Proyectos del catálogo en los que tienes una participación registrada.
-          </p>
-          <EstadoProyectos
-            estado={proyectos}
-            recargar={recargarProyectos}
-            onIrAProyectos={onIrAProyectos}
-          />
-        </Panel>
-
-        <Panel titulo="Resumen de competencias" id="inicio-competencias">
-          <p className="inicio-panel__intro">
-            Las cinco competencias con su nivel actual.
-          </p>
-          <Competencias competencias={competencias} />
-          {onIrAProgreso && (
-            <Button type="button" variant="secondary" onClick={onIrAProgreso}>
-              Ver detalle en Mi progreso
-            </Button>
-          )}
-        </Panel>
-      </div>
+      {/* --- Resumen de competencias: cinco filas ------------------------ */}
+      <Panel titulo="Resumen de competencias" id="inicio-competencias">
+        <p className="inicio-panel__intro">
+          Las cinco competencias con su nivel actual. La evidencia de cada una y
+          cómo se obtiene están en Mi progreso.
+        </p>
+        <Competencias competencias={competencias} />
+        {onIrAProgreso && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="inicio-boton-ancho"
+            onClick={onIrAProgreso}
+          >
+            Ver detalle en Mi progreso
+          </Button>
+        )}
+      </Panel>
 
       {/* --- Próximo paso --------------------------------------------------
           Bloque de ORIENTACIÓN, visualmente secundario y compacto (Style
@@ -223,34 +256,8 @@ export default function Inicio({
 }
 
 /**
- * Tarjeta de un área con total. El `total` viene LITERAL del contrato
- * (`ProyectoPageOut.total` / `CapacitacionPageOut.total`): aquí no se calcula
- * ninguna métrica nueva, ni porcentaje, ni indicador, ni media.
- */
-function TarjetaTotal({ icon, label, total, cargando, error, onIr, textoBoton }) {
-  return (
-    <MetricCard
-      label={label}
-      icon={icon}
-      description={
-        error
-          ? 'No pudimos consultar el total.'
-          : `Total de ${label.toLowerCase()} registrados.`
-      }
-    >
-      <p className="inicio-total">{cargando || error ? '—' : total}</p>
-      {onIr && (
-        <Button type="button" variant="secondary" onClick={onIr}>
-          {textoBoton}
-        </Button>
-      )}
-    </MetricCard>
-  )
-}
-
-/**
- * Panel de la zona principal: caja blanca que alinea los dos bloques en el
- * mismo eje superior. Es composición pura: título, apoyo y contenido.
+ * Panel de sección: caja blanca de ancho completo, como en la referencia.
+ * Título + apoyo + contenido, sin contenedores anidados.
  */
 function Panel({ id, titulo, children }) {
   return (
