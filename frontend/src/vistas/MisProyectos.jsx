@@ -181,6 +181,9 @@ export default function MisProyectos({
   const [alta, setAlta] = useState({ fase: 'inactiva', datos: null, error: null })
   // Paso 02→03: proyecto seleccionado (coincidencia exacta o recién creado).
   const [proyectoSeleccionado, setProyectoSeleccionado] = useState(null)
+  // Proyecto que YA venía elegido al entrar (MB-7-2F): desde «Inicio». Permite
+  // mostrar el paso 02 sin buscar, sin alterar el flujo normal de búsqueda.
+  const [proyectoDeEntrada, setProyectoDeEntrada] = useState(null)
   // ParticipationForm (§18.3) y su registro (POST /me/participations).
   const [formParticipacion, setFormParticipacion] = useState(participacionInicial)
   const [avisosParticipacion, setAvisosParticipacion] = useState(avisosIniciales)
@@ -218,7 +221,12 @@ export default function MisProyectos({
         const proyecto = pagina?.items?.find((p) => p.id === Number(proyectoId))
         // Si el proyecto no está entre los del empleado, no se selecciona nada:
         // la vista conserva su flujo de búsqueda normal.
-        if (vigente && proyecto) seleccionarProyecto(proyecto)
+        if (vigente && proyecto) {
+          // Queda registrado como proyecto de ENTRADA para que el paso 02 lo
+          // muestre aunque todavía no haya ninguna búsqueda ejecutada.
+          setProyectoDeEntrada(proyecto)
+          seleccionarProyecto(proyecto)
+        }
       })
       .catch(() => {
         // Un fallo al resolver NO interrumpe la vista: el usuario sigue
@@ -240,6 +248,8 @@ export default function MisProyectos({
     // Una nueva búsqueda invalida la selección previa: el paso 03 solo existe
     // con un proyecto seleccionado en la consulta actual.
     setProyectoSeleccionado(null)
+    // Y deja de aplicar la llegada contextual: a partir de aquí manda la búsqueda.
+    setProyectoDeEntrada(null)
     setFormParticipacion(participacionInicial())
     setAvisosParticipacion(avisosIniciales())
     setRegistro({ fase: 'inactiva', datos: null, error: null })
@@ -812,6 +822,50 @@ export default function MisProyectos({
               </form>
             </>
           )}
+        </section>
+      )}
+
+      {/* Paso 02 de LLEGADA CONTEXTUAL (MB-7-2F): el usuario llega desde «Inicio»
+          con un proyecto ya elegido, así que no hay búsqueda que mostrar. Se
+          reutilizan las MISMAS clases y el mismo `dl` del bloque de coincidencia
+          exacta, para que la vista se lea igual en los dos caminos. No es un
+          paso nuevo ni un detalle: es el paso 02 mostrando el proyecto que ya
+          está seleccionado. */}
+      {proyectoDeEntrada && proyectoDeEntrada.id === proyectoSeleccionado?.id && (
+        <section
+          className="proyectos-paso"
+          aria-labelledby="proyectos-entrada-titulo"
+        >
+          <div className="proyectos-coincidencia">
+            <h2
+              className="proyectos-paso__titulo"
+              id="proyectos-entrada-titulo"
+            >
+              <span>02</span> Crear o seleccionar
+            </h2>
+            <p className="proyectos-coincidencia__etiqueta">
+              <CheckCircle2 aria-hidden="true" /> Proyecto seleccionado
+            </p>
+            <p className="proyectos-coincidencia__nombre">{proyectoDeEntrada.nombre}</p>
+            <dl className="proyectos-datos">
+              <div>
+                <dt>Área</dt>
+                <dd>{proyectoDeEntrada.area ?? SIN_DATO}</dd>
+              </div>
+              <div>
+                <dt>Estado</dt>
+                <dd>
+                  <Badge tone={tonoEstado(proyectoDeEntrada.estado)}>
+                    {etiquetaEstado(proyectoDeEntrada.estado)}
+                  </Badge>
+                </dd>
+              </div>
+            </dl>
+            <p className="proyectos-seleccionado">
+              <CheckCircle2 aria-hidden="true" /> Ya está seleccionado: puedes ver
+              tu participación en el paso 03.
+            </p>
+          </div>
         </section>
       )}
 

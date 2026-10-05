@@ -1462,10 +1462,56 @@ describe('MisProyectos — proyecto recibido desde Inicio', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('el paso 02 muestra el proyecto que llegó ya seleccionado', async () => {
+    render(<MisProyectos token="token-empleado" alSesionExpirada={vi.fn()} proyectoId={42} />)
+
+    // El paso 02 existe aunque no haya ninguna búsqueda ejecutada.
+    const paso = await screen.findByRole('region', { name: /Crear o seleccionar/ })
+    expect(paso).toHaveTextContent('Proyecto seleccionado')
+    expect(paso).toHaveTextContent(PROYECTO.nombre)
+    expect(paso).toHaveTextContent(PROYECTO.area)
+    expect(paso).toHaveTextContent('En proceso')
+    // Y el paso 03 sigue debajo con la participación de ESE proyecto.
+    const registro = await screen.findByRole('region', { name: /Registrar la participación/ })
+    expect(registro).toHaveTextContent(PROYECTO.nombre)
+  })
+
+  it('no exige una búsqueda nueva: el proyecto ya está aplicado', async () => {
+    render(<MisProyectos token="token-empleado" alSesionExpirada={vi.fn()} proyectoId={42} />)
+
+    await screen.findByRole('region', { name: /Crear o seleccionar/ })
+    // No se llama a la búsqueda: el proyecto llegó ya elegido.
+    expect(buscarProyectos).not.toHaveBeenCalled()
+    // Y se resuelve UNA sola vez.
+    expect(listarMisProyectos).toHaveBeenCalledTimes(1)
+  })
+
+  it('buscar después descarta la llegada contextual', async () => {
+    render(<MisProyectos token="token-empleado" alSesionExpirada={vi.fn()} proyectoId={42} />)
+    await screen.findByRole('region', { name: /Crear o seleccionar/ })
+
+    // Al buscar, manda el flujo normal: desaparece el bloque de entrada.
+    const campo = screen.getByLabelText(/nombre del proyecto/i)
+    fireEvent.change(campo, { target: { value: 'proyecto arbol' } })
+    fireEvent.click(screen.getByRole('button', { name: /Buscar proyecto/ }))
+
+    await waitFor(() => expect(buscarProyectos).toHaveBeenCalled())
+    expect(
+      screen.queryByText('Proyecto seleccionado'),
+    ).not.toBeInTheDocument()
+  })
+
   it('sin proyectoId no consulta el listado propio', async () => {
     render(<MisProyectos token="token-empleado" alSesionExpirada={vi.fn()} />)
 
     await screen.findByRole('heading', { name: /Mis proyectos/ })
     expect(listarMisProyectos).not.toHaveBeenCalled()
+    // El flujo normal empieza en el paso 01, sin proyecto previo.
+    expect(
+      screen.queryByRole('region', { name: /Crear o seleccionar/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: /Registrar la participación/ }),
+    ).not.toBeInTheDocument()
   })
 })
