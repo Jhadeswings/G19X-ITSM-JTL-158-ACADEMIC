@@ -220,7 +220,7 @@ export default function Inicio({
             className="inicio-boton-ancho"
             onClick={onIrAProgreso}
           >
-            Ver detalle en Mi progreso
+            Ver mi progreso
           </Button>
         )}
       </Panel>
@@ -247,7 +247,7 @@ export default function Inicio({
         </div>
         {onIrAProgreso && (
           <Button type="button" variant="ghost" onClick={onIrAProgreso}>
-            Ir a Mi progreso
+            Ver mi progreso
           </Button>
         )}
       </section>
@@ -334,9 +334,9 @@ function EstadoProyectos({ estado, recargar, onIrAProyectos }) {
  * contrato. NO se usan `CompetenciaCard`: su evidencia, sus barras y "¿Cómo se
  * obtiene?" pertenecen a "Mi progreso" (§21.2).
  *
- * El texto `nivel · etiqueta` es SIEMPRE visible, de modo que la marca visual
- * del nivel es un apoyo y nunca la única fuente de información. No se calcula
- * nada: `nivel` y `etiqueta` se pintan tal cual los devuelve el backend, y
+ * Cada fila es solo `nombre → nivel · etiqueta`, como en la referencia: sin
+ * barras, segmentos ni indicadores visuales adicionales. No se calcula nada:
+ * `nivel` y `etiqueta` se pintan tal cual los devuelve el backend, e
  * `INSUFFICIENT_DATA` se nombra (nunca se convierte en nivel 0, §14).
  */
 function Competencias({ competencias }) {
@@ -354,22 +354,9 @@ function Competencias({ competencias }) {
                 Datos insuficientes
               </span>
             ) : (
-              <span className="inicio-competencias__nivel">
-                {/* Marca ligera del NIVEL RECIBIDO: son 5 segmentos fijos,
-                    `data-nivel` los marca como alcanzados. No hay cálculo. */}
-                <span
-                  className="inicio-nivel"
-                  data-nivel={competencia.nivel}
-                  aria-hidden="true"
-                >
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <i key={n} className="inicio-nivel__paso" data-activo={n <= competencia.nivel || undefined} />
-                  ))}
-                </span>
-                <Badge tone="neutral">
-                  {competencia.nivel} · {competencia.etiqueta}
-                </Badge>
-              </span>
+              <Badge tone="neutral">
+                {competencia.nivel} · {competencia.etiqueta}
+              </Badge>
             )}
           </li>
         )

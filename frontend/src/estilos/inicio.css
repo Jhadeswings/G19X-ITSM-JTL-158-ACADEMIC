@@ -155,31 +155,6 @@
   font-weight: 600;
 }
 
-.inicio-competencias__nivel {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* Marca ligera del NIVEL RECIBIDO: cinco segmentos fijos, se activan los
-   primeros `nivel`. No calcula nada (solo compara `n <= nivel`) y el texto
-   `nivel · etiqueta` sigue visible, así que no depende del color. */
-.inicio-nivel {
-  display: flex;
-  gap: 3px;
-}
-
-.inicio-nivel__paso {
-  width: 16px;
-  height: 4px;
-  background: #e3eae8;
-  border-radius: 2px;
-}
-
-.inicio-nivel__paso[data-activo] {
-  background: var(--color-primary);
-}
-
 /* `INSUFFICIENT_DATA` es un estado VÁLIDO (§14): se nombra, nunca se
    convierte en nivel 0 ni en una barra vacía. */
 .inicio-competencias__sin-datos {

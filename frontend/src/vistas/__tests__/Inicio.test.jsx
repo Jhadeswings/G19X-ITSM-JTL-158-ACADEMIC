@@ -168,10 +168,11 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
   it('el botón del resumen ocupa el ancho del bloque', async () => {
     const { container } = await montar()
 
-    const boton = screen.getByRole('button', { name: 'Ver detalle en Mi progreso' })
-    expect(boton.className).toContain('inicio-boton-ancho')
+    // Los tres CTA comparten texto, así que se busca directamente el de ancho
+    // completo por su clase.
+    const boton = container.querySelector('.inicio-boton-ancho')
     expect(boton).toBeInTheDocument()
-    expect(container.querySelector('.inicio-boton-ancho')).toBe(boton)
+    expect(boton).toHaveTextContent('Ver mi progreso')
   })
 
   it('ocupa todo el ancho disponible del shell', async () => {
@@ -220,7 +221,7 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
 
     // Hay dos accesos a Mi progreso (tarjeta del resumen y próximo paso); se
     // dispara el de la tarjeta del resumen.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Ir a Mi progreso' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ver mi progreso' })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Ir a Mis proyectos' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ir a Mis capacitaciones' }))
 
@@ -355,9 +356,36 @@ describe('Inicio — resumen de competencias (compacto)', () => {
   it('enlaza con Mi progreso para el detalle', async () => {
     await montar()
 
+    // Los tres CTA a «Mi progreso» comparten el mismo texto (MB-7-2C), así que se
+    // comprueba por el panel que los contiene, no de forma global.
     expect(
-      screen.getByRole('button', { name: 'Ver detalle en Mi progreso' }),
+      within(
+        screen.getByRole('heading', { name: 'Resumen de competencias', level: 2 })
+          .closest('section'),
+      ).getByRole('button', { name: 'Ver mi progreso' }),
     ).toBeInTheDocument()
+  })
+
+  it('no usa barras ni segmentos para el nivel: solo nivel + etiqueta', async () => {
+    const { container } = await montar()
+
+    // MB-7-2C: la referencia muestra únicamente `nombre → nivel · etiqueta`.
+    expect(container.querySelectorAll('.inicio-nivel')).toHaveLength(0)
+    expect(container.querySelectorAll('.inicio-nivel__paso')).toHaveLength(0)
+    expect(container.querySelectorAll('.inicio-competencias__nivel')).toHaveLength(0)
+    // El texto del nivel sigue presente y es el del contrato.
+    expect(screen.getByText('4 · Consolidado')).toBeInTheDocument()
+  })
+
+  it('todos los CTA a Mi progreso usan el mismo texto', async () => {
+    await montar()
+
+    const botones = screen.getAllByRole('button', { name: 'Ver mi progreso' })
+    expect(botones).toHaveLength(3)
+    // No queda copy alternativo para la misma sección.
+    expect(
+      screen.queryByRole('button', { name: /Ver detalle en Mi progreso|Ir a Mi progreso/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('no inventa métricas: sin score, ranking, 9-Box ni porcentajes', async () => {
@@ -396,7 +424,7 @@ describe('Inicio — próximo paso honesto (sin regla automática)', () => {
     expect(bloque.className).toContain('inicio-bloque--reservado')
     expect(bloque).not.toHaveAttribute('role', 'alert')
     expect(
-      within(bloque).getByRole('button', { name: 'Ir a Mi progreso' }),
+      within(bloque).getByRole('button', { name: 'Ver mi progreso' }),
     ).toBeInTheDocument()
   })
 })
@@ -464,7 +492,10 @@ describe('Inicio — estados de la vista (Style Guide §13)', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByText('Datos insuficientes')).toHaveLength(4)
     expect(
-      screen.getByRole('button', { name: 'Ver detalle en Mi progreso' }),
+      within(
+        screen.getByRole('heading', { name: 'Resumen de competencias', level: 2 })
+          .closest('section'),
+      ).getByRole('button', { name: 'Ver mi progreso' }),
     ).toBeInTheDocument()
   })
 
