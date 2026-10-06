@@ -66,6 +66,17 @@ class Evaluacion(Base):
         nullable=False,
         index=True,
     )
+    # RH-01.1: identificación del empleado CAPTURADA al generar el snapshot
+    # (fotografía histórica, §21). Nunca se resuelve al leer: si el empleado
+    # cambia de puesto o área después, el histórico conserva el dato del
+    # momento de la evaluación y las lecturas no mezclan tiempos.
+    # ``empleado_puesto``/``empleado_area`` son NULL cuando el empleado no los
+    # tenía al generarse (profile_incomplete §30): no se inventan. Las tres
+    # columnas son NULLABLE para no invalidar snapshots anteriores a RH-01.1;
+    # a partir de RH-01.1 la generación siempre las escribe.
+    empleado_nombre: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    empleado_puesto: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    empleado_area: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Formo YYYY-QN (§21). El periodo actual lo determina la aplicación (§22).
     periodo: Mapped[str] = mapped_column(String(7), nullable=False, index=True)
 

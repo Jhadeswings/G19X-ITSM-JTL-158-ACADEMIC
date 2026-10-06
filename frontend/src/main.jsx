@@ -15,6 +15,7 @@ import './estilos/empleados.css'
 import './estilos/proyectos.css'
 import './estilos/capacitaciones.css'
 import './estilos/historial.css'
+import './estilos/evaluaciones.css'
 import './estilos/cuenta.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(

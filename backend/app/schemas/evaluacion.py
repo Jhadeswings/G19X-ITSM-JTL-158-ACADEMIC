@@ -62,6 +62,15 @@ class EvaluacionOut(EvaluacionBaseOut):
 
     nine_box: NineBoxDTO
 
+    # RH-01.1: identificación del empleado CAPTURADA al generar el snapshot.
+    # Sale del propio histórico, nunca de una consulta al empleado actual:
+    # la lectura no mezcla tiempos. ``None`` solo en snapshots previos a
+    # RH-01.1 o cuando el empleado no tenía puesto/área al evaluarse (§30);
+    # el cliente no debe inventar valores en ese caso.
+    empleado_nombre: str | None = None
+    empleado_puesto: str | None = None
+    empleado_area: str | None = None
+
 
 class EvaluacionEmpleadoOut(EvaluacionBaseOut):
     """Evaluación histórica propia del Empleado: SIN ejes ni 9-Box (PRD §21)."""

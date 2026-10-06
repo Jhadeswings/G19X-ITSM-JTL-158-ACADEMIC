@@ -63,15 +63,23 @@ def _clave_advisory(periodo: str) -> int:
 
 def _construir_evaluacion(
     *,
-    empleado_id: int,
+    empleado: Empleado,
     periodo: str,
     cuenta_rh_id: int,
     resultado: ResultadoActualDTO,
     nine_box: NineBoxDTO,
 ) -> Evaluacion:
-    """Fotografía histórica de un ResultadoActual (§21, PRD §16)."""
+    """Fotografía histórica de un ResultadoActual (§21, PRD §16).
+
+    La identificación (nombre/puesto/área) se captura AQUÍ, del estado del
+    empleado al momento de generar: es la única fuente histórica válida
+    (RH-01.1). Si el empleado cambia después, este snapshot no cambia.
+    """
     columnas: dict[str, object] = {
-        "empleado_id": empleado_id,  # nunca desde el cliente (§32)
+        "empleado_id": empleado.id,  # nunca desde el cliente (§32)
+        "empleado_nombre": empleado.nombre,  # RH-01.1: capturado, no consultado
+        "empleado_puesto": empleado.puesto,
+        "empleado_area": empleado.area,
         "periodo": periodo,
         "generado_por_cuenta_id": cuenta_rh_id,
         "performance_axis": nine_box.performance_axis,
@@ -136,7 +144,7 @@ def generar_evaluaciones(
             nine_box = calcular_nine_box(resultado.competencias)
             evaluaciones.append(
                 _construir_evaluacion(
-                    empleado_id=empleado.id,
+                    empleado=empleado,
                     periodo=periodo,
                     cuenta_rh_id=cuenta_rh.id,
                     resultado=resultado,
@@ -203,6 +211,11 @@ def a_evaluacion_out(evaluacion: Evaluacion) -> EvaluacionOut:
     return EvaluacionOut(
         id=evaluacion.id,
         empleado_id=evaluacion.empleado_id,
+        # RH-01.1: identificación del snapshot (capturada al generar); nunca
+        # se consulta el empleado actual aquí.
+        empleado_nombre=evaluacion.empleado_nombre,
+        empleado_puesto=evaluacion.empleado_puesto,
+        empleado_area=evaluacion.empleado_area,
         periodo=evaluacion.periodo,
         competencias=_competencias_historicas(evaluacion),
         generado_en=evaluacion.generado_en,

@@ -17,9 +17,10 @@ export const SECCION_INICIAL = 'mi-progreso'
 
 // Secciones de navegación del rol RH (Style Guide §10; PRD §20).
 // "Empleados" es un catálogo paginado con el alta integrada como subvista
-// interna (listado ↕ alta; PRD §20.1 y §3.3): una sola sección de navegación,
-// sin entradas adicionales. El resto reutiliza SeccionTemporal hasta su
-// implementación.
+// interna (listado ↕ alta; PRD §20.1 y §3.3) y "Evaluaciones" aplica el
+// flujo §20.8 (periodo vigente → generación → historial). Cada una es UNA
+// sola sección de navegación, sin entradas adicionales. El resto reutiliza
+// SeccionTemporal hasta su implementación.
 export const SECCIONES_RH = [
   { id: 'inicio', titulo: 'Inicio' },
   { id: 'empleados', titulo: 'Empleados' },

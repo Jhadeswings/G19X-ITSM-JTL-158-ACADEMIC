@@ -10,7 +10,11 @@ import { obtenerResultadoActual } from '../api/resultado.js'
 import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequerida, obtenerDistribucionCompetencia } from '../api/dashboardRh.js'
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
-import { listarEvaluacionesPropias } from '../api/evaluaciones.js'
+import {
+  generarEvaluaciones,
+  listarEvaluaciones,
+  listarEvaluacionesPropias,
+} from '../api/evaluaciones.js'
 import App from '../App.jsx'
 import { SECCIONES_EMPLEADO, SECCIONES_RH } from '../navegacion.js'
 import { crearRespuesta } from '../vistas/__tests__/ayuda.js'
@@ -40,7 +44,12 @@ vi.mock('../api/capacitaciones.js', async () => {
 
 vi.mock('../api/evaluaciones.js', async () => {
   const original = await vi.importActual('../api/evaluaciones.js')
-  return { ...original, listarEvaluacionesPropias: vi.fn() }
+  return {
+    ...original,
+    listarEvaluacionesPropias: vi.fn(),
+    listarEvaluaciones: vi.fn(),
+    generarEvaluaciones: vi.fn(),
+  }
 })
 
 const EMPLEADO = { token: 'token-empleado', rol: 'EMPLEADO', mustChangePassword: false }
@@ -64,6 +73,19 @@ vi.mocked(obtenerResultadoActual).mockReset()
     total: 0,
     pagina: 1,
     por_pagina: 20,
+    items: [],
+  })
+  vi.mocked(listarEvaluaciones).mockReset()
+  vi.mocked(listarEvaluaciones).mockResolvedValue({
+    total: 0,
+    pagina: 1,
+    por_pagina: 20,
+    items: [],
+  })
+  vi.mocked(generarEvaluaciones).mockReset()
+  vi.mocked(generarEvaluaciones).mockResolvedValue({
+    periodo: '2026-Q1',
+    total_generadas: 0,
     items: [],
   })
   vi.mocked(listarCapacitaciones).mockResolvedValue({
@@ -450,7 +472,6 @@ describe('Shell de RH — navegación', () => {
       'Comparar',
       'Mentoría',
       'Brechas',
-      'Evaluaciones',
     ]) {
       abrir(titulo)
       expect(
@@ -461,6 +482,33 @@ describe('Shell de RH — navegación', () => {
       ).not.toBeInTheDocument()
     }
     expect(obtenerProgreso).not.toHaveBeenCalled()
+  })
+
+  it('Evaluaciones abre su vista real (§20.8), no el estado temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Empleados activos' })
+
+    abrir('Evaluaciones')
+
+    // El `h1` del SectionHeader de la vista montada (igual que en Empleados).
+    expect(
+      (await screen.findAllByRole('heading', { name: 'Evaluaciones', level: 1 }))
+        .length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.queryByText('«Evaluaciones» todavía no está disponible'),
+    ).not.toBeInTheDocument()
+    // Sección activa en la navegación lateral.
+    expect(
+      within(navegacion()).getByRole('button', { name: 'Evaluaciones' }),
+    ).toHaveAttribute('aria-current', 'page')
+    // Consulta el historial con el token de la sesión RH.
+    await waitFor(() => expect(listarEvaluaciones).toHaveBeenCalledTimes(1))
+    expect(listarEvaluaciones).toHaveBeenCalledWith(
+      'token-rh',
+      expect.objectContaining({ pagina: 1 }),
+    )
   })
 
   it('volver a Empleados recupera el catálogo de empleados', async () => {

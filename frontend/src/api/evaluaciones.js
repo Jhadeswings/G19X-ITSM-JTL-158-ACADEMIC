@@ -1,15 +1,21 @@
-// Evaluaciones oficiales históricas (PRD §20.2 Perfil individual de RH y §21.5
-// "Mi historial" del Empleado; Especificación Técnica §31/§34/§36).
+// Evaluaciones oficiales históricas (PRD §20.2 Perfil individual de RH, §20.8
+// Evaluaciones y §21.5 "Mi historial" del Empleado; Especificación Técnica
+// §23/§24/§31/§34/§36).
 //
-// Este módulo expone los DOS endpoints de solo lectura que el backend ya
-// define, que comparten respuesta paginada y contrato de inmutabilidad:
+// Este módulo expone los endpoints que el backend YA define, que comparten
+// respuesta paginada y contrato de inmutabilidad:
 //
-//   - GET /api/v1/rh/employees/{id}/evaluations → EvaluacionPageOut
+//   - GET  /api/v1/rh/evaluations            → EvaluacionPageOut
+//     (historial global de RH, filtros `periodo`; ET §31/DECISIONES §34);
+//   - POST /api/v1/rh/evaluations/generate   → GeneracionEvaluacionesOut
+//     (generación atómica del periodo VIGENTE resuelto por el backend, ET §23:
+//     el cliente NO envía ni calcula el periodo);
+//   - GET  /api/v1/rh/employees/{id}/evaluations → EvaluacionPageOut
 //     (historial de cualquier empleado, para RH; incluye 9-Box, §10);
-//   - GET /api/v1/me/evaluations                 → EvaluacionEmpleadoPageOut
+//   - GET  /api/v1/me/evaluations            → EvaluacionEmpleadoPageOut
 //     (historial del propio Empleado; SIN ejes ni 9-Box, §21).
 //
-// Ambos devuelven el HISTORIAL paginado ordenado por periodo DESC:
+// Los GET devuelven el HISTORIAL paginado ordenado por periodo DESC:
 // `pagina=1&por_pagina=1` entrega `items[0]` = evaluación oficial más reciente.
 // No existe (ni se necesita) un endpoint `latest`.
 //
@@ -17,8 +23,9 @@
 // en base de datos) y aquí no se transforman: estas funciones devuelven el
 // JSON del backend tal cual.
 //
-// No hay POST, PATCH ni DELETE de evaluaciones: el backend no los expone y este
-// módulo no los inventa.
+// No hay PATCH ni DELETE de evaluaciones: el backend no los expone y este
+// módulo no los inventa. El ÚNICO POST es `/evaluations/generate` (ET §31),
+// que crea snapshots nuevos del periodo vigente; no modifica los existentes.
 
 import { solicitar } from './clienteApi.js'
 
@@ -105,4 +112,70 @@ export async function listarEvaluacionesPropias(token, { pagina, porPagina } = {
     `/api/v1/me/evaluations?${parametrosListado({ pagina, porPagina })}`,
     { token },
   )
+}
+
+/**
+ * Patrón EXACTO del query param `periodo` del backend
+ * (`^[0-9]{4}-Q[1-4]$`, rh_evaluations.PATRON_PERIODO). El backend lo valida
+ * y responde 422 si no coincide; esta constante existe para que la vista pueda
+ * avisar ANTES de hacer la petición, sin duplicar la regla en otro formato.
+ */
+export const PATRON_PERIODO = /^[0-9]{4}-Q[1-4]$/
+
+/**
+ * Historial global de evaluaciones oficiales para RH (PRD §20.8; ET §31 —
+ * GET /api/v1/rh/evaluations).
+ *
+ * Usa el endpoint de listado GLOBAL ya implementado, con los parámetros que el
+ * backend acepta: `pagina`, `por_pagina` y el filtro opcional `periodo`
+ * (`YYYY-QN`, validado allí con su patrón). El filtro `empleado_id` que el
+ * contrato también admite queda fuera de esta función de momento: la vista de
+ * Evaluaciones consulta el historial completo del periodo, y el detalle por
+ * empleado ya tiene su propio endpoint (`listarEvaluacionesEmpleado`).
+ *
+ * La respuesta es `EvaluacionPageOut` con `EvaluacionOut` COMPLETO (incluye
+ * `nine_box`, exclusivo de RH según PRD §10) y llega sin transformar: aquí no
+ * se calculan niveles, ejes, celdas ni promedios. Orden del backend: periodo
+ * DESC. Solo lectura: no existe POST/PATCH/DELETE sobre este listado.
+ *
+ * @param {string} token token de la sesión RH.
+ * @param {{pagina?: number, porPagina?: number, periodo?: string|null}} [filtros]
+ *        `periodo` opcional; si se omite o viene vacío NO viaja en la URL.
+ * @returns {Promise<{total: number, pagina: number, por_pagina: number,
+ *                    items: object[]}>} EvaluacionPageOut sin transformar.
+ */
+export async function listarEvaluaciones(token, { pagina, porPagina, periodo } = {}) {
+  const consulta = new URLSearchParams(parametrosListado({ pagina, porPagina }))
+  const periodoLimpio = typeof periodo === 'string' ? periodo.trim() : ''
+  if (periodoLimpio) {
+    consulta.set('periodo', periodoLimpio)
+  }
+  return solicitar(`/api/v1/rh/evaluations?${consulta.toString()}`, { token })
+}
+
+/**
+ * Genera las evaluaciones oficiales del periodo VIGENTE (PRD §20.8; ET §23 —
+ * POST /api/v1/rh/evaluations/generate).
+ *
+ * El backend resuelve él mismo el periodo con su fecha de negocio
+ * (America/Mexico_City) y lo devuelve en la respuesta: este módulo NO envía
+ * ni calcula ningún periodo (ET §22/§23, DECISIONES §31).
+ *
+ * Códigos que la vista debe distinguir (DECISIONES §34):
+ * - 201 → `total_generadas > 0`; 200 → `total_generadas = 0` (no hay
+ *   empleados activos, no se inventa ninguna evaluación);
+ * - 409 → el periodo ya fue generado (el `detail` del backend lo indica).
+ *
+ * Es el ÚNICO POST del módulo y NO modifica evaluaciones existentes: solo
+ * inserta snapshots nuevos (§24 — siguen sin existir PATCH ni DELETE).
+ *
+ * @param {string} token token de la sesión RH.
+ * @returns {Promise<{periodo: string, total_generadas: number,
+ *                    items: object[]}>} GeneracionEvaluacionesOut sin transformar.
+ */
+export async function generarEvaluaciones(token) {
+  return solicitar('/api/v1/rh/evaluations/generate', {
+    metodo: 'POST',
+    token,
+  })
 }

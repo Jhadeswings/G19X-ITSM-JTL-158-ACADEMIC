@@ -5,6 +5,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { solicitar } from '../clienteApi.js'
 import {
+  generarEvaluaciones,
+  listarEvaluaciones,
   listarEvaluacionesEmpleado,
   listarEvaluacionesPropias,
   POR_PAGINA_DEFECTO,
@@ -260,6 +262,118 @@ describe('evaluaciones — historial propio (GET /me/evaluations)', () => {
       .mock.calls.map(([, opciones]) => opciones?.metodo)
       .filter(Boolean)
     expect(metodos).not.toContain('POST')
+    expect(metodos).not.toContain('PATCH')
+    expect(metodos).not.toContain('DELETE')
+    expect(metodos).not.toContain('PUT')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RH-01 — Historial global de RH y generación del periodo vigente
+// (PRD §20.8; ET §23/§31; DECISIONES §34).
+//
+// Solo TRANSPORTE: rutas exactas, métodos, parámetros del contrato y
+// respuestas sin transformar. Nada de presentación: la vista de Evaluaciones
+// es la que pinta el snapshot.
+// ---------------------------------------------------------------------------
+describe('evaluaciones — historial global RH (GET /rh/evaluations)', () => {
+  it('llama a GET /api/v1/rh/evaluations con el token de la sesión', async () => {
+    await listarEvaluaciones('token-rh')
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta.startsWith('/api/v1/rh/evaluations?')).toBe(true)
+    expect(opciones).toEqual({ token: 'token-rh' })
+    expect(opciones.metodo).toBeUndefined()
+  })
+
+  it('aplica los defaults del contrato (pagina 1 y por_pagina 20)', async () => {
+    await listarEvaluaciones('token-rh')
+
+    const consulta = consultaDeLaUltimaLlamada()
+    expect(consulta.get('pagina')).toBe('1')
+    expect(consulta.get('por_pagina')).toBe(String(POR_PAGINA_DEFECTO))
+    // Sin periodo no viaja el parámetro (el backend lo trata como sin filtro).
+    expect(consulta.get('periodo')).toBeNull()
+  })
+
+  it('incluye el filtro periodo cuando se envía y respeta el tope de página', async () => {
+    await listarEvaluaciones('token-rh', {
+      pagina: 3,
+      porPagina: POR_PAGINA_MAXIMO + 500,
+      periodo: ' 2026-Q2 ',
+    })
+
+    const consulta = consultaDeLaUltimaLlamada()
+    expect(consulta.get('pagina')).toBe('3')
+    expect(consulta.get('por_pagina')).toBe(String(POR_PAGINA_MAXIMO))
+    expect(consulta.get('periodo')).toBe('2026-Q2')
+  })
+
+  it('omite un periodo vacío en vez de mandar un filtro en blanco', async () => {
+    await listarEvaluaciones('token-rh', { periodo: '   ' })
+
+    expect(consultaDeLaUltimaLlamada().get('periodo')).toBeNull()
+  })
+
+  it('devuelve el EvaluacionPageOut sin transformarlo', async () => {
+    await expect(listarEvaluaciones('token-rh')).resolves.toBe(PAGINA)
+  })
+
+  it('propaga 401 y 500 para que la vista decida', async () => {
+    const error401 = Object.assign(new Error('no autorizado'), { estado: 401 })
+    vi.mocked(solicitar).mockRejectedValueOnce(error401)
+    await expect(listarEvaluaciones('token-rh')).rejects.toBe(error401)
+
+    const error500 = Object.assign(new Error('fallo del servidor'), { estado: 500 })
+    vi.mocked(solicitar).mockRejectedValueOnce(error500)
+    await expect(listarEvaluaciones('token-rh')).rejects.toBe(error500)
+  })
+})
+
+describe('evaluaciones — generación del periodo vigente (POST /rh/evaluations/generate)', () => {
+  it('hace POST al endpoint exacto con el token y SIN cuerpo', async () => {
+    await generarEvaluaciones('token-rh')
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toBe('/api/v1/rh/evaluations/generate')
+    expect(opciones.metodo).toBe('POST')
+    expect(opciones.token).toBe('token-rh')
+    // El periodo lo resuelve el backend: el cliente NO envía nada (§22/§23).
+    expect(opciones.cuerpo).toBeUndefined()
+  })
+
+  it('devuelve el GeneracionEvaluacionesOut sin transformarlo', async () => {
+    const RESPUESTA = { periodo: '2026-Q3', total_generadas: 12, items: [] }
+    vi.mocked(solicitar).mockResolvedValue(RESPUESTA)
+
+    await expect(generarEvaluaciones('token-rh')).resolves.toBe(RESPUESTA)
+  })
+
+  it('propaga el 409 de periodo ya generado para que la vista lo informe', async () => {
+    const conflicto = Object.assign(new Error('periodo ya generado'), {
+      estado: 409,
+    })
+    vi.mocked(solicitar).mockRejectedValue(conflicto)
+
+    await expect(generarEvaluaciones('token-rh')).rejects.toBe(conflicto)
+  })
+
+  it('propaga el 401 para que la vista cierre la sesión (§31/§32)', async () => {
+    const error = Object.assign(new Error('no autorizado'), { estado: 401 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(generarEvaluaciones('token-rh')).rejects.toBe(error)
+  })
+
+  it('el módulo sigue sin exponer PATCH/DELETE sobre evaluaciones (§24)', async () => {
+    await generarEvaluaciones('token-rh')
+
+    const metodos = vi
+      .mocked(solicitar)
+      .mock.calls.map(([, opciones]) => opciones?.metodo)
+      .filter(Boolean)
     expect(metodos).not.toContain('PATCH')
     expect(metodos).not.toContain('DELETE')
     expect(metodos).not.toContain('PUT')

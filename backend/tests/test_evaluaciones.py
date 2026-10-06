@@ -348,4 +348,94 @@ class TestLecturaEmpleado:
         assert client.get(URL_ME_EVALUACIONES).status_code == 401
 
 
+class TestIdentificacionHistorica:
+    """RH-01.1: identificación del empleado capturada en el snapshot.
+
+    El snapshot guarda nombre/puesto/área DEL MOMENTO de la generación y las
+    lecturas NUNCA consultan el empleado actual: si este cambia de puesto o
+    área después, el histórico conserva el dato original (no se mezclan
+    tiempos). Sin puesto/área no se inventan valores (profile_incomplete §30).
+    """
+
+    def test_snapshot_guarda_identificacion_al_generar(self, client, token_rh, db):
+        crear_empleado(
+            db,
+            nombre="Ana Ruiz",
+            puesto="Desarrolladora de software",
+            area="Tecnología",
+        )
+        respuesta = client.post(URL_RH_GENERAR_EVALUACIONES, headers=cabecera(token_rh))
+        assert respuesta.status_code == 201, respuesta.text
+        item = respuesta.json()["items"][0]
+        assert item["empleado_nombre"] == "Ana Ruiz"
+        assert item["empleado_puesto"] == "Desarrolladora de software"
+        assert item["empleado_area"] == "Tecnología"
+
+    def test_historial_no_mezcla_datos_actuales_del_empleado(
+        self, client, token_rh, db
+    ):
+        empleado = crear_empleado(
+            db,
+            nombre="Ana Ruiz",
+            puesto="Desarrolladora de software",
+            area="Tecnología",
+        )
+        assert (
+            client.post(
+                URL_RH_GENERAR_EVALUACIONES, headers=cabecera(token_rh)
+            ).status_code
+            == 201
+        )
+
+        # El empleado cambia de puesto/área DESPUÉS de la evaluación (la
+        # tabla empleados es mutable; solo evaluaciones es inmutable).
+        empleado.puesto = "Tech Lead"
+        empleado.area = "Producto"
+        db.commit()
+
+        # El listado global y el historial por empleado conservan la
+        # fotografía del momento, no el dato actual.
+        item_global = client.get(
+            URL_RH_EVALUACIONES, headers=cabecera(token_rh)
+        ).json()["items"][0]
+        assert item_global["empleado_puesto"] == "Desarrolladora de software"
+        assert item_global["empleado_area"] == "Tecnología"
+
+        url = URL_RH_EMPLEADO_EVALUACIONES.format(empleado_id=empleado.id)
+        item_empleado = client.get(url, headers=cabecera(token_rh)).json()["items"][0]
+        assert item_empleado["empleado_puesto"] == "Desarrolladora de software"
+        assert item_empleado["empleado_area"] == "Tecnología"
+
+    def test_sin_puesto_ni_area_no_inventa_valores(self, client, token_rh, db):
+        crear_empleado(db, nombre="Bo Marín")  # profile_incomplete §30
+        respuesta = client.post(URL_RH_GENERAR_EVALUACIONES, headers=cabecera(token_rh))
+        assert respuesta.status_code == 201
+        item = respuesta.json()["items"][0]
+        assert item["empleado_nombre"] == "Bo Marín"
+        assert item["empleado_puesto"] is None
+        assert item["empleado_area"] is None
+
+    def test_me_no_expone_identificacion(self, client, token_rh, db):
+        """El DTO del propio Empleado (PRD §21) queda intacto (RH-01.1 mínimo)."""
+        empleado = crear_empleado(
+            db, nombre="Ana Ruiz", puesto="Desarrolladora de software", area="Tecnología"
+        )
+        crear_cuenta(
+            db, rol="EMPLEADO", email="ana@empresa.dev", empleado=empleado
+        )
+        assert (
+            client.post(
+                URL_RH_GENERAR_EVALUACIONES, headers=cabecera(token_rh)
+            ).status_code
+            == 201
+        )
+        token = login_y_token(client, "ana@empresa.dev")
+        item = client.get(
+            URL_ME_EVALUACIONES, headers=cabecera(token)
+        ).json()["items"][0]
+        assert "empleado_nombre" not in item
+        assert "empleado_puesto" not in item
+        assert "empleado_area" not in item
+
+
 

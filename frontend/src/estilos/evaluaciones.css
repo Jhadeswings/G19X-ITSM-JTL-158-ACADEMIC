@@ -1,0 +1,61 @@
+/* Evaluaciones RH (PRD §20.8; Style Guide §24 densidad RH, §26, §33).
+
+   Reutiliza tokens y primitivas existentes (ui-button, ui-alert, ui-badge,
+   estado-*, paginacion, section-header): sin paleta nueva, sin otro sistema
+   de botones y sin gráficas — no hay ninguna métrica derivada que representar.
+
+   El estado "Datos insuficientes" se distingue por texto y por su propio
+   badge neutro: el color nunca es la única señal (§3). */
+
+.evaluaciones { display: flex; flex-direction: column; gap: 22px; }
+
+/* --- Periodo vigente + generación (única acción de la sección) ---------- */
+.evaluaciones-generacion { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.evaluaciones-generacion h2 { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.evaluaciones-generacion__nota { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+.evaluaciones-generacion .ui-alert { width: 100%; }
+
+/* --- Historial ---------------------------------------------------------- */
+.evaluaciones-historial { display: flex; flex-direction: column; gap: 14px; }
+.evaluaciones-historial h2 { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.evaluaciones-historial__nota { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+.evaluaciones-historial__filtro-activo { margin: 0; color: var(--color-text-secondary); font-size: 12px; }
+.evaluaciones-historial__filtro-activo strong { color: var(--color-brand-deep); font-weight: 700; }
+
+/* Filtro por periodo (§14.4: controles claros y "Limpiar" cuando aplica). */
+.evaluaciones-filtro { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.evaluaciones-filtro__campo { display: flex; flex-direction: column; gap: 8px; min-width: 210px; }
+.evaluaciones-filtro__campo .ui-input { min-height: 36px; }
+
+/* Lista de snapshots: tarjetas de solo lectura, una por evaluación. */
+.evaluaciones-lista { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.evaluaciones-item { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; }
+.evaluaciones-item__cabecera { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.evaluaciones-item__periodo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; }
+.evaluaciones-item__empleado { margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 600; }
+/* RH-01.1: puesto · área CAPTURADOS en el snapshot histórico. */
+.evaluaciones-item__puesto { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+.evaluaciones-item__fecha { margin: 0; color: var(--ink-soft); font-size: 12px; }
+
+.evaluaciones-item__competencias { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 20px; margin: 0; }
+.evaluaciones-competencia { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.evaluaciones-competencia dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.evaluaciones-competencia dd { margin: 0; }
+
+/* 9-Box del snapshot: solo texto con los valores oficiales recibidos. */
+.evaluaciones-item__ninebox { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+
+/* RH-01.1: explicación de 9-Box con Datos insuficientes — discreta, neutra y
+   sin elementos cuantitativos; el color nunca es la única señal (§3). */
+.evaluaciones-item__ninebox-di { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border: 1px dashed var(--line-soft); border-radius: 8px; }
+.evaluaciones-item__ninebox--titulo { color: var(--color-text-primary); font-weight: 600; }
+.evaluaciones-item__ninebox-nota { margin: 0; color: var(--color-text-secondary); font-size: 12.5px; line-height: 1.6; }
+
+/* Adaptación a pantallas estrechas (§7): sin overflow horizontal. */
+@media (max-width: 760px) {
+  .evaluaciones-generacion { padding: 18px; }
+  .evaluaciones-filtro__campo { width: 100%; min-width: 0; }
+  .evaluaciones-filtro .ui-button { flex: 1 1 auto; }
+  .evaluaciones-item { padding: 16px; }
+  .evaluaciones-item__competencias { grid-template-columns: 1fr; }
+}
