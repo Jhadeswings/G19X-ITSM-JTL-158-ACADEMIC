@@ -27,6 +27,7 @@ from app.models.proyecto import Proyecto
 from app.schemas.participacion import (
     ParticipacionCreateIn,
     ParticipacionEmpleadoUpdateIn,
+    ParticipacionOut,
     ParticipacionRhUpdateIn,
 )
 from app.services import auditoria_service
@@ -128,6 +129,53 @@ def listar_participaciones(
         .limit(por_pagina)
     ).unique().all()
     return list(participaciones), int(total or 0)
+
+
+def listar_participaciones_proyecto(
+    db: Session,
+    *,
+    proyecto_id: int,
+    pagina: int = 1,
+    por_pagina: int = POR_PAGINA_DEFECTO,
+) -> tuple[list[Participacion], int]:
+    """Lista paginada de las participaciones de un proyecto (RH-02.1, §20.3).
+
+    Mismo orden que el listado por empleado (``fecha_registro`` DESC, ``id``
+    DESC): es orden cronológico de registro, NO un ranking de participantes.
+    Incluye el ``empleado`` (joinedload) para la identificación de
+    presentación del mapper ``a_participacion_out_con_empleado``.
+    """
+    por_pagina = min(max(por_pagina, 1), MAX_POR_PAGINA)
+    pagina = max(pagina, 1)
+
+    total = db.scalar(
+        select(func.count())
+        .select_from(Participacion)
+        .where(Participacion.proyecto_id == proyecto_id)
+    )
+    participaciones = db.scalars(
+        select(Participacion)
+        .options(joinedload(Participacion.proyecto), joinedload(Participacion.empleado))
+        .where(Participacion.proyecto_id == proyecto_id)
+        .order_by(Participacion.fecha_registro.desc(), Participacion.id.desc())
+        .offset((pagina - 1) * por_pagina)
+        .limit(por_pagina)
+    ).unique().all()
+    return list(participaciones), int(total or 0)
+
+
+def a_participacion_out_con_empleado(participacion: Participacion) -> ParticipacionOut:
+    """``ParticipacionOut`` con la identificación del empleado (RH-02.1).
+
+    Nombre y puesto provienen del contrato backend (join con ``Empleado``):
+    el frontend nunca resuelve la identidad con una consulta propia ni
+    muestra el ID técnico. Sin cálculos ni métricas: solo presentación.
+    """
+    salida = ParticipacionOut.model_validate(participacion)
+    empleado = participacion.empleado
+    salida.empleado_nombre = empleado.nombre if empleado is not None else None
+    salida.empleado_puesto = empleado.puesto if empleado is not None else None
+    return salida
 
 
 def actualizar_participacion_empleado(

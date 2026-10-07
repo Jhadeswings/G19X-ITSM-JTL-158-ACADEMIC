@@ -2,6 +2,8 @@
 
 Todo protegido con ``require_rh``:
 - consulta de las participaciones de un empleado (§31 adaptado);
+- consulta de las participaciones de un proyecto (RH-02.1, PRD §20.3/§12),
+  con la identificación de presentación del empleado;
 - corrección administrativa de una participación, auditada en la misma
   transacción (PRD §12.2, Especificación §9.1/§25).
 
@@ -22,6 +24,7 @@ from app.schemas.participacion import (
 )
 from app.services import participacion_service
 from app.services.empleado_service import obtener_empleado
+from app.services.proyecto_service import obtener_proyecto
 
 router = APIRouter(
     prefix="/rh", tags=["rh-participaciones"], dependencies=[Depends(require_rh)]
@@ -47,6 +50,36 @@ def listar_participaciones_empleado(
         pagina=pagina,
         por_pagina=por_pagina,
         items=[ParticipacionOut.model_validate(p) for p in participaciones],
+    )
+
+
+@router.get(
+    "/projects/{proyecto_id}/participations", response_model=ParticipacionPageOut
+)
+def listar_participaciones_proyecto(
+    proyecto_id: int,
+    pagina: int = Query(1, ge=1),
+    por_pagina: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> ParticipacionPageOut:
+    """Participaciones de un proyecto (RH-02.1, PRD §20.3/§12).
+
+    Cada item incluye ``empleado_nombre``/``empleado_puesto`` (identificación
+    de presentación, RH-02.1). El orden es cronológico de registro, no un
+    ranking de participantes. 404 si el proyecto no existe.
+    """
+    obtener_proyecto(db, proyecto_id)  # 404 si el proyecto no existe
+    participaciones, total = participacion_service.listar_participaciones_proyecto(
+        db, proyecto_id=proyecto_id, pagina=pagina, por_pagina=por_pagina
+    )
+    return ParticipacionPageOut(
+        total=total,
+        pagina=pagina,
+        por_pagina=por_pagina,
+        items=[
+            participacion_service.a_participacion_out_con_empleado(p)
+            for p in participaciones
+        ],
     )
 
 

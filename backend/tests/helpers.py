@@ -31,6 +31,8 @@ URL_BUSQUEDA_PROYECTOS = f"{URL_ME_PROYECTOS}/search"
 URL_ME_PARTICIPACIONES = "/api/v1/me/participations"
 URL_RH_PARTICIPACIONES = "/api/v1/rh/participations"
 URL_RH_EMPLEADO_PARTICIPACIONES = "/api/v1/rh/employees/{empleado_id}/participations"
+# RH-02.1: participantes de un proyecto (detalle del proyecto en RH).
+URL_RH_PROYECTO_PARTICIPACIONES = "/api/v1/rh/projects/{proyecto_id}/participations"
 URL_ME_CAPACITACIONES = "/api/v1/me/trainings"
 
 # Fase 6

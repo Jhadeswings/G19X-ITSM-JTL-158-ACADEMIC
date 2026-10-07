@@ -80,3 +80,93 @@ export async function crearProyecto(token, datos) {
     cuerpo: datos,
   })
 }
+
+// ---------------------------------------------------------------------------
+// RH — administración de proyectos EXISTENTES (PRD §20.3 y §11.1; ET §31;
+// DECISIONES_TECNICAS §15).
+//
+// RH NO crea proyectos: no existe POST /rh/projects (responde 405) y este
+// módulo no lo expone. La creación pertenece al flujo del Empleado de arriba.
+//
+//   - GET   /api/v1/rh/projects      → ProyectoPageOut (paginado);
+//   - GET   /api/v1/rh/projects/{id} → ProyectoOut (404 si no existe);
+//   - PATCH /api/v1/rh/projects/{id} → ProyectoOut. Editables EXACTAMENTE
+//     `nombre`, `area`, `cliente` y `estado` (ProyectoUpdateIn, todos
+//     opcionales): el backend renormaliza el nombre (§7/§11.2), responde
+//     409 si el nombre normalizado ya existe en otro proyecto, 422 si el
+//     estado no es uno de los tres oficiales y 422 sin ningún campo.
+//     `id`, `nombre_normalizado` y las fechas NUNCA se envían.
+//
+// La vista decide qué campos cambiaron; aquí solo se transportan tal cual.
+// ---------------------------------------------------------------------------
+
+/** Tope de `por_pagina` aceptado por el backend (evita un 422). */
+export const POR_PAGINA_MAXIMO_RH = 100
+
+/** Default de paginación del backend para el listado RH. */
+export const POR_PAGINA_DEFECTO_RH = 20
+
+/** Normaliza la paginación de la vista a query params del contrato. */
+function parametrosRh({ pagina, porPagina } = {}) {
+  const consulta = new URLSearchParams()
+  const paginaActual = Number.isFinite(pagina) ? Math.max(1, Math.trunc(pagina)) : 1
+  const porPaginaActual = Number.isFinite(porPagina)
+    ? Math.min(POR_PAGINA_MAXIMO_RH, Math.max(1, Math.trunc(porPagina)))
+    : POR_PAGINA_DEFECTO_RH
+  consulta.set('pagina', String(paginaActual))
+  consulta.set('por_pagina', String(porPaginaActual))
+  return consulta.toString()
+}
+
+/**
+ * Lista el catálogo compartido de proyectos (RH, PRD §20.3; ET §31 —
+ * GET /api/v1/rh/projects).
+ *
+ * El contrato también admite los filtros `estado` y `area`; la vista de RH
+ * no los usa de momento y esta función no los envía.
+ *
+ * @param {string} token token de la sesión RH.
+ * @param {{pagina?: number, porPagina?: number}} [paginacion]
+ * @returns {Promise<{total: number, pagina: number, por_pagina: number,
+ *                    items: object[]}>} ProyectoPageOut sin transformar.
+ */
+export async function listarProyectosRh(token, { pagina, porPagina } = {}) {
+  return solicitar(`/api/v1/rh/projects?${parametrosRh({ pagina, porPagina })}`, {
+    token,
+  })
+}
+
+/**
+ * Consulta un proyecto del catálogo (RH; ET §31 — GET /api/v1/rh/projects/{id}).
+ *
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} proyectoId identificador del proyecto.
+ * @returns {Promise<object>} ProyectoOut sin transformar (404 si no existe).
+ */
+export async function consultarProyectoRh(token, proyectoId) {
+  return solicitar(`/api/v1/rh/projects/${encodeURIComponent(proyectoId)}`, {
+    token,
+  })
+}
+
+/**
+ * Edición administrativa de un proyecto EXISTENTE (RH; ET §31 —
+ * PATCH /api/v1/rh/projects/{id}).
+ *
+ * `cambios` debe contener SOLO los campos editables del contrato que la
+ * vista detecte modificados (`nombre`, `area`, `cliente`, `estado`); el
+ * backend responde 422 si no viaja ninguno. Nada más se envía jamás.
+ *
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} proyectoId identificador del proyecto.
+ * @param {{nombre?: string, area?: string|null, cliente?: string|null,
+ *          estado?: string}} cambios campos modificados, sin transformar.
+ * @returns {Promise<object>} ProyectoOut actualizado, sin transformar.
+ */
+export async function actualizarProyectoRh(token, proyectoId, cambios) {
+  return solicitar(`/api/v1/rh/projects/${encodeURIComponent(proyectoId)}`, {
+    metodo: 'PATCH',
+    token,
+    cuerpo: cambios,
+  })
+}

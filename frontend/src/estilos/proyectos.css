@@ -97,3 +97,79 @@
   .proyectos-registro__acciones { flex-direction: column; align-items: stretch; }
   .proyectos-existente .proyectos-edicion__acciones { flex-direction: column; align-items: stretch; }
 }
+
+/* --- Sección RH → Proyectos (PRD §20.3; Style Guide §26 "Proyectos RH") ---
+   Consulta y edición administrativa de proyectos EXISTENTES: sin botón de
+   nuevo proyecto, sin paleta nueva. Reutiliza `proyectos-datos` y las
+   primitivas del shell. */
+.proyectos-rh { display: flex; flex-direction: column; gap: 22px; }
+
+.proyectos-rh__catalogo { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.proyectos-rh__catalogo h2 { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.proyectos-rh__lista { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+
+/* Tres columnas ESTABLES por fila: datos (flexible) | estado | acción.
+   `minmax(0, 1fr)` evita que un nombre largo desplace estado o botón y
+   `overflow-wrap` impide el overflow horizontal (§7). Estado y acción con
+   ancho fijo: los badges quedan alineados verticalmente entre filas y el
+   botón siempre pegado a la derecha. */
+.proyectos-rh__item { display: grid; grid-template-columns: minmax(0, 1fr) 118px 118px; align-items: center; gap: 10px 16px; padding: 14px 16px; background: var(--color-surface-soft); border: 1px solid var(--line-soft); border-radius: 10px; }
+.proyectos-rh__datos { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.proyectos-rh__nombre { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.proyectos-rh__meta { margin: 0; color: var(--color-text-secondary); font-size: 13px; overflow-wrap: anywhere; }
+.proyectos-rh__estado { display: flex; justify-content: flex-start; }
+.proyectos-rh__accion { display: flex; justify-content: flex-end; }
+
+/* Fila del proyecto abierto: fondo suave + borde primario coherentes con
+   --color-primary-soft, sin colores agresivos. La selección NUNCA depende
+   solo del color (§3): el botón Consultar de la fila lleva aria-current. */
+.proyectos-rh__item--seleccionado { background: var(--color-primary-soft); border-color: #c7ddda; }
+
+/* Ayuda contextual (§13): una línea discreta, no un banner ni tarjeta. */
+.proyectos-rh__ayuda { margin: 0; color: var(--ink-soft); font-size: 12.5px; }
+
+/* Consulta / edición: dos modos explícitos de la misma tarjeta. */
+.proyectos-rh__detalle { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.proyectos-rh__detalle h2 { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.proyectos-rh__detalle .ui-alert { width: 100%; }
+.proyectos-rh__detalle .estado-carga, .proyectos-rh__detalle .estado-error { width: 100%; }
+.proyectos-rh__detalle-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
+.proyectos-rh__detalle-cabecera h2 { flex: 1 1 auto; margin: 0; }
+.proyectos-rh__nota { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+
+/* Datos administrativos en DOS columnas (Nombre | Área, Cliente | Estado)
+   y clave de comparación a ancho completo con su explicación debajo. */
+.proyectos-rh__datos-admin { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; width: 100%; }
+.proyectos-rh__datos-admin dd { overflow-wrap: anywhere; }
+.proyectos-rh__clave { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.proyectos-rh__clave-nota { color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+
+/* RH-02.1: participantes del proyecto consultado — tabla limpia (§14.1),
+   sin columnas de métricas ni ranking; los entregables viven en el detalle
+   expandible de cada participante, no en una columna gigante. */
+.proyectos-rh__participantes { display: flex; flex-direction: column; gap: 12px; width: 100%; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.proyectos-rh__participantes h3 { margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.proyectos-rh__participacion-detalle td { padding: 14px 16px; background: var(--color-surface-soft); }
+
+/* Alineación de la tabla de participantes: encabezado y filas comparten
+   EXACTAMENTE las mismas columnas (`table-layout: fixed`); Horas y Acción
+   quedan a la derecha y el encabezado conserva su fondo ligero (§14.1). */
+.proyectos-rh__participantes-tabla { table-layout: fixed; }
+.proyectos-rh__participantes-tabla thead th { background: #f7f9f8; }
+.proyectos-rh__participantes-tabla th:nth-child(1) { width: 30%; }
+.proyectos-rh__participantes-tabla th:nth-child(2) { width: 27%; }
+.proyectos-rh__participantes-tabla th:nth-child(3) { width: 17%; }
+.proyectos-rh__participantes-tabla th:nth-child(4) { width: 11%; }
+.proyectos-rh__participantes-tabla th:nth-child(5) { width: 15%; }
+.proyectos-rh__participantes-tabla td[data-label='Horas'], .proyectos-rh__participantes-tabla td[data-label='Acción'] { text-align: right; }
+
+.proyectos-rh__formulario { width: 100%; display: flex; flex-direction: column; gap: 16px; }
+.proyectos-rh__campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.proyectos-rh__acciones { display: flex; flex-wrap: wrap; gap: 12px; }
+
+@media (max-width: 760px) {
+  .proyectos-rh__catalogo, .proyectos-rh__detalle { padding: 18px; }
+  /* Mobile: la fila colapsa a una sola columna (datos → estado → acción). */
+  .proyectos-rh__item { grid-template-columns: 1fr; align-items: flex-start; }
+  .proyectos-rh__datos-admin { grid-template-columns: 1fr; }
+}

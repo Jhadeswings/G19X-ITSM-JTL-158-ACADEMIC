@@ -94,6 +94,15 @@ class ParticipacionOut(BaseModel):
     proyecto: ProyectoOut | None = None
     created_at: datetime
     updated_at: datetime
+    # RH-02.1: identificación de presentación del empleado referenciado.
+    # Solo el endpoint de participaciones por proyecto los rellena; los
+    # demás endpoints los devuelven en null (aditivo: no rompe contratos
+    # existentes y el Empleado ya sabe quién es). A diferencia de las
+    # evaluaciones (fotografía inmutable, RH-01.1), la participación es un
+    # registro vivo: este nombre/puesto es identificación del FK, no
+    # evidencia histórica.
+    empleado_nombre: str | None = None
+    empleado_puesto: str | None = None
 
 
 class ParticipacionPageOut(BaseModel):

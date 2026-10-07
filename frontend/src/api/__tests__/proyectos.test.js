@@ -9,9 +9,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { solicitar } from '../clienteApi.js'
 import {
+  POR_PAGINA_DEFECTO_RH,
+  POR_PAGINA_MAXIMO_RH,
+  actualizarProyectoRh,
   buscarProyectos,
+  consultarProyectoRh,
   crearProyecto,
   listarMisProyectos,
+  listarProyectosRh,
 } from '../proyectos.js'
 
 vi.mock('../clienteApi.js', () => ({ solicitar: vi.fn() }))
@@ -313,5 +318,125 @@ describe('proyectos — listado propio (GET /me/projects)', () => {
     vi.mocked(solicitar).mockRejectedValue(error)
 
     await expect(listarMisProyectos('token-empleado')).rejects.toBe(error)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RH-02 — Administración de proyectos EXISTENTES (PRD §20.3; ET §31;
+// DECISIONES §15). Solo TRANSPORTE: rutas exactas, métodos, paginación del
+// contrato y respuestas sin transformar. RH NO crea proyectos: no existe
+// ninguna función POST /rh/projects en este módulo.
+// ---------------------------------------------------------------------------
+describe('proyectos RH — catálogo (GET /rh/projects)', () => {
+  it('llama a GET /api/v1/rh/projects con el token y los defaults del contrato', async () => {
+    await listarProyectosRh('token-rh')
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta.startsWith('/api/v1/rh/projects?')).toBe(true)
+    expect(ruta).toContain('pagina=1')
+    expect(ruta).toContain(`por_pagina=${POR_PAGINA_DEFECTO_RH}`)
+    expect(opciones).toEqual({ token: 'token-rh' })
+    expect(opciones.metodo).toBeUndefined()
+  })
+
+  it('respeta el tope de por_pagina y la página solicitada', async () => {
+    await listarProyectosRh('token-rh', {
+      pagina: 3,
+      porPagina: POR_PAGINA_MAXIMO_RH + 500,
+    })
+
+    const [ruta] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toContain('pagina=3')
+    expect(ruta).toContain(`por_pagina=${POR_PAGINA_MAXIMO_RH}`)
+  })
+
+  it('no envía filtros estado/area que la vista aún no usa', async () => {
+    await listarProyectosRh('token-rh')
+
+    const [ruta] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).not.toContain('estado=')
+    expect(ruta).not.toContain('area=')
+    // El contrato tampoco acepta empleado_id: la identidad nunca se envía.
+    expect(ruta).not.toContain('empleado_id')
+  })
+
+  it('propaga 401 y 500 para que la vista decida', async () => {
+    const error401 = errorDe(401, 'no autorizado')
+    vi.mocked(solicitar).mockRejectedValueOnce(error401)
+    await expect(listarProyectosRh('token-rh')).rejects.toBe(error401)
+
+    const error500 = errorDe(500, 'fallo del servidor')
+    vi.mocked(solicitar).mockRejectedValueOnce(error500)
+    await expect(listarProyectosRh('token-rh')).rejects.toBe(error500)
+  })
+})
+
+describe('proyectos RH — consulta individual (GET /rh/projects/{id})', () => {
+  it('usa la ruta exacta con el id y el token', async () => {
+    await consultarProyectoRh('token-rh', 7)
+
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/projects/7', {
+      token: 'token-rh',
+    })
+  })
+
+  it('devuelve el ProyectoOut sin transformarlo', async () => {
+    const respuesta = BUSQUEDA_EXACTA.coincidencia_exacta
+    vi.mocked(solicitar).mockResolvedValue(respuesta)
+
+    await expect(consultarProyectoRh('token-rh', 3)).resolves.toBe(respuesta)
+  })
+
+  it('propaga el 404 de proyecto inexistente', async () => {
+    const error = errorDe(404, 'Proyecto no encontrado.')
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(consultarProyectoRh('token-rh', 999)).rejects.toBe(error)
+  })
+})
+
+describe('proyectos RH — edición administrativa (PATCH /rh/projects/{id})', () => {
+  it('hace PATCH a la ruta exacta con SOLO el cuerpo de cambios', async () => {
+    vi.mocked(solicitar).mockResolvedValue(BUSQUEDA_EXACTA.coincidencia_exacta)
+
+    await actualizarProyectoRh('token-rh', 3, { estado: 'CANCELADO' })
+
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/projects/3', {
+      metodo: 'PATCH',
+      token: 'token-rh',
+      cuerpo: { estado: 'CANCELADO' },
+    })
+  })
+
+  it('devuelve el ProyectoOut actualizado sin transformarlo', async () => {
+    const respuesta = { ...BUSQUEDA_EXACTA.coincidencia_exacta, estado: 'COMPLETADO' }
+    vi.mocked(solicitar).mockResolvedValue(respuesta)
+
+    await expect(
+      actualizarProyectoRh('token-rh', 3, { estado: 'COMPLETADO' }),
+    ).resolves.toBe(respuesta)
+  })
+
+  it('propaga 409 (nombre duplicado) y 422 (sin campos/estado inválido)', async () => {
+    const conflicto = errorDe(409, 'Ya existe otro proyecto con ese nombre.')
+    vi.mocked(solicitar).mockRejectedValueOnce(conflicto)
+    await expect(
+      actualizarProyectoRh('token-rh', 3, { nombre: 'Proyecto Roble' }),
+    ).rejects.toBe(conflicto)
+
+    const invalido = errorDe(422, 'Debe proporcionar al menos un campo a actualizar.')
+    vi.mocked(solicitar).mockRejectedValueOnce(invalido)
+    await expect(actualizarProyectoRh('token-rh', 3, {})).rejects.toBe(invalido)
+  })
+
+  it('el módulo sigue sin exponer creación para RH (DECISIONES §15)', async () => {
+    const modulo = await vi.importActual('../proyectos.js')
+    expect(Object.keys(modulo)).not.toContain('crearProyectoRh')
+    // La única función con POST del módulo sigue siendo la del Empleado.
+    await crearProyecto('token-empleado', { nombre: 'X' })
+    const [, opciones] = vi.mocked(solicitar).mock.calls.at(-1)
+    expect(opciones.metodo).toBe('POST')
+    expect(vi.mocked(solicitar).mock.calls.at(-1)[0]).toBe('/api/v1/me/projects')
   })
 })

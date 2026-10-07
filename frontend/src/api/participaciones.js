@@ -109,3 +109,51 @@ export async function actualizarParticipacion(token, participacionId, datos) {
     },
   )
 }
+
+// ---------------------------------------------------------------------------
+// RH — participantes de un proyecto (RH-02.1; PRD §20.3/§12; ET §31).
+//
+// GET /api/v1/rh/projects/{id}/participations → ParticipacionPageOut. Cada
+// item incluye `empleado_nombre`/`empleado_puesto` (identificación de
+// presentación provista por el backend): la vista JAMÁS consulta el empleado
+// por su cuenta ni muestra el ID técnico como identificación principal.
+//
+// Solo lectura aquí: la corrección administrativa de una participación
+// existe como PATCH /rh/participations/{id} y NO forma parte de RH-02.1.
+// ---------------------------------------------------------------------------
+
+/** Tope de `por_pagina` del contrato de participaciones (evita un 422). */
+export const POR_PAGINA_MAXIMO_RH = 100
+
+/** Default de paginación del backend. */
+export const POR_PAGINA_DEFECTO_RH = 20
+
+/**
+ * Lista las participaciones de un proyecto, paginado.
+ *
+ * El orden es el del backend (cronológico de registro, NO un ranking de
+ * participantes); la respuesta llega sin transformar.
+ *
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} proyectoId identificador del proyecto.
+ * @param {{pagina?: number, porPagina?: number}} [paginacion]
+ * @returns {Promise<{total: number, pagina: number, por_pagina: number,
+ *                    items: object[]}>} ParticipacionPageOut sin transformar.
+ */
+export async function listarParticipacionesDeProyecto(
+  token,
+  proyectoId,
+  { pagina, porPagina } = {},
+) {
+  const consulta = new URLSearchParams()
+  const paginaActual = Number.isFinite(pagina) ? Math.max(1, Math.trunc(pagina)) : 1
+  const porPaginaActual = Number.isFinite(porPagina)
+    ? Math.min(POR_PAGINA_MAXIMO_RH, Math.max(1, Math.trunc(porPagina)))
+    : POR_PAGINA_DEFECTO_RH
+  consulta.set('pagina', String(paginaActual))
+  consulta.set('por_pagina', String(porPaginaActual))
+  return solicitar(
+    `/api/v1/rh/projects/${encodeURIComponent(proyectoId)}/participations?${consulta.toString()}`,
+    { token },
+  )
+}

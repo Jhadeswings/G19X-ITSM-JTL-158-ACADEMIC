@@ -10,6 +10,7 @@ import { obtenerResultadoActual } from '../api/resultado.js'
 import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequerida, obtenerDistribucionCompetencia } from '../api/dashboardRh.js'
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
+import { listarProyectosRh } from '../api/proyectos.js'
 import {
   generarEvaluaciones,
   listarEvaluaciones,
@@ -52,6 +53,11 @@ vi.mock('../api/evaluaciones.js', async () => {
   }
 })
 
+vi.mock('../api/proyectos.js', async () => {
+  const original = await vi.importActual('../api/proyectos.js')
+  return { ...original, listarProyectosRh: vi.fn() }
+})
+
 const EMPLEADO = { token: 'token-empleado', rol: 'EMPLEADO', mustChangePassword: false }
 const EMPLEADO_TEMPORAL = { token: 'token-temporal', rol: 'EMPLEADO', mustChangePassword: true }
 const RH = { token: 'token-rh', rol: 'RH', mustChangePassword: false }
@@ -89,6 +95,13 @@ vi.mocked(obtenerResultadoActual).mockReset()
     items: [],
   })
   vi.mocked(listarCapacitaciones).mockResolvedValue({
+    total: 0,
+    pagina: 1,
+    por_pagina: 20,
+    items: [],
+  })
+  vi.mocked(listarProyectosRh).mockReset()
+  vi.mocked(listarProyectosRh).mockResolvedValue({
     total: 0,
     pagina: 1,
     por_pagina: 20,
@@ -467,7 +480,6 @@ describe('Shell de RH — navegación', () => {
     await screen.findByRole('heading', { name: 'Empleados activos' })
 
     for (const titulo of [
-      'Proyectos',
       'Búsqueda',
       'Comparar',
       'Mentoría',
@@ -482,6 +494,41 @@ describe('Shell de RH — navegación', () => {
       ).not.toBeInTheDocument()
     }
     expect(obtenerProgreso).not.toHaveBeenCalled()
+  })
+
+  it('Proyectos abre su vista real (§20.3), no el estado temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Empleados activos' })
+
+    abrir('Proyectos')
+
+    // El `h1` del SectionHeader de la vista montada (igual que en Empleados).
+    expect(
+      (
+        await screen.findAllByRole('heading', {
+          name: 'Proyectos',
+          level: 1,
+        })
+      ).length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.queryByText('«Proyectos» todavía no está disponible'),
+    ).not.toBeInTheDocument()
+    // Sección activa en la navegación lateral.
+    expect(
+      within(navegacion()).getByRole('button', { name: 'Proyectos' }),
+    ).toHaveAttribute('aria-current', 'page')
+    // Consulta el catálogo con el token de la sesión RH.
+    await waitFor(() => expect(listarProyectosRh).toHaveBeenCalledTimes(1))
+    expect(listarProyectosRh).toHaveBeenCalledWith(
+      'token-rh',
+      expect.objectContaining({ pagina: 1 }),
+    )
+    // RH no crea proyectos: el botón prohibido no existe (PRD §20.3).
+    expect(
+      screen.queryByRole('button', { name: /Nuevo proyecto/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('Evaluaciones abre su vista real (§20.8), no el estado temporal', async () => {

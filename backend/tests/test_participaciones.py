@@ -10,6 +10,7 @@ from tests.helpers import (
     URL_ME_PARTICIPACIONES,
     URL_RH_EMPLEADO_PARTICIPACIONES,
     URL_RH_PARTICIPACIONES,
+    URL_RH_PROYECTO_PARTICIPACIONES,
     cabecera,
     crear_cuenta,
     crear_empleado,
@@ -365,3 +366,127 @@ class TestCorreccionRH:
         )
         # 404/405: el endpoint de creación para RH simplemente no existe.
         assert respuesta.status_code in (404, 405)
+
+
+class TestParticipacionesPorProyecto:
+    """RH-02.1: participantes en el detalle de un proyecto (PRD §20.3/§12).
+
+    Identificación humana (nombre/puesto) provista por el backend, orden
+    cronológico de registro (NO un ranking de participantes), sin métricas
+    ni 9-Box. La corrección administrativa de una participación sigue
+    siendo el PATCH individual ya existente.
+    """
+
+    @pytest.fixture()
+    def sembradas(self, db, proyecto):
+        """Dos participaciones en el proyecto: Ana con puesto y Bo sin él (§30)."""
+        ana = crear_empleado(
+            db,
+            nombre="Ana Ruiz",
+            puesto="Desarrolladora de software",
+            area="Tecnología",
+        )
+        bo = crear_empleado(db, nombre="Bo Marín")
+        fecha = fecha_negocio_hoy()
+        db.add(
+            Participacion(
+                empleado_id=ana.id,
+                proyecto_id=proyecto.id,
+                rol="Desarrollador",
+                entregables="API de pagos",
+                horas=120,
+                fecha_registro=fecha,
+            )
+        )
+        db.add(
+            Participacion(
+                empleado_id=bo.id,
+                proyecto_id=proyecto.id,
+                rol="QA",
+                entregables=None,
+                horas=40,
+                fecha_registro=fecha,
+            )
+        )
+        db.commit()
+        return {"ana": ana, "bo": bo}
+
+    def _url(self, proyecto_id, **query):
+        ruta = URL_RH_PROYECTO_PARTICIPACIONES.format(proyecto_id=proyecto_id)
+        return ruta + (f"?{'&'.join(f'{k}={v}' for k, v in query.items())}" if query else "")
+
+    def test_lista_con_identificacion_del_empleado(
+        self, client, token_rh, proyecto, sembradas
+    ):
+        respuesta = client.get(self._url(proyecto.id), headers=cabecera(token_rh))
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert datos["total"] == 2
+
+        por_empleado = {i["empleado_id"]: i for i in datos["items"]}
+        ana = por_empleado[sembradas["ana"].id]
+        assert ana["empleado_nombre"] == "Ana Ruiz"
+        assert ana["empleado_puesto"] == "Desarrolladora de software"
+        assert ana["rol"] == "Desarrollador"
+        assert ana["horas"] == 120
+        assert ana["entregables"] == "API de pagos"
+        # Sin puesto registrado (§30): null, no inventado.
+        bo = por_empleado[sembradas["bo"].id]
+        assert bo["empleado_nombre"] == "Bo Marín"
+        assert bo["empleado_puesto"] is None
+
+    def test_no_mezcla_participaciones_de_otros_proyectos(
+        self, client, token_rh, db, proyecto, sembradas
+    ):
+        from app.core.normalizacion import normalizar_nombre
+        from app.models.proyecto import Proyecto
+
+        otro = Proyecto(
+            nombre="Otro Proyecto", nombre_normalizado=normalizar_nombre("Otro Proyecto")
+        )
+        db.add(otro)
+        db.commit()
+        db.refresh(otro)
+
+        respuesta = client.get(self._url(otro.id), headers=cabecera(token_rh))
+        assert respuesta.status_code == 200
+        assert respuesta.json()["total"] == 0
+        assert respuesta.json()["items"] == []
+
+    def test_proyecto_inexistente_404(self, client, token_rh):
+        assert (
+            client.get(
+                self._url(999), headers=cabecera(token_rh)
+            ).status_code
+            == 404
+        )
+
+    def test_empleado_no_puede_consultar(self, client, token_empleado, proyecto):
+        assert (
+            client.get(self._url(proyecto.id), headers=cabecera(token_empleado)).status_code
+            == 403
+        )
+
+    def test_sin_token_401(self, client, proyecto):
+        assert client.get(self._url(proyecto.id)).status_code == 401
+
+    def test_paginado_del_contrato(self, client, token_rh, proyecto, sembradas):
+        respuesta = client.get(
+            self._url(proyecto.id, pagina=1, por_pagina=1), headers=cabecera(token_rh)
+        )
+        assert respuesta.status_code == 200
+        datos = respuesta.json()
+        assert datos["total"] == 2
+        assert datos["por_pagina"] == 1
+        assert len(datos["items"]) == 1
+
+    def test_listado_por_empleado_queda_sin_identificacion(
+        self, client, token_rh, proyecto, sembradas
+    ):
+        """Solo el endpoint por proyecto rellena la identificación (aditivo)."""
+        ruta = URL_RH_EMPLEADO_PARTICIPACIONES.format(
+            empleado_id=sembradas["ana"].id
+        )
+        item = client.get(ruta, headers=cabecera(token_rh)).json()["items"][0]
+        assert item["empleado_nombre"] is None
+        assert item["empleado_puesto"] is None
