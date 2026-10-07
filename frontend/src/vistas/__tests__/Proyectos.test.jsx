@@ -10,7 +10,10 @@
 // - error de PATCH (409/500) legible; 401 → alSesionExpirada;
 // - ausencia del botón «Nuevo proyecto» (PRD §20.3/§11.1);
 // - Escape: cierra en consulta, y en edición actúa como «Cancelar» (vuelve
-//   a la consulta sin PATCH ni cierre del detalle; nunca descarta en silencio).
+//   a la consulta sin PATCH ni cierre del detalle; nunca descarta en silencio);
+// - corrección administrativa de participación (RH-02.2, PRD §12.2): acción
+//   explícita separada de «Editar proyecto», PATCH solo con los campos
+//   cambiados, cancelar sin PATCH y errores legibles.
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,7 +23,10 @@ import {
   consultarProyectoRh,
   listarProyectosRh,
 } from '../../api/proyectos.js'
-import { listarParticipacionesDeProyecto } from '../../api/participaciones.js'
+import {
+  corregirParticipacion,
+  listarParticipacionesDeProyecto,
+} from '../../api/participaciones.js'
 import Proyectos from '../Proyectos.jsx'
 
 vi.mock('../../api/proyectos.js', async () => {
@@ -35,7 +41,11 @@ vi.mock('../../api/proyectos.js', async () => {
 
 vi.mock('../../api/participaciones.js', async () => {
   const original = await vi.importActual('../../api/participaciones.js')
-  return { ...original, listarParticipacionesDeProyecto: vi.fn() }
+  return {
+    ...original,
+    listarParticipacionesDeProyecto: vi.fn(),
+    corregirParticipacion: vi.fn(),
+  }
 })
 
 /** Proyecto fiel a `ProyectoOut`. */
@@ -93,6 +103,7 @@ beforeEach(() => {
   vi.mocked(consultarProyectoRh).mockReset()
   vi.mocked(actualizarProyectoRh).mockReset()
   vi.mocked(listarParticipacionesDeProyecto).mockReset()
+  vi.mocked(corregirParticipacion).mockReset()
   vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue(PARTICIPANTES_VACIOS)
   vi.mocked(listarProyectosRh).mockResolvedValue(CATALOGO)
   vi.mocked(consultarProyectoRh).mockImplementation((_token, id) =>
@@ -843,5 +854,214 @@ describe('Proyectos RH — 401 delega en alSesionExpirada (§31/§32)', () => {
 
     await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('No pudimos guardar los cambios')).toBeNull()
+  })
+})
+
+describe('Proyectos RH — corrección administrativa de participación (RH-02.2)', () => {
+  const CON_PARTICIPANTE = {
+    total: 1,
+    pagina: 1,
+    por_pagina: 20,
+    items: [participacion(1)],
+  }
+
+  /** Render + consulta del proyecto 1 + detalle expandido del participante. */
+  async function abrirParticipacion(props = {}) {
+    vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue(CON_PARTICIPANTE)
+    render(<Proyectos token="token-rh" {...props} />)
+    await esperarListado()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
+    await screen.findByRole('heading', { name: 'Consultar proyecto' })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Consultar participación' }),
+    )
+    // El detalle expandido muestra los entregables del participante.
+    expect(await screen.findByText('API de pagos')).toBeInTheDocument()
+  }
+
+  it('la corrección es una acción explícita separada de Editar proyecto', async () => {
+    await abrirParticipacion()
+
+    // Ambas acciones existen, cada una con su ámbito: participación vs proyecto.
+    expect(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Editar proyecto' }),
+    ).toBeInTheDocument()
+    // El formulario de corrección NO existe hasta pulsar su acción.
+    expect(screen.queryByText('Corrección administrativa')).toBeNull()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    )
+    expect(screen.getByText('Corrección administrativa')).toBeInTheDocument()
+
+    // Entrar en la edición del proyecto desmonta participantes y corrección:
+    // dos formularios administrativos que nunca se mezclan.
+    fireEvent.click(screen.getByRole('button', { name: 'Editar proyecto' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Editar proyecto' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Corrección administrativa')).toBeNull()
+    expect(screen.queryByText('Participantes')).toBeNull()
+    expect(actualizarProyectoRh).not.toHaveBeenCalled()
+  })
+
+  it('RH corrige: PATCH solo con los campos cambiados y recarga de participantes', async () => {
+    // ParticipacionOut corregida (contrato de corregirParticipacion, sin
+    // transformar): mismo patrón que los PATCH exitosos de «Editar proyecto».
+    vi.mocked(corregirParticipacion).mockResolvedValue(
+      participacion(1, { rol: 'QA Lead', en_equipo: false }),
+    )
+
+    await abrirParticipacion()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    )
+
+    fireEvent.change(screen.getByLabelText('Rol'), {
+      target: { value: 'QA Lead' },
+    })
+    fireEvent.click(screen.getByLabelText('Trabajo en equipo')) // true ? false
+    fireEvent.change(screen.getByLabelText('Motivo'), {
+      target: { value: 'Solicitado por el empleado' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
+
+    await waitFor(() => expect(corregirParticipacion).toHaveBeenCalledTimes(1))
+    const [token, id, cambios] = vi.mocked(corregirParticipacion).mock.calls[0]
+    expect(token).toBe('token-rh')
+    expect(id).toBe(1)
+    // Exactamente lo corregido + motivo: ni entregables ni horas sin cambio.
+    expect(cambios).toEqual({
+      rol: 'QA Lead',
+      en_equipo: false,
+      motivo: 'Solicitado por el empleado',
+    })
+    // El proyecto NO se tocó: la corrección es de la participación.
+    expect(actualizarProyectoRh).not.toHaveBeenCalled()
+    // Los participantes se recargan para reflejar la corrección persistida.
+    await waitFor(() =>
+      expect(listarParticipacionesDeProyecto).toHaveBeenCalledTimes(2),
+    )
+    expect(
+      await screen.findByText('Participación corregida'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Corrección administrativa')).toBeNull()
+  })
+
+  it('cancelar la corrección no hace ningún PATCH y conserva el detalle', async () => {
+    await abrirParticipacion()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    )
+
+    fireEvent.change(screen.getByLabelText('Horas'), {
+      target: { value: '200' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByText('Corrección administrativa')).toBeNull()
+    expect(
+      screen.getByRole('heading', { name: 'Consultar proyecto' }),
+    ).toBeInTheDocument()
+    expect(corregirParticipacion).not.toHaveBeenCalled()
+    expect(actualizarProyectoRh).not.toHaveBeenCalled()
+  })
+
+  it('sin cambios no envía ningún PATCH', async () => {
+    await abrirParticipacion()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
+
+    expect(
+      await screen.findByText('No pudimos corregir la participación'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('No hay cambios que corregir en esta participación.'),
+    ).toBeInTheDocument()
+    expect(corregirParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('un rol vacío se valida en cliente sin llamar al backend', async () => {
+    await abrirParticipacion()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    )
+
+    fireEvent.change(screen.getByLabelText('Rol'), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
+
+    expect(
+      await screen.findByText('El rol de la participación no puede estar vacío.'),
+    ).toBeInTheDocument()
+    expect(corregirParticipacion).not.toHaveBeenCalled()
+  })
+
+  it('un fallo del PATCH de corrección se muestra legible', async () => {
+    vi.mocked(corregirParticipacion).mockRejectedValue(
+      Object.assign(new Error('La participación ya no existe.'), {
+        estado: 404,
+      }),
+    )
+    await abrirParticipacion()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    )
+
+    fireEvent.change(screen.getByLabelText('Horas'), {
+      target: { value: '200' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
+
+    expect(
+      await screen.findByText('No pudimos corregir la participación'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('La participación ya no existe.'),
+    ).toBeInTheDocument()
+  })
+
+  it('un 401 al corregir cierra la sesión', async () => {
+    vi.mocked(corregirParticipacion).mockRejectedValue(
+      Object.assign(new Error('no autorizado'), { estado: 401 }),
+    )
+    const alSesionExpirada = vi.fn()
+    await abrirParticipacion({ alSesionExpirada })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    )
+
+    fireEvent.change(screen.getByLabelText('Horas'), {
+      target: { value: '200' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByText('No pudimos corregir la participación'),
+    ).toBeNull()
+  })
+
+  it('Escape con la corrección abierta la cancela sin cerrar el detalle', async () => {
+    await abrirParticipacion()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Corregir participación' }),
+    )
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByText('Corrección administrativa')).toBeNull()
+    expect(
+      screen.getByRole('heading', { name: 'Consultar proyecto' }),
+    ).toBeInTheDocument()
+    expect(corregirParticipacion).not.toHaveBeenCalled()
+    expect(listarProyectosRh).toHaveBeenCalledTimes(1)
   })
 })

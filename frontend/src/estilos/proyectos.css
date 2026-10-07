@@ -163,6 +163,16 @@
 .proyectos-rh__participantes-tabla th:nth-child(5) { width: 15%; }
 .proyectos-rh__participantes-tabla td[data-label='Horas'], .proyectos-rh__participantes-tabla td[data-label='Acción'] { text-align: right; }
 
+/* RH-02.2: corrección administrativa de una participación (PRD §12.2). Vive
+   dentro del detalle expandido del participante, separada de la edición del
+   proyecto. Tarjeta blanca sobre el fondo suave de la fila expandida, con
+   título propio que la identifica como corrección administrativa. */
+.proyectos-rh__correccion { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 620px; margin-top: 14px; padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; }
+.proyectos-rh__correccion-titulo { margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.proyectos-rh__correccion-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 16px; width: 100%; }
+.proyectos-rh__correccion .proyectos-indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.proyectos-rh__correccion-acciones { display: flex; flex-wrap: wrap; gap: 12px; }
+
 .proyectos-rh__formulario { width: 100%; display: flex; flex-direction: column; gap: 16px; }
 .proyectos-rh__campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
 .proyectos-rh__acciones { display: flex; flex-wrap: wrap; gap: 12px; }

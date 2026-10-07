@@ -367,6 +367,44 @@ class TestCorreccionRH:
         # 404/405: el endpoint de creación para RH simplemente no existe.
         assert respuesta.status_code in (404, 405)
 
+    def test_participacion_inexistente_404(self, client, token_rh):
+        """RH-02.2: corregir una participación que no existe → 404."""
+        assert client.patch(
+            f"{URL_RH_PARTICIPACIONES}/999",
+            json={"horas": 10},
+            headers=cabecera(token_rh),
+        ).status_code == 404
+
+    def test_sin_token_401(self, client, propia):
+        """RH-02.2: la corrección exige sesión RH (401 sin token)."""
+        assert client.patch(
+            f"{URL_RH_PARTICIPACIONES}/{propia['id']}",
+            json={"horas": 10},
+        ).status_code == 401
+
+    def test_horas_negativas_422(self, client, token_rh, propia):
+        """RH-02.2: horas es entero >= 0 en el contrato (422 si no)."""
+        assert client.patch(
+            f"{URL_RH_PARTICIPACIONES}/{propia['id']}",
+            json={"horas": -1},
+            headers=cabecera(token_rh),
+        ).status_code == 422
+
+    def test_correccion_persistida(self, client, token_rh, propia):
+        """RH-02.2: los cambios quedan persistidos y consultables (GET)."""
+        client.patch(
+            f"{URL_RH_PARTICIPACIONES}/{propia['id']}",
+            json={"rol": "Persistido", "horas": 99},
+            headers=cabecera(token_rh),
+        )
+        consulta = client.get(
+            f"{URL_RH_PARTICIPACIONES}/{propia['id']}",
+            headers=cabecera(token_rh),
+        )
+        assert consulta.status_code == 200
+        assert consulta.json()["rol"] == "Persistido"
+        assert consulta.json()["horas"] == 99
+
 
 class TestParticipacionesPorProyecto:
     """RH-02.1: participantes en el detalle de un proyecto (PRD §20.3/§12).

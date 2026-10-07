@@ -117,9 +117,8 @@ export async function actualizarParticipacion(token, participacionId, datos) {
 // item incluye `empleado_nombre`/`empleado_puesto` (identificación de
 // presentación provista por el backend): la vista JAMÁS consulta el empleado
 // por su cuenta ni muestra el ID técnico como identificación principal.
-//
-// Solo lectura aquí: la corrección administrativa de una participación
-// existe como PATCH /rh/participations/{id} y NO forma parte de RH-02.1.
+// El listado es de solo lectura; la CORRECCIÓN administrativa de una
+// participación (RH-02.2) tiene su propia función al final del archivo.
 // ---------------------------------------------------------------------------
 
 /** Tope de `por_pagina` del contrato de participaciones (evita un 422). */
@@ -155,5 +154,44 @@ export async function listarParticipacionesDeProyecto(
   return solicitar(
     `/api/v1/rh/projects/${encodeURIComponent(proyectoId)}/participations?${consulta.toString()}`,
     { token },
+  )
+}
+
+// ---------------------------------------------------------------------------
+// RH — corrección administrativa de una participación (RH-02.2; PRD §12.2;
+// Especificación §9.1/§25 — PATCH /api/v1/rh/participations/{id}).
+//
+// El cuerpo (`ParticipacionRhUpdateIn`, `extra="forbid"`) admite
+// EXCLUSIVAMENTE `rol`, `entregables`, `en_equipo`, `coordino_tareas`,
+// `explico_a_publico_distinto`, `resolvio_problema`, `horas` y el `motivo`
+// opcional de la auditoría (≤ 512). JAMÁS se envían `empleado_id`,
+// `proyecto_id` ni `fecha_registro`: no son corrección, romperían la
+// identidad del registro, y el backend los rechaza con 422. La autorización
+// (`require_rh`) es del backend en cada petición; aquí no se decide nada.
+//
+// Cada PATCH queda auditado por el backend (AuditoriaModificacion: quién,
+// qué participación, cuándo, operación y valores anteriores/nuevos) dentro
+// de la misma transacción — aquí no existe ningún segundo mecanismo.
+// ---------------------------------------------------------------------------
+
+/**
+ * Corrección administrativa (RH) de una participación existente.
+ *
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} participacionId id de la participación a corregir.
+ * @param {{rol?: string, entregables?: string|null, en_equipo?: boolean,
+ *          coordino_tareas?: boolean, explico_a_publico_distinto?: boolean,
+ *          resolvio_problema?: boolean, horas?: number, motivo?: string}} cambios
+ *        campos corregidos, tal cual; sin transformar.
+ * @returns {Promise<object>} ParticipacionOut corregida, sin transformar.
+ */
+export async function corregirParticipacion(token, participacionId, cambios) {
+  return solicitar(
+    `/api/v1/rh/participations/${encodeURIComponent(participacionId)}`,
+    {
+      metodo: 'PATCH',
+      token,
+      cuerpo: cambios,
+    },
   )
 }

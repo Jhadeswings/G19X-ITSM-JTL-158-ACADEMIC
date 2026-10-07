@@ -16,6 +16,12 @@
 //   existe en otro proyecto, 422 si el estado no es oficial y 422 si no
 //   viaja ningún campo. `id`, `nombre_normalizado` y las fechas NUNCA se
 //   envían: los fija el servidor.
+// - PATCH /api/v1/rh/participations/{id} → ParticipacionOut. Corrección
+//   administrativa de UNA participación (RH-02.2, PRD §12.2): editables
+//   EXACTAMENTE rol, entregables, los cuatro indicadores, horas y el motivo
+//   opcional de auditoría (§25). El backend audita quién/qué/cuándo y los
+//   valores anteriores/nuevos en la MISMA transacción. Jamás se envían
+//   empleado_id, proyecto_id ni fecha_registro (422).
 //
 // La vista no decide nada de negocio: no normaliza nombres, no valida
 // unicidad, no calcula nada. Solo envía los campos del contrato que la
@@ -34,6 +40,7 @@ import {
 } from '../api/proyectos.js'
 import {
   POR_PAGINA_DEFECTO_RH as POR_PAGINA_PARTICIPACIONES,
+  corregirParticipacion,
   listarParticipacionesDeProyecto,
 } from '../api/participaciones.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
@@ -111,6 +118,14 @@ export default function Proyectos({ token, alSesionExpirada }) {
   const [participantes, setParticipantes] = useState(consultaInicial)
   const [participantesPagina, setParticipantesPagina] = useState(1)
   const [participacionAbierta, setParticipacionAbierta] = useState(null)
+  // Corrección administrativa de UNA participación (RH-02.2, PRD §12.2):
+  // formulario propio dentro del detalle expandido del participante,
+  // SEPARADO de la edición del proyecto. `{ id, formulario }` o null.
+  const [correccion, setCorreccion] = useState(null)
+  const [guardadoCorreccion, setGuardadoCorreccion] = useState({
+    fase: 'inactivo',
+    error: null,
+  })
 
   const cargar = useCallback(() => {
     setListado(consultaInicial())
@@ -142,6 +157,8 @@ export default function Proyectos({ token, alSesionExpirada }) {
     setErrorNombre(null)
     setGuardado({ fase: 'inactivo', error: null })
     setParticipacionAbierta(null)
+    setCorreccion(null)
+    setGuardadoCorreccion({ fase: 'inactivo', error: null })
   }, [])
 
   /**
@@ -158,12 +175,22 @@ export default function Proyectos({ token, alSesionExpirada }) {
   }, [])
 
   /**
-   * Escape depende del modo del detalle (RH-02.1, corrección final):
+   * Cancela la corrección administrativa abierta: cierra el formulario sin
+   * guardar nada (mismo efecto que su botón «Cancelar»). Se define como
+   * callback porque el listener de Escape la reutiliza.
+   */
+  const cancelarCorreccion = useCallback(() => {
+    setCorreccion(null)
+    setGuardadoCorreccion({ fase: 'inactivo', error: null })
+  }, [])
+
+  /**
+   * Escape depende del estado del detalle (RH-02.1/RH-02.2):
+   * - CONSULTA + corrección abierta: cancela SOLO la corrección (el detalle
+   *   y los cambios de contexto se conservan; nunca se descarta en silencio).
    * - CONSULTA: cierra el detalle (mismo efecto que la X).
-   * - EDICIÓN: actúa como «Cancelar» — vuelve a la consulta del MISMO
-   *   proyecto sin cerrar el detalle, sin guardar y sin PATCH. Así los
-   *   cambios nunca se descartan en silencio cerrando toda la consulta:
-   *   solo se abandonan por la acción explícita de cancelar (o su atajo).
+   * - EDICIÓN del proyecto: actúa como «Cancelar» — vuelve a la consulta del
+   *   MISMO proyecto sin cerrar el detalle, sin guardar y sin PATCH.
    *
    * Listener propio en `document`: no interfiere con el detector de
    * actividad de la sesión (`useInactividad` escucha `keydown` pasivo en
@@ -175,12 +202,13 @@ export default function Proyectos({ token, alSesionExpirada }) {
     function alPulsarTecla(evento) {
       if (evento.key === 'Escape') {
         if (modo === 'edicion') cancelarEdicion()
+        else if (correccion) cancelarCorreccion()
         else cerrarDetalle()
       }
     }
     document.addEventListener('keydown', alPulsarTecla)
     return () => document.removeEventListener('keydown', alPulsarTecla)
-  }, [detalle, modo, cerrarDetalle, cancelarEdicion])
+  }, [detalle, modo, correccion, cerrarDetalle, cancelarEdicion, cancelarCorreccion])
 
   /** Abre la CONSULTA de un proyecto del catálogo (GET /{id}). */
   const abrir = useCallback(
@@ -189,6 +217,8 @@ export default function Proyectos({ token, alSesionExpirada }) {
       setGuardado({ fase: 'inactivo', error: null })
       setErrorNombre(null)
       setParticipacionAbierta(null)
+      setCorreccion(null)
+      setGuardadoCorreccion({ fase: 'inactivo', error: null })
       setParticipantesPagina(1)
       setDetalle({ id: proyectoId, fase: 'cargando', datos: null, error: null })
       consultarProyectoRh(token, proyectoId)
@@ -232,8 +262,118 @@ export default function Proyectos({ token, alSesionExpirada }) {
     }
   }, [cargarParticipantes])
 
+  /**
+   * Cambiar de página de participantes cierra cualquier corrección abierta:
+   * el formulario vive en la fila de UNA participación de la página actual.
+   */
+  const cambiarPaginaParticipantes = useCallback((nuevaPagina) => {
+    setParticipantesPagina(nuevaPagina)
+    setCorreccion(null)
+    setGuardadoCorreccion({ fase: 'inactivo', error: null })
+  }, [])
+
+  /**
+   * Abre la corrección administrativa de UNA participación (RH-02.2, PRD
+   * §12.2) con los valores actuales del contrato. Acción separada de
+   * «Editar proyecto»: este formulario jamás toca al proyecto.
+   */
+  const abrirCorreccion = useCallback((participacion) => {
+    setCorreccion({
+      id: participacion.id,
+      formulario: {
+        rol: participacion.rol,
+        entregables: participacion.entregables ?? '',
+        horas: String(participacion.horas),
+        en_equipo: participacion.en_equipo,
+        coordino_tareas: participacion.coordino_tareas,
+        explico_a_publico_distinto: participacion.explico_a_publico_distinto,
+        resolvio_problema: participacion.resolvio_problema,
+        motivo: '',
+      },
+    })
+    setGuardadoCorreccion({ fase: 'inactivo', error: null })
+  }, [])
+
+  /**
+   * Guarda la corrección administrativa (RH-02.2). Solo viajan los campos
+   * del contrato `ParticipacionRhUpdateIn` que CAMBIARON (más el motivo de
+   * auditoría si se escribió); sin cambios no se hace ningún PATCH. La
+   * validación visible (rol obligatorio, horas enteras ≥ 0) replica la del
+   * backend para evitar un viaje inútil, no para reemplazarla. Tras el éxito
+   * se recargan los participantes del proyecto. 401 → alSesionExpirada.
+   */
+  function guardarCorreccion(evento, participacion) {
+    evento.preventDefault()
+    const formulario = correccion.formulario
+    const rol = formulario.rol.trim()
+    if (!rol) {
+      setGuardadoCorreccion({
+        fase: 'error',
+        error: { message: 'El rol de la participación no puede estar vacío.' },
+      })
+      return
+    }
+    const horas = Number(formulario.horas)
+    if (!Number.isInteger(horas) || horas < 0) {
+      setGuardadoCorreccion({
+        fase: 'error',
+        error: {
+          message: 'Las horas deben ser un número entero mayor o igual a cero.',
+        },
+      })
+      return
+    }
+
+    // ParticipacionRhUpdateIn: exactamente los campos corregidos + motivo.
+    const cambios = {}
+    if (rol !== participacion.rol) cambios.rol = rol
+    const entregables = formulario.entregables.trim() || null
+    if (entregables !== (participacion.entregables ?? null)) {
+      cambios.entregables = entregables
+    }
+    if (horas !== participacion.horas) cambios.horas = horas
+    for (const indicador of [
+      'en_equipo',
+      'coordino_tareas',
+      'explico_a_publico_distinto',
+      'resolvio_problema',
+    ]) {
+      if (formulario[indicador] !== participacion[indicador]) {
+        cambios[indicador] = formulario[indicador]
+      }
+    }
+    const motivo = formulario.motivo.trim()
+    if (motivo) cambios.motivo = motivo
+    if (Object.keys(cambios).length === 0) {
+      setGuardadoCorreccion({
+        fase: 'error',
+        error: { message: 'No hay cambios que corregir en esta participación.' },
+      })
+      return
+    }
+
+    setGuardadoCorreccion({ fase: 'corrigiendo', error: null })
+    corregirParticipacion(token, participacion.id, cambios)
+      .then(() => {
+        setCorreccion(null)
+        setGuardadoCorreccion({ fase: 'exito', error: null })
+        cargarParticipantes() // los participantes deben reflejar la corrección
+      })
+      .catch((error) => {
+        if (error?.estado === 401) {
+          alSesionExpirada?.()
+          return
+        }
+        setGuardadoCorreccion({ fase: 'error', error })
+      })
+  }
+
   function entrarEdicion() {
     const proyecto = detalle.datos
+    // La edición del proyecto es EXCLUYENTE con la corrección de una
+    // participación (RH-02.2): dos formularios administrativos distintos.
+    setCorreccion(null)
+    setGuardadoCorreccion({ fase: 'inactivo', error: null })
     setFormulario({
       nombre: proyecto.nombre,
       area: proyecto.area ?? '',
@@ -485,6 +625,20 @@ export default function Proyectos({ token, alSesionExpirada }) {
               >
                 <h3 id="proyectos-rh-participantes-titulo">Participantes</h3>
 
+                {/* Resultado de la corrección administrativa (RH-02.2): aquí
+                    para seguir visible aunque la tabla se recargue. */}
+                {guardadoCorreccion.fase === 'exito' && (
+                  <Alert tone="success" title="Participación corregida">
+                    La corrección quedó aplicada y auditada (§12.2/§25).
+                  </Alert>
+                )}
+                {guardadoCorreccion.fase === 'error' && (
+                  <Alert tone="error" title="No pudimos corregir la participación">
+                    {guardadoCorreccion.error?.message ||
+                      'Ocurrió un problema al corregir la participación.'}
+                  </Alert>
+                )}
+
                 {participantes.fase === 'cargando' && (
                   <EstadoCarga texto="Cargando participantes…" />
                 )}
@@ -560,6 +714,242 @@ export default function Proyectos({ token, alSesionExpirada }) {
                                       <dd>{participacion.fecha_registro}</dd>
                                     </div>
                                   </dl>
+                                  {/* RH-02.2 (PRD §12.2): corrección
+                                      administrativa EXPLÍCITA de esta
+                                      participación — separada de «Editar
+                                      proyecto», que edita al proyecto y jamás
+                                      a una participación. */}
+                                  {correccion?.id !== participacion.id && (
+                                    <Button
+                                      type="button"
+                                      variant="secondary"
+                                      size="small"
+                                      onClick={() => abrirCorreccion(participacion)}
+                                    >
+                                      Corregir participación
+                                    </Button>
+                                  )}
+                                  {correccion?.id === participacion.id && (
+                                    <form
+                                      className="proyectos-rh__correccion"
+                                      onSubmit={(evento) =>
+                                        guardarCorreccion(evento, participacion)
+                                      }
+                                      noValidate
+                                    >
+                                      <p className="proyectos-rh__correccion-titulo">
+                                        Corrección administrativa
+                                      </p>
+                                      <p className="proyectos-rh__nota">
+                                        Estás corrigiendo administrativamente la
+                                        participación de{' '}
+                                        {participacion.empleado_nombre ??
+                                          `Empleado ${participacion.empleado_id}`}{' '}
+                                        en este proyecto. Cada corrección queda
+                                        auditada: quién, cuándo y los valores
+                                        anteriores y nuevos (§12.2/§25).
+                                      </p>
+                                      <div className="proyectos-rh__correccion-campos">
+                                        <FormField
+                                          id="correccion-rol"
+                                          label="Rol"
+                                          required
+                                        >
+                                          <Input
+                                            id="correccion-rol"
+                                            autoComplete="off"
+                                            value={correccion.formulario.rol}
+                                            onChange={(evento) =>
+                                              setCorreccion({
+                                                ...correccion,
+                                                formulario: {
+                                                  ...correccion.formulario,
+                                                  rol: evento.target.value,
+                                                },
+                                              })
+                                            }
+                                          />
+                                        </FormField>
+                                        <FormField
+                                          id="correccion-entregables"
+                                          label="Entregables"
+                                        >
+                                          <Input
+                                            id="correccion-entregables"
+                                            autoComplete="off"
+                                            value={correccion.formulario.entregables}
+                                            onChange={(evento) =>
+                                              setCorreccion({
+                                                ...correccion,
+                                                formulario: {
+                                                  ...correccion.formulario,
+                                                  entregables: evento.target.value,
+                                                },
+                                              })
+                                            }
+                                          />
+                                        </FormField>
+                                        <FormField
+                                          id="correccion-horas"
+                                          label="Horas"
+                                          required
+                                          hint="Número entero de horas (≥ 0)."
+                                        >
+                                          <Input
+                                            id="correccion-horas"
+                                            inputMode="numeric"
+                                            autoComplete="off"
+                                            value={correccion.formulario.horas}
+                                            onChange={(evento) =>
+                                              setCorreccion({
+                                                ...correccion,
+                                                formulario: {
+                                                  ...correccion.formulario,
+                                                  horas: evento.target.value,
+                                                },
+                                              })
+                                            }
+                                          />
+                                        </FormField>
+                                        <FormField
+                                          id="correccion-motivo"
+                                          label="Motivo"
+                                          hint="Opcional (máx. 512): queda en la auditoría."
+                                        >
+                                          <Input
+                                            id="correccion-motivo"
+                                            autoComplete="off"
+                                            maxLength={512}
+                                            value={correccion.formulario.motivo}
+                                            onChange={(evento) =>
+                                              setCorreccion({
+                                                ...correccion,
+                                                formulario: {
+                                                  ...correccion.formulario,
+                                                  motivo: evento.target.value,
+                                                },
+                                              })
+                                            }
+                                          />
+                                        </FormField>
+                                      </div>
+                                      <div
+                                        className="proyectos-indicadores"
+                                        role="group"
+                                        aria-labelledby="correccion-indicadores-titulo"
+                                      >
+                                        <p
+                                          className="proyectos-indicadores__titulo"
+                                          id="correccion-indicadores-titulo"
+                                        >
+                                          Indicadores
+                                        </p>
+                                        <div className="proyectos-indicador">
+                                          <input
+                                            type="checkbox"
+                                            id="correccion-en-equipo"
+                                            checked={correccion.formulario.en_equipo}
+                                            onChange={(evento) =>
+                                              setCorreccion({
+                                                ...correccion,
+                                                formulario: {
+                                                  ...correccion.formulario,
+                                                  en_equipo: evento.target.checked,
+                                                },
+                                              })
+                                            }
+                                          />
+                                          <label htmlFor="correccion-en-equipo">
+                                            Trabajo en equipo
+                                          </label>
+                                        </div>
+                                        <div className="proyectos-indicador">
+                                          <input
+                                            type="checkbox"
+                                            id="correccion-coordina"
+                                            checked={
+                                              correccion.formulario.coordino_tareas
+                                            }
+                                            onChange={(evento) =>
+                                              setCorreccion({
+                                                ...correccion,
+                                                formulario: {
+                                                  ...correccion.formulario,
+                                                  coordino_tareas:
+                                                    evento.target.checked,
+                                                },
+                                              })
+                                            }
+                                          />
+                                          <label htmlFor="correccion-coordina">
+                                            Coordinación
+                                          </label>
+                                        </div>
+                                        <div className="proyectos-indicador">
+                                          <input
+                                            type="checkbox"
+                                            id="correccion-explica"
+                                            checked={
+                                              correccion.formulario
+                                                .explico_a_publico_distinto
+                                            }
+                                            onChange={(evento) =>
+                                              setCorreccion({
+                                                ...correccion,
+                                                formulario: {
+                                                  ...correccion.formulario,
+                                                  explico_a_publico_distinto:
+                                                    evento.target.checked,
+                                                },
+                                              })
+                                            }
+                                          />
+                                          <label htmlFor="correccion-explica">
+                                            Explicación a públicos distintos
+                                          </label>
+                                        </div>
+                                        <div className="proyectos-indicador">
+                                          <input
+                                            type="checkbox"
+                                            id="correccion-situacion"
+                                            checked={
+                                              correccion.formulario.resolvio_problema
+                                            }
+                                            onChange={(evento) =>
+                                              setCorreccion({
+                                                ...correccion,
+                                                formulario: {
+                                                  ...correccion.formulario,
+                                                  resolvio_problema:
+                                                    evento.target.checked,
+                                                },
+                                              })
+                                            }
+                                          />
+                                          <label htmlFor="correccion-situacion">
+                                            Situación/problema
+                                          </label>
+                                        </div>
+                                      </div>
+                                      <div className="proyectos-rh__correccion-acciones">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          onClick={cancelarCorreccion}
+                                        >
+                                          Cancelar
+                                        </Button>
+                                        <Button
+                                          type="submit"
+                                          loading={
+                                            guardadoCorreccion.fase === 'corrigiendo'
+                                          }
+                                        >
+                                          Guardar corrección
+                                        </Button>
+                                      </div>
+                                    </form>
+                                  )}
                                 </td>
                               </tr>
                             )}
@@ -576,7 +966,7 @@ export default function Proyectos({ token, alSesionExpirada }) {
                           POR_PAGINA_PARTICIPACIONES
                         }
                         total={participantes.datos?.total ?? 0}
-                        onCambiarPagina={setParticipantesPagina}
+                        onCambiarPagina={cambiarPaginaParticipantes}
                         etiqueta="participantes"
                       />
                     </>

@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { solicitar } from '../clienteApi.js'
 import {
   actualizarParticipacion,
+  corregirParticipacion,
   crearParticipacion,
   listarParticipaciones,
 } from '../participaciones.js'
@@ -411,5 +412,39 @@ describe('participaciones — edición propia (PATCH /me/participations/{id})', 
     await expect(
       actualizarParticipacion('token-empleado', 21, EDICION),
     ).rejects.toMatchObject({ estado: 500, message: 'fallo del servidor' })
+  })
+})
+
+describe('participaciones — corrección administrativa RH (PATCH /rh/participations/{id})', () => {
+  it('llama a PATCH /api/v1/rh/participations/{id} con el token y el cuerpo exactos', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PARTICIPACION)
+    const cambios = { horas: 150, motivo: 'Corrección solicitada por el empleado' }
+
+    await corregirParticipacion('token-rh', 21, cambios)
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/participations/21', {
+      metodo: 'PATCH',
+      token: 'token-rh',
+      cuerpo: cambios,
+    })
+  })
+
+  it('la ruta es exacta: id codificado, sin query params ni barra final', async () => {
+    vi.mocked(solicitar).mockResolvedValue(PARTICIPACION)
+
+    await corregirParticipacion('token-rh', 7, { rol: 'QA' })
+
+    const [ruta] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toBe('/api/v1/rh/participations/7')
+    expect(ruta).not.toContain('?')
+    expect(ruta.endsWith('/')).toBe(false)
+  })
+
+  it('propaga el error del backend sin transformarlo', async () => {
+    const error = errorDe(422, 'Debe proporcionar al menos un campo a corregir.')
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(corregirParticipacion('token-rh', 21, {})).rejects.toBe(error)
   })
 })
