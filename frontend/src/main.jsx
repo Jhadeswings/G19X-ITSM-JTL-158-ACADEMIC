@@ -18,6 +18,7 @@ import './estilos/historial.css'
 import './estilos/evaluaciones.css'
 import './estilos/brechas.css'
 import './estilos/comparar.css'
+import './estilos/mentoria.css'
 import './estilos/cuenta.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(

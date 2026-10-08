@@ -481,7 +481,6 @@ describe('Shell de RH — navegación', () => {
 
     for (const titulo of [
       'Búsqueda',
-      'Mentoría',
     ]) {
       abrir(titulo)
       expect(
@@ -507,6 +506,22 @@ describe('Shell de RH — navegación', () => {
     ).toBeInTheDocument()
     expect(
       screen.queryByText('«Comparar» todavía no está disponible'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('Mentoría abre su vista real (§14), no la sección temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Empleados activos' })
+
+    abrir('Mentoría')
+
+    // El selector de competencia objetivo es único de la vista real.
+    expect(
+      await screen.findByRole('combobox', { name: 'Competencia objetivo' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('«Mentoría» todavía no está disponible'),
     ).not.toBeInTheDocument()
   })
 

@@ -1,0 +1,33 @@
+/* Sección RH → Mentoría (PRD §14; Style Guide §999: la justificación se
+   etiqueta «Criterio del sistema», nunca «mejor/top»). Reutiliza tabla,
+   paginación y estados existentes; aporta solo el layout propio. */
+.mentoria { display: flex; flex-direction: column; gap: 22px; }
+.mentoria > .section-header { margin-bottom: -8px; }
+.mentoria-seleccion { display: flex; flex-direction: column; gap: 14px; }
+.mentoria-seleccion__controles { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 22px; }
+.mentoria-seleccion__busqueda { display: flex; flex-direction: column; gap: 8px; flex: 1 1 240px; min-width: 210px; }
+.mentoria-seleccion__competencia { display: flex; flex-direction: column; gap: 8px; min-width: 220px; }
+.mentoria-seleccion__busqueda .ui-input,
+.mentoria-seleccion__competencia select { min-height: 36px; }
+.mentoria-seleccion__competencia select { padding: 8px 12px; color: var(--color-text-primary); background: #f7f9f8; border: 1px solid #e7ecea; border-radius: 8px; font-size: 13px; }
+.mentoria-seleccion td input[type='radio'] { width: 16px; height: 16px; margin: 0; accent-color: var(--color-primary); }
+
+/* Resultado: tarjeta con los datos del contrato y el bloque destacado de
+   Criterio del sistema (etiqueta obligatoria del PRD §14.3). Tono neutro. */
+.mentoria-resultado { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.mentoria-resultado__titulo { margin: 0; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.mentoria-resultado__lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 16px; margin: 0; }
+.mentoria-resultado__lista dt { margin: 0 0 4px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.mentoria-resultado__lista dd { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 600; }
+.mentoria-mentor { padding: 14px 16px; background: #f7f9f8; border: 1px solid #e7ecea; border-radius: 8px; }
+.mentoria-mentor h3 { margin: 0 0 4px; color: var(--color-text-primary); font-size: 15px; font-weight: 700; }
+.mentoria-mentor p { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+.mentoria-resultado__criterio { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; background: var(--color-primary-soft); border-left: 3px solid var(--color-brand-deep); border-radius: 8px; }
+.mentoria-resultado__criterio-etiqueta { margin: 0; color: var(--color-brand-deep); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.mentoria-resultado__criterio-texto { margin: 0; color: var(--color-text-primary); font-size: 14px; line-height: 1.6; }
+.mentoria-resultado__nota { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+
+@media (max-width: 760px) {
+  .mentoria-seleccion__controles { flex-direction: column; align-items: stretch; }
+  .mentoria-seleccion__competencia { width: 100%; min-width: 0; }
+}
