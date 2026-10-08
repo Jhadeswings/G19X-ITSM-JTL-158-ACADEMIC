@@ -9,6 +9,9 @@
 //   9-Box histórico, DI neutral, sin generado_por_cuenta_id;
 // - historial paginado: timeline con snapshots tal cual, sin deduplicar la
 //   más reciente, paginación del contrato, error/reintento propio;
+// - fortalezas y oportunidades (bloque 2A): SOLO las listas del
+//   ResultadoActualDTO tras el Historial, sin derivar nada en el frontend,
+//   respetando Datos insuficientes y la exclusión de la experiencia;
 // - estados vacío/error/401 propios de cada sección, sin romper la básica;
 // - apertura desde una fila sin recargar el catálogo;
 // - volver al listado sin consultas extra.
@@ -226,6 +229,16 @@ function resultadoActualDiTotal() {
   }
 }
 
+/** Resultado actual con las categorías VACÍAS: el backend no clasificó nada. */
+function resultadoActualSinCategorias() {
+  return { ...RESULTADO_ACTUAL, fortalezas: [], oportunidades: [] }
+}
+
+/** DI total coherente con el contrato: sin categorías clasificadas. */
+function resultadoActualDiTotalSinCategorias() {
+  return { ...resultadoActualDiTotal(), fortalezas: [], oportunidades: [] }
+}
+
 /**
  * Experiencia (PRD §8) con contexto controlado. Se apoya en el
  * `RESULTADO_ACTUAL` base: solo cambia el bloque `experiencia`, que es lo que
@@ -321,14 +334,13 @@ describe('PerfilEmpleado — información básica', () => {
 
     await screen.findByText('Información básica')
 
-    // La última evaluación histórica SÍ existe ahora, y Resultado actual y
-    // el 9-Box vigente (sección "9-Box") son bloques aprobados de esta fase;
-    // lo que sigue prohibido es adelantar evolución, fortalezas/oportunidades
-    // o recomendación IA. El título del bloque es "9-Box" (PRD §20.2),
-    // nunca "9-Box actual".
+    // Resultado actual, el 9-Box vigente (sección "9-Box") y las categorías
+    // del resultado (sección propia "Fortalezas y oportunidades") son bloques
+    // aprobados; lo que sigue prohibido es adelantar evolución o
+    // recomendación IA (diferidas por decisión de producto). El título del
+    // bloque es "9-Box" (PRD §20.2), nunca "9-Box actual".
+    await screen.findByText('Fortalezas y oportunidades')
     expect(screen.queryByText(/evoluci/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/fortalezas/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/oportunidades/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/recomendaci/i)).not.toBeInTheDocument()
     expect(screen.queryByText('9-Box actual')).not.toBeInTheDocument()
   })
@@ -1737,5 +1749,79 @@ describe('PerfilEmpleado — 9-Box vigente', () => {
     // El snapshot conserva sus ejes propios (3.2 · Fuerte / 4.1 · Alto).
     expect(ultima.getByText('3.2 · Fuerte')).toBeInTheDocument()
     expect(ultima.getByText('4.1 · Alto')).toBeInTheDocument()
+  })
+})
+
+describe('PerfilEmpleado — Fortalezas y oportunidades (bloque 2A, PRD §20.2/§17.4)', () => {
+  /** Monta el perfil y espera a que la sección de categorías aparezca. */
+  async function montarYCategorias() {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    await screen.findByText('Fortalezas y oportunidades')
+    return document.querySelector('.perfil-empleado__categorias')
+  }
+
+  it('presenta SOLO las listas del contrato, tras el Historial y sin experiencia', async () => {
+    const seccion = await montarYCategorias()
+
+    // Las cápsulas de cada grupo son EXACTAMENTE las claves del DTO.
+    const fortalezas = within(seccion).getByText('Fortalezas').closest('div')
+    expect(within(fortalezas).getByText('Desempeño técnico')).toBeInTheDocument()
+    expect(within(fortalezas).getByText('Liderazgo')).toBeInTheDocument()
+    const oportunidades = within(seccion).getByText('Oportunidades').closest('div')
+    expect(within(oportunidades).getByText('Comunicación')).toBeInTheDocument()
+    expect(within(oportunidades).getByText('Capacidad de aprendizaje')).toBeInTheDocument()
+
+    // Sin niveles, sin evidencia y sin experiencia dentro de la sección.
+    expect(within(seccion).queryByText(/nivel/i)).toBeNull()
+    expect(within(seccion).queryByText('Antigüedad')).toBeNull()
+    expect(within(seccion).queryByText('Proyectos únicos')).toBeNull()
+
+    // Vive DESPUÉS del Historial (orden del PRD §20.2: Evolución → categorías).
+    const historial = document.querySelector('.perfil-empleado__historial')
+    expect(historial).not.toBeNull()
+    expect(
+      historial.compareDocumentPosition(seccion) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('NO deriva categorías de los niveles: listas vacías del backend quedan vacías', async () => {
+    // Niveles visibles en las competencias PERO listas vacías en el contrato:
+    // si el frontend derivara por su cuenta, aquí inventaría categorías.
+    respuestaResultado = () => Promise.resolve(resultadoActualSinCategorias())
+    const seccion = await montarYCategorias()
+
+    expect(
+      within(seccion).getByText('Sin fortalezas clasificadas por ahora.'),
+    ).toBeInTheDocument()
+    expect(
+      within(seccion).getByText('Sin oportunidades clasificadas por ahora.'),
+    ).toBeInTheDocument()
+    expect(within(seccion).queryByText('Desempeño técnico')).toBeNull()
+  })
+
+  it('Datos insuficientes en las cinco competencias: sin categorías y sin nivel 0', async () => {
+    respuestaResultado = () =>
+      Promise.resolve(resultadoActualDiTotalSinCategorias())
+    const seccion = await montarYCategorias()
+
+    expect(
+      within(seccion).getByText('Sin fortalezas clasificadas por ahora.'),
+    ).toBeInTheDocument()
+    expect(
+      within(seccion).getByText('Sin oportunidades clasificadas por ahora.'),
+    ).toBeInTheDocument()
+    expect(within(seccion).queryByText('0')).toBeNull()
+  })
+
+  it('no se renderiza si el Resultado actual falla: el error vive en su propia tarjeta', async () => {
+    vi.mocked(obtenerResultadoActual).mockRejectedValueOnce(
+      Object.assign(new Error('fallo del servidor'), { estado: 500 }),
+    )
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+
+    expect(
+      await screen.findByText('No pudimos cargar el resultado actual'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Fortalezas y oportunidades')).toBeNull()
   })
 })

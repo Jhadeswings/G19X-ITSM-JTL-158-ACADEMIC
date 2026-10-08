@@ -68,7 +68,8 @@
 .perfil-empleado__experiencia,
 .perfil-empleado__ninebox,
 .perfil-empleado__evaluacion,
-.perfil-empleado__historial { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.perfil-empleado__historial,
+.perfil-empleado__categorias { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 
 /* Título de tarjeta: pequeño, en mayúsculas y secundario (como .tabla__th),
    para que el jerárquico siga siendo el nombre del empleado del header. */
@@ -78,7 +79,8 @@
 .perfil-empleado__experiencia > h2,
 .perfil-empleado__ninebox > h2,
 .perfil-empleado__evaluacion > h2,
-.perfil-empleado__historial > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.perfil-empleado__historial > h2,
+.perfil-empleado__categorias > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 
 /* Datos etiqueta → valor en dos columnas equilibradas. La etiqueta es
    pequeña y secundaria; el valor tiene el contraste y peso principal. */
@@ -180,6 +182,16 @@
 .perfil-historial__ninebox { margin: 12px 0 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
 .perfil-empleado__historial .paginacion { margin-top: 20px; }
 
+/* Fortalezas y oportunidades (PRD §20.2 tras la Evolución; reglas §17.4):
+   las listas llegan YA clasificadas por el backend dentro del Resultado
+   actual — niveles 4–5 → fortalezas, 1–2 → oportunidades, nivel 3 sin
+   clasificar y Datos insuficientes excluidos. Aquí solo se presentan como
+   cápsulas (comparten .categorias__item con Mi progreso); la experiencia
+   nunca participa y una lista vacía es una nota neutra, nunca una alarma. */
+.perfil-categorias { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 32px; }
+.perfil-categorias__titulo { margin: 0 0 10px; color: var(--color-text-primary); font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
+.perfil-categorias__vacio { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+
 /* Móvil (§7): una sola columna, sin que etiquetas y valores se encimen. */
 @media (max-width: 760px) {
   .perfil-empleado { gap: 16px; }
@@ -189,7 +201,8 @@
   .perfil-empleado__experiencia,
   .perfil-empleado__ninebox,
   .perfil-empleado__evaluacion,
-  .perfil-empleado__historial { padding: 18px; }
+  .perfil-empleado__historial,
+  .perfil-empleado__categorias { padding: 18px; }
   /* 9-Box (SG §16): la matriz SIGUE siendo 3×3 — solo se compacta
      (celdas más bajas, gaps menores y códigos/indicador más pequeños)
      para caber sin overflow. Nunca una columna de 3 filas. */

@@ -16,9 +16,12 @@
 // (snapshot) para distinguirlos visualmente (PRD §9; ET §42). Las
 // competencias y el 9-Box de "Última evaluación" y del historial son los del
 // SNAPSHOT histórico (EvaluacionOut): nunca se recalculan en el frontend ni
-// se sustituyen por el resultado actual. Mientras los demás bloques del
-// perfil no existan, esta sección va después de Información básica (orden
-// relativo del PRD §20.2).
+// se sustituyen por el resultado actual. "Fortalezas y oportunidades"
+// (bloque 2A) vive tras el Historial según el orden del PRD §20.2 y presenta
+// SOLO las listas fortalezas/oportunidades del ResultadoActualDTO (reglas
+// §17.4 aplicadas por el backend): aquí no se clasifica nada, no se incluyen
+// niveles ni evidencia y la experiencia nunca participa. Las "Acciones de
+// desarrollo" (IA) quedan diferidas por decisión de producto.
 
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { obtenerEmpleado, obtenerNineBox, obtenerResultadoActual } from '../api/empleados.js'
@@ -786,6 +789,62 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
                 }}
                 etiqueta="evaluaciones"
               />
+            </section>
+          )}
+
+          {/* Fortalezas y oportunidades (bloque 2A; PRD §20.2 tras la
+              Evolución, reglas §17.4): las listas llegan YA clasificadas por
+              el backend dentro del Resultado actual — niveles 4–5 →
+              fortalezas, 1–2 → oportunidades, nivel 3 sin clasificar y Datos
+              insuficientes excluidos. Este bloque SOLO las presenta: no
+              clasifica, no consulta endpoints nuevos, no muestra niveles ni
+              evidencia, y la experiencia NUNCA participa. Aparece cuando el
+              Resultado actual está listo; si esa consulta falla, el error ya
+              vive en su propia tarjeta y este bloque no se renderiza. */}
+          {resultado.fase === 'listo' && (
+            <section
+              className="perfil-empleado__categorias"
+              aria-labelledby="perfil-categorias-titulo"
+            >
+              <h2 id="perfil-categorias-titulo">Fortalezas y oportunidades</h2>
+              <p className="perfil-empleado__nota">
+                Derivadas por reglas del sistema a partir del resultado
+                actual: la experiencia no participa en estas categorías.
+              </p>
+              <div className="perfil-categorias">
+                <div className="perfil-categorias__grupo">
+                  <h3 className="perfil-categorias__titulo">Fortalezas</h3>
+                  {(resultado.datos?.fortalezas ?? []).length > 0 ? (
+                    <ul className="categorias__lista">
+                      {resultado.datos.fortalezas.map((clave) => (
+                        <li key={clave} className="categorias__item">
+                          {NOMBRES_COMPETENCIAS[clave] || clave}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="perfil-categorias__vacio">
+                      Sin fortalezas clasificadas por ahora.
+                    </p>
+                  )}
+                </div>
+                <div className="perfil-categorias__grupo">
+                  <h3 className="perfil-categorias__titulo">Oportunidades</h3>
+                  {(resultado.datos?.oportunidades ?? []).length > 0 ? (
+                    <ul className="categorias__lista">
+                      {resultado.datos.oportunidades.map((clave) => (
+                        <li key={clave} className="categorias__item">
+                          {NOMBRES_COMPETENCIAS[clave] || clave}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="perfil-categorias__vacio">
+                      Sin oportunidades clasificadas por ahora.
+                    </p>
+                  )}
+                </div>
+              </div>
             </section>
           )}
         </>
