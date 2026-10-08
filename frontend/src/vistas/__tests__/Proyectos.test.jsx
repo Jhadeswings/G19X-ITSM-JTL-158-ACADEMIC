@@ -1,50 +1,32 @@
-// Sección RH → Proyectos (PRD §20.3; ET §6–§8, §31; DECISIONES §15).
-// La API se mockea: sin llamadas reales al backend.
+// Sección RH → Proyectos — INDEX /proyectos (RH-02.3; PRD §20.3; ET §6–§8,
+// §31; DECISIONES §15). La API se mockea: sin llamadas reales al backend.
 //
 // Qué se verifica aquí y NO debe romperse:
 // - render inicial, carga, vacío, error con reintento y listado correcto;
-// - selección/consulta de un proyecto (GET /{id}) con todos sus campos;
-// - edición SOLO de los campos permitidos (nombre/área/cliente/estado) y
-//   envío EXCLUSIVO de los cambios (nunca id, nombre_normalizado ni fechas);
-// - PATCH exitoso con confirmación visual y recarga del catálogo;
-// - error de PATCH (409/500) legible; 401 → alSesionExpirada;
+// - estados oficiales y estructura estable de tres columnas por fila;
+// - paginación con el contrato del backend;
 // - ausencia del botón «Nuevo proyecto» (PRD §20.3/§11.1);
-// - Escape: cierra en consulta, y en edición actúa como «Cancelar» (vuelve
-//   a la consulta sin PATCH ni cierre del detalle; nunca descarta en silencio);
-// - corrección administrativa de participación (RH-02.2, PRD §12.2): acción
-//   explícita separada de «Editar proyecto», PATCH solo con los campos
-//   cambiados, cancelar sin PATCH y errores legibles.
+// - «Consultar» NAVEGA a la página real /proyectos/:id (RH-02.3): el
+//   catálogo se desmonta y no renderiza ningún detalle;
+// - título de la pestaña del Index.
+// La página de detalle (/proyectos/:id) tiene SU archivo de pruebas:
+// ProyectoDetalle.test.jsx.
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import {
   POR_PAGINA_DEFECTO_RH,
-  actualizarProyectoRh,
-  consultarProyectoRh,
   listarProyectosRh,
 } from '../../api/proyectos.js'
-import {
-  corregirParticipacion,
-  listarParticipacionesDeProyecto,
-} from '../../api/participaciones.js'
 import Proyectos from '../Proyectos.jsx'
+import { MIN_CARGA_PROYECTOS_MS, crearEsperaMinima } from '../proyectosComun.js'
 
 vi.mock('../../api/proyectos.js', async () => {
   const original = await vi.importActual('../../api/proyectos.js')
   return {
     ...original,
     listarProyectosRh: vi.fn(),
-    consultarProyectoRh: vi.fn(),
-    actualizarProyectoRh: vi.fn(),
-  }
-})
-
-vi.mock('../../api/participaciones.js', async () => {
-  const original = await vi.importActual('../../api/participaciones.js')
-  return {
-    ...original,
-    listarParticipacionesDeProyecto: vi.fn(),
-    corregirParticipacion: vi.fn(),
   }
 })
 
@@ -73,43 +55,32 @@ const CATALOGO = {
   ],
 }
 
-/** Participación fiel a `ParticipacionOut` con identificación RH-02.1. */
-function participacion(id, sobre = {}) {
-  return {
-    id,
-    empleado_id: id + 10,
-    empleado_nombre: `Ana Ruiz ${id}`,
-    empleado_puesto: 'Desarrolladora de software',
-    proyecto_id: 1,
-    rol: 'Desarrollador',
-    entregables: 'API de pagos',
-    en_equipo: true,
-    coordino_tareas: false,
-    explico_a_publico_distinto: false,
-    resolvio_problema: true,
-    horas: 120,
-    fecha_registro: '2026-03-02',
-    proyecto: null,
-    created_at: '2026-03-02T10:00:00+00:00',
-    updated_at: '2026-03-02T10:00:00+00:00',
-    ...sobre,
-  }
+/** Sonda de ruta: expone el pathname actual del router en pantalla. */
+function Sonda() {
+  const { pathname } = useLocation()
+  return <p data-testid="sonda-ruta">{pathname}</p>
 }
 
-const PARTICIPANTES_VACIOS = { total: 0, pagina: 1, por_pagina: 20, items: [] }
+/** Stub del Show: aparece SOLO si el Index navegó a /proyectos/:id. */
+function DetalleStub() {
+  return <p>Show del proyecto</p>
+}
 
-beforeEach(() => {
-  vi.mocked(listarProyectosRh).mockReset()
-  vi.mocked(consultarProyectoRh).mockReset()
-  vi.mocked(actualizarProyectoRh).mockReset()
-  vi.mocked(listarParticipacionesDeProyecto).mockReset()
-  vi.mocked(corregirParticipacion).mockReset()
-  vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue(PARTICIPANTES_VACIOS)
-  vi.mocked(listarProyectosRh).mockResolvedValue(CATALOGO)
-  vi.mocked(consultarProyectoRh).mockImplementation((_token, id) =>
-    Promise.resolve(CATALOGO.items.find((p) => p.id === Number(id))),
+/** Render del Index dentro del router con sus dos rutas reales. */
+function renderIndex(props = {}) {
+  return render(
+    <MemoryRouter initialEntries={['/proyectos']}>
+      <Sonda />
+      <Routes>
+        <Route
+          path="/proyectos"
+          element={<Proyectos token="token-rh" {...props} />}
+        />
+        <Route path="/proyectos/:id" element={<DetalleStub />} />
+      </Routes>
+    </MemoryRouter>,
   )
-})
+}
 
 /** Espera a que el catálogo deje de estar en carga. */
 async function esperarListado() {
@@ -117,9 +88,14 @@ async function esperarListado() {
   await waitFor(() => expect(screen.queryByText('Cargando proyectos…')).toBeNull())
 }
 
-describe('Proyectos RH — render inicial, carga y estados', () => {
+beforeEach(() => {
+  vi.mocked(listarProyectosRh).mockReset()
+  vi.mocked(listarProyectosRh).mockResolvedValue(CATALOGO)
+})
+
+describe('Proyectos RH (Index /proyectos) — render inicial, carga y estados', () => {
   it('renderiza el encabezado y consulta el catálogo con el token', async () => {
-    render(<Proyectos token="token-rh" />)
+    renderIndex()
     await esperarListado()
 
     expect(listarProyectosRh).toHaveBeenCalledTimes(1)
@@ -131,7 +107,7 @@ describe('Proyectos RH — render inicial, carga y estados', () => {
 
   it('muestra el estado de carga mientras responde el backend', async () => {
     vi.mocked(listarProyectosRh).mockReturnValue(new Promise(() => {}))
-    render(<Proyectos token="token-rh" />)
+    renderIndex()
 
     expect(screen.getByText('Cargando proyectos…')).toBeInTheDocument()
   })
@@ -143,7 +119,7 @@ describe('Proyectos RH — render inicial, carga y estados', () => {
       por_pagina: 20,
       items: [],
     })
-    render(<Proyectos token="token-rh" />)
+    renderIndex()
 
     expect(
       await screen.findByText('Todavía no hay proyectos en el catálogo.'),
@@ -154,7 +130,7 @@ describe('Proyectos RH — render inicial, carga y estados', () => {
     vi.mocked(listarProyectosRh).mockRejectedValueOnce(
       Object.assign(new Error('fallo del servidor'), { estado: 500 }),
     )
-    render(<Proyectos token="token-rh" />)
+    renderIndex()
 
     expect(
       await screen.findByText('No pudimos cargar los proyectos'),
@@ -166,7 +142,7 @@ describe('Proyectos RH — render inicial, carga y estados', () => {
   })
 
   it('lista los proyectos con su estado oficial y sus datos', async () => {
-    render(<Proyectos token="token-rh" />)
+    renderIndex()
     await esperarListado()
 
     expect(screen.getByText('Proyecto 1')).toBeInTheDocument()
@@ -184,12 +160,10 @@ describe('Proyectos RH — render inicial, carga y estados', () => {
       por_pagina: 20,
       items: [proyecto(1)],
     })
-    render(<Proyectos token="token-rh" />)
+    renderIndex()
     await esperarListado()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Página 2' }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Página 2' }))
 
     await waitFor(() => expect(listarProyectosRh).toHaveBeenCalledTimes(2))
     const [, paginacion] = vi.mocked(listarProyectosRh).mock.calls.at(-1)
@@ -197,9 +171,9 @@ describe('Proyectos RH — render inicial, carga y estados', () => {
   })
 })
 
-describe('Proyectos RH — sin creación (PRD §20.3/§11.1)', () => {
+describe('Proyectos RH (Index /proyectos) — sin creación (PRD §20.3/§11.1)', () => {
   it('no ofrece ningún botón de nuevo proyecto ni de alta', async () => {
-    render(<Proyectos token="token-rh" />)
+    renderIndex()
     await esperarListado()
 
     expect(
@@ -212,371 +186,36 @@ describe('Proyectos RH — sin creación (PRD §20.3/§11.1)', () => {
   })
 })
 
-describe('Proyectos RH — selección y consulta', () => {
-  it('consulta el proyecto con su id y presenta todos sus campos', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-
-    fireEvent.click(
-      screen.getAllByRole('button', { name: 'Consultar' })[0],
-    )
-
-    expect(
-      await screen.findByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-    expect(consultarProyectoRh).toHaveBeenCalledWith('token-rh', 1)
-    expect(screen.getAllByText('Proyecto 1').length).toBeGreaterThan(0)
-    expect(screen.getByText('Tecnología')).toBeInTheDocument()
-    expect(screen.getByText('Cliente interno')).toBeInTheDocument()
-    expect(screen.getAllByText('En proceso').length).toBeGreaterThan(0)
-    expect(screen.getByText('proyecto 1')).toBeInTheDocument()
-  })
-
-  it('presenta el neutro "—" cuando área o cliente no existen', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[1])
-
-    expect(
-      await screen.findByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
-  })
-
-  it('un fallo al consultar el detalle muestra error con reintento', async () => {
-    vi.mocked(consultarProyectoRh).mockRejectedValueOnce(
-      Object.assign(new Error('Proyecto no encontrado.'), { estado: 404 }),
-    )
-    render(<Proyectos token="token-rh" />)
+describe('Proyectos RH (Index /proyectos) — navegación al Show (RH-02.3)', () => {
+  it('«Consultar» navega a la página real /proyectos/:id y desmonta el catálogo', async () => {
+    renderIndex()
     await esperarListado()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
 
-    expect(
-      await screen.findByText('No pudimos cargar el proyecto'),
-    ).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
-
-    await waitFor(() => expect(consultarProyectoRh).toHaveBeenCalledTimes(2))
-  })
-})
-
-/** Abre la edición del proyecto 1 (consulta → editar). */
-async function abrirEdicion() {
-  fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
-  await screen.findByRole('heading', { name: 'Consultar proyecto' })
-  fireEvent.click(screen.getByRole('button', { name: 'Editar proyecto' }))
-  await screen.findByRole('heading', { name: 'Editar proyecto' })
-}
-
-describe('Proyectos RH — edición administrativa (PATCH)', () => {
-  it('abre el formulario con los valores actuales del proyecto', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    expect(screen.getByLabelText('Nombre')).toHaveValue('Proyecto 1')
-    expect(screen.getByLabelText('Área')).toHaveValue('Tecnología')
-    expect(screen.getByLabelText('Cliente')).toHaveValue('Cliente interno')
-    expect(screen.getByLabelText('Estado')).toHaveValue('EN_PROCESO')
-  })
-
-  it('envía SOLO los campos modificados y nada fuera del contrato', async () => {
-    vi.mocked(actualizarProyectoRh).mockResolvedValue(
-      proyecto(1, { nombre: 'Proyecto Renombrado', estado: 'CANCELADO' }),
-    )
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.change(screen.getByLabelText('Nombre'), {
-      target: { value: 'Proyecto Renombrado' },
-    })
-    fireEvent.change(screen.getByLabelText('Estado'), {
-      target: { value: 'CANCELADO' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
-
-    await waitFor(() => expect(actualizarProyectoRh).toHaveBeenCalledTimes(1))
-    const [token, id, cambios] = vi.mocked(actualizarProyectoRh).mock.calls[0]
-    expect(token).toBe('token-rh')
-    expect(id).toBe(1)
-    // Exactamente los dos campos cambiados: ni área/cliente sin cambio, ni
-    // id, ni nombre_normalizado, ni fechas.
-    expect(cambios).toEqual({ nombre: 'Proyecto Renombrado', estado: 'CANCELADO' })
-  })
-
-  it('un PATCH exitoso confirma, vuelve a consulta y recarga el catálogo', async () => {
-    vi.mocked(actualizarProyectoRh).mockResolvedValue(
-      proyecto(1, { nombre: 'Proyecto Renombrado', estado: 'CANCELADO' }),
-    )
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.change(screen.getByLabelText('Estado'), {
-      target: { value: 'CANCELADO' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
-
-    expect(await screen.findByText('Proyecto actualizado')).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Proyecto Renombrado')).toBeInTheDocument()
-    await waitFor(() => expect(listarProyectosRh).toHaveBeenCalledTimes(2))
-  })
-
-  it('sin cambios no hace ninguna petición PATCH', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
-
-    expect(actualizarProyectoRh).not.toHaveBeenCalled()
-  })
-
-  it('un nombre vacío se rechaza en cliente sin llamar al backend', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.change(screen.getByLabelText('Nombre'), {
-      target: { value: '   ' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
-
-    expect(
-      await screen.findByRole('alert'),
-    ).toHaveTextContent('El nombre del proyecto no puede estar vacío.')
-    expect(actualizarProyectoRh).not.toHaveBeenCalled()
-  })
-
-  it('cancelar vuelve a la consulta sin enviar nada', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.change(screen.getByLabelText('Nombre'), {
-      target: { value: 'Otro nombre' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-
-    expect(
-      screen.getByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-    expect(actualizarProyectoRh).not.toHaveBeenCalled()
-  })
-
-  it('un 409 de nombre duplicado muestra la respuesta del backend', async () => {
-    vi.mocked(actualizarProyectoRh).mockRejectedValue(
-      Object.assign(new Error('Ya existe otro proyecto con ese nombre.'), {
-        estado: 409,
-      }),
-    )
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.change(screen.getByLabelText('Nombre'), {
-      target: { value: 'Proyecto 2' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
-
-    expect(await screen.findByText('No pudimos guardar los cambios')).toBeInTheDocument()
-    expect(
-      screen.getByText('Ya existe otro proyecto con ese nombre.'),
-    ).toBeInTheDocument()
-  })
-
-  it('un fallo inesperado del PATCH muestra estado de error legible', async () => {
-    vi.mocked(actualizarProyectoRh).mockRejectedValue(
-      Object.assign(new Error('boom'), { estado: 500 }),
-    )
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.change(screen.getByLabelText('Área'), {
-      target: { value: 'Operaciones' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
-
-    expect(await screen.findByText('No pudimos guardar los cambios')).toBeInTheDocument()
-  })
-})
-
-describe('Proyectos RH — participantes en el detalle (RH-02.1)', () => {
-  /** Abre la consulta del proyecto 1 y espera los participantes. */
-  async function abrirConsulta() {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
-    await screen.findByRole('heading', { name: 'Consultar proyecto' })
+    // La URL del router cambió al detalle del proyecto 1.
     await waitFor(() =>
-      expect(screen.queryByText('Cargando participantes…')).toBeNull(),
+      expect(screen.getByTestId('sonda-ruta').textContent).toBe('/proyectos/1'),
     )
-  }
-
-  it('proyecto sin participantes muestra el estado vacío', async () => {
-    await abrirConsulta()
-
-    expect(
-      screen.getByText('Nadie ha registrado participación en este proyecto.'),
-    ).toBeInTheDocument()
+    // El catálogo desapareció: el Show es otra página, no un panel debajo.
+    expect(screen.queryByText('Catálogo de proyectos')).toBeNull()
+    expect(screen.queryByText('Selecciona un proyecto para consultar su detalle.')).toBeNull()
+    expect(screen.getByText('Show del proyecto')).toBeInTheDocument()
   })
 
-  it('muestra nombre, puesto, rol y horas de cada participante', async () => {
-    vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue({
-      total: 2,
-      pagina: 1,
-      por_pagina: 20,
-      items: [
-        participacion(1),
-        participacion(2, {
-          empleado_nombre: 'Bo Marín',
-          empleado_puesto: null,
-          rol: 'QA',
-          horas: 40,
-        }),
-      ],
-    })
-    await abrirConsulta()
-
-    expect(listarParticipacionesDeProyecto).toHaveBeenCalledWith(
-      'token-rh',
-      1,
-      expect.objectContaining({ pagina: 1 }),
-    )
-    expect(screen.getByText('Ana Ruiz 1')).toBeInTheDocument()
-    expect(screen.getByText('Bo Marín')).toBeInTheDocument()
-    expect(screen.getByText('Desarrolladora de software')).toBeInTheDocument()
-    // Sin puesto registrado: neutro, no inventado.
-    expect(screen.getByText('—')).toBeInTheDocument()
-    expect(screen.getByText('Desarrollador')).toBeInTheDocument()
-    expect(screen.getByText('QA')).toBeInTheDocument()
-    expect(screen.getByText('120')).toBeInTheDocument()
-    expect(screen.getByText('40')).toBeInTheDocument()
-  })
-
-  it('no usa el ID técnico como identificación principal', async () => {
-    vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue({
-      total: 1,
-      pagina: 1,
-      por_pagina: 20,
-      items: [participacion(1)],
-    })
-    await abrirConsulta()
-
-    expect(screen.queryByText(/^Empleado \d+$/)).toBeNull()
-  })
-
-  it('los entregables quedan accesibles al consultar la participación', async () => {
-    vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue({
-      total: 1,
-      pagina: 1,
-      por_pagina: 20,
-      items: [participacion(1, { entregables: 'Módulo de facturación' })],
-    })
-    await abrirConsulta()
-
-    // La tabla no ensancha con los entregables: se despliegan al consultar.
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Consultar participación' }),
-    )
-
-    expect(screen.getByText('Módulo de facturación')).toBeInTheDocument()
-    expect(screen.getByText('Fecha de registro')).toBeInTheDocument()
-    expect(screen.getByText('2026-03-02')).toBeInTheDocument()
-  })
-
-  it('un error al cargar participantes ofrece reintento', async () => {
-    vi.mocked(listarParticipacionesDeProyecto).mockRejectedValueOnce(
-      Object.assign(new Error('fallo del servidor'), { estado: 500 }),
-    )
-    await abrirConsulta()
-
-    expect(
-      await screen.findByText('No pudimos cargar los participantes'),
-    ).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
-
-    await waitFor(() =>
-      expect(listarParticipacionesDeProyecto).toHaveBeenCalledTimes(2),
-    )
-  })
-
-  it('un 401 al cargar participantes cierra la sesión', async () => {
-    vi.mocked(listarParticipacionesDeProyecto).mockRejectedValue(
-      Object.assign(new Error('no autorizado'), { estado: 401 }),
-    )
-    const alSesionExpirada = vi.fn()
-    render(<Proyectos token="token-rh" alSesionExpirada={alSesionExpirada} />)
+  it('el Index NO renderiza ningún detalle (RH-02.3 §19.A)', async () => {
+    renderIndex()
     await esperarListado()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
 
-    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
-    expect(screen.queryByText('No pudimos cargar los participantes')).toBeNull()
+    expect(screen.queryByText('Show del proyecto')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Detalle del proyecto' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Volver al listado' })).toBeNull()
+    // La ruta sigue siendo la del catálogo.
+    expect(screen.getByTestId('sonda-ruta').textContent).toBe('/proyectos')
   })
 
-  it('la paginación de participantes usa el contrato del backend', async () => {
-    vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue({
-      total: 25,
-      pagina: 1,
-      por_pagina: 20,
-      items: [participacion(1)],
-    })
-    await abrirConsulta()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Página 2' }))
-
-    await waitFor(() =>
-      expect(listarParticipacionesDeProyecto).toHaveBeenCalledTimes(2),
-    )
-    const [, , paginacion] = vi.mocked(listarParticipacionesDeProyecto).mock.calls.at(-1)
-    expect(paginacion.pagina).toBe(2)
-  })
-
-  it('el catálogo y la edición de proyecto siguen intactos', async () => {
-    vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue({
-      total: 1,
-      pagina: 1,
-      por_pagina: 20,
-      items: [participacion(1)],
-    })
-    await abrirConsulta()
-
-    // El catálogo sigue visible y sin botón de creación.
-    expect(screen.getByText('Proyecto 2')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: /Nuevo proyecto/i }),
-    ).toBeNull()
-    // La edición del proyecto no se mezcla con la participación: entra en
-    // su propio formulario y los participantes desaparecen de la vista.
-    fireEvent.click(screen.getByRole('button', { name: 'Editar proyecto' }))
-    expect(
-      await screen.findByRole('heading', { name: 'Editar proyecto' }),
-    ).toBeInTheDocument()
-    expect(screen.queryByText('Participantes')).toBeNull()
-    expect(screen.queryByLabelText('Nombre')).toHaveValue('Proyecto 1')
-  })
-})
-
-describe('Proyectos RH — refinamiento visual y navegación del detalle (RH-02.1 UX)', () => {
-  /** Render + apertura del detalle del proyecto 1. */
-  async function abrirDetalle() {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
-    await screen.findByRole('heading', { name: 'Consultar proyecto' })
-  }
-
-  it('el listado usa una estructura estable de tres columnas por fila', async () => {
-    render(<Proyectos token="token-rh" />)
+  it('la fila mantiene la estructura estable de tres columnas', async () => {
+    renderIndex()
     await esperarListado()
 
     const filas = document.querySelectorAll('.proyectos-rh__item')
@@ -589,479 +228,96 @@ describe('Proyectos RH — refinamiento visual y navegación del detalle (RH-02.
       expect(columnas[1]).toHaveClass('proyectos-rh__estado')
       expect(columnas[2]).toHaveClass('proyectos-rh__accion')
       expect(columnas[1].querySelector('.ui-badge')).not.toBeNull()
-      expect(within(columnas[2]).getByRole('button', { name: 'Consultar' })).toBeTruthy()
+      expect(within(fila).getByRole('button', { name: 'Consultar' })).toBeTruthy()
     }
   })
 
-  it('la fila del proyecto abierto queda seleccionada (visual y estructural)', async () => {
-    render(<Proyectos token="token-rh" />)
+  it('document.title del Index y restauración al desmontar', async () => {
+    const tituloPrevio = document.title
+    const { unmount } = renderIndex()
     await esperarListado()
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
-    await screen.findByRole('heading', { name: 'Consultar proyecto' })
+    expect(document.title).toBe('Proyectos | Talento PluriOne')
 
-    const filas = document.querySelectorAll('.proyectos-rh__item')
-    expect(filas[0]).toHaveClass('proyectos-rh__item--seleccionado')
-    expect(filas[1]).not.toHaveClass('proyectos-rh__item--seleccionado')
-    // La selección no depende solo del color: aria-current en el botón.
-    expect(within(filas[0]).getByRole('button', { name: 'Consultar' })).toHaveAttribute(
-      'aria-current',
-      'true',
-    )
-    expect(
-      within(filas[1]).getByRole('button', { name: 'Consultar' }),
-    ).not.toHaveAttribute('aria-current')
-  })
-
-  it('el detalle organiza los datos administrativos en dos columnas y la clave a ancho completo', async () => {
-    await abrirDetalle()
-
-    const datos = document.querySelector('.proyectos-rh__datos-admin')
-    expect(datos).not.toBeNull()
-    expect(within(datos).getAllByRole('term').map((dt) => dt.textContent)).toEqual([
-      'Nombre',
-      'Área',
-      'Cliente',
-      'Estado',
-      'Clave de comparación',
-    ])
-    // La clave de comparación es el bloque de ancho completo, con su
-    // explicación debajo (misma jerarquía, contenido intacto).
-    const clave = datos.querySelector('.proyectos-rh__clave')
-    expect(clave).not.toBeNull()
-    expect(clave.querySelector('.proyectos-rh__clave-nota')).not.toBeNull()
-    expect(screen.getByText('proyecto 1')).toBeInTheDocument()
-  })
-
-  it('la tabla de participantes mantiene columnas alineadas y horas/acción a la derecha', async () => {
-    vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue({
-      total: 1,
-      pagina: 1,
-      por_pagina: 20,
-      items: [participacion(1)],
-    })
-    await abrirDetalle()
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Consultar participación' })).toBeTruthy(),
-    )
-
-    const tabla = document.querySelector('.proyectos-rh__participantes-tabla')
-    expect(tabla).not.toBeNull()
-    // Encabezado y filas comparten exactamente las cinco columnas.
-    const encabezados = [...tabla.querySelectorAll('thead th')]
-    expect(encabezados.map((th) => th.textContent)).toEqual([
-      'Empleado',
-      'Puesto',
-      'Rol',
-      'Horas',
-      'Acción',
-    ])
-    // Horas y Acción alineadas a la derecha (encabezado incluido, §14.1).
-    expect(encabezados[3]).toHaveClass('tabla__th--right')
-    expect(encabezados[4]).toHaveClass('tabla__th--right')
-    const fila = tabla.querySelector('tbody tr')
-    expect(fila.querySelectorAll('td[data-label], th[data-label]').length).toBe(5)
-    expect(fila.querySelector("td[data-label='Horas']").textContent).toBe('120')
-  })
-
-  it('el botón X aparece con el detalle abierto y lo cierra sin recargar el catálogo', async () => {
-    await abrirDetalle()
-
-    const cerrar = screen.getByRole('button', { name: 'Cerrar detalle' })
-    expect(cerrar).toBeInTheDocument()
-
-    fireEvent.click(cerrar)
-
-    // El detalle desaparece y el catálogo sigue en pantalla.
-    expect(screen.queryByRole('heading', { name: 'Consultar proyecto' })).toBeNull()
-    expect(screen.getByText('Proyecto 2')).toBeInTheDocument()
-    // Sin recarga innecesaria: sigue habiendo UNA sola consulta del catálogo.
-    expect(listarProyectosRh).toHaveBeenCalledTimes(1)
-  })
-
-  it('Escape cierra el detalle con exactamente el mismo efecto que la X', async () => {
-    await abrirDetalle()
-
-    fireEvent.keyDown(document, { key: 'Escape' })
-
-    expect(screen.queryByRole('heading', { name: 'Consultar proyecto' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Cerrar detalle' })).toBeNull()
-    expect(screen.getByText('Proyecto 2')).toBeInTheDocument()
-    expect(listarProyectosRh).toHaveBeenCalledTimes(1)
-  })
-
-  it('Escape no hace nada específico cuando no hay detalle abierto', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-
-    fireEvent.keyDown(document, { key: 'Escape' })
-
-    // El listado sigue igual y no aparece ningún detalle.
-    expect(screen.getByText('Proyecto 1')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Consultar proyecto' })).toBeNull()
-    expect(listarProyectosRh).toHaveBeenCalledTimes(1)
-  })
-
-  it('Escape en modo edición actúa como Cancelar: vuelve a la consulta sin cerrar el detalle ni hacer PATCH', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    // Cambios sin guardar en el formulario.
-    fireEvent.change(screen.getByLabelText('Nombre'), {
-      target: { value: 'Cambio sin guardar' },
-    })
-    fireEvent.keyDown(document, { key: 'Escape' })
-
-    // El detalle NO se cierra: se vuelve a la consulta del mismo proyecto.
-    expect(
-      screen.getByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: 'Editar proyecto' }),
-    ).toBeNull()
-    // El proyecto consultado sigue en pantalla (catálogo y detalle).
-    expect(screen.getAllByText('Proyecto 1').length).toBeGreaterThan(0)
-    expect(actualizarProyectoRh).not.toHaveBeenCalled()
-    expect(listarProyectosRh).toHaveBeenCalledTimes(1)
-  })
-
-  it('Escape en modo edición tiene exactamente el mismo efecto que pulsar Cancelar', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.change(screen.getByLabelText('Área'), {
-      target: { value: 'Otra área' },
-    })
-    fireEvent.keyDown(document, { key: 'Escape' })
-
-    // Mismas garantías que el test de «Cancelar»: consulta del mismo
-    // proyecto y nada enviado al backend.
-    expect(
-      screen.getByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-    expect(actualizarProyectoRh).not.toHaveBeenCalled()
-
-    // Y al reentrar en edición, el formulario vuelve a nacer de la
-    // consulta: el cambio no guardado no se cuela (igual que Cancelar).
-    fireEvent.click(screen.getByRole('button', { name: 'Editar proyecto' }))
-    expect(
-      await screen.findByRole('heading', { name: 'Editar proyecto' }),
-    ).toBeInTheDocument()
-    expect(screen.getByLabelText('Área')).toHaveValue('Tecnología')
-  })
-
-  it('tras Escape en edición, la X sigue cerrando la consulta sin recargar el catálogo', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(
-      screen.getByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cerrar detalle' }))
-
-    expect(screen.queryByRole('heading', { name: 'Consultar proyecto' })).toBeNull()
-    expect(screen.getByText('Proyecto 2')).toBeInTheDocument()
-    expect(listarProyectosRh).toHaveBeenCalledTimes(1)
-  })
-
-  it('cerrar el detalle conserva la página de paginación y el estado del listado', async () => {
-    vi.mocked(listarProyectosRh).mockResolvedValue({
-      total: 42,
-      pagina: 1,
-      por_pagina: 20,
-      items: [proyecto(1), proyecto(2)],
-    })
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-
-    // Ir a la página 2 (segunda consulta del catálogo).
-    fireEvent.click(screen.getByRole('button', { name: 'Página 2' }))
-    await waitFor(() => expect(listarProyectosRh).toHaveBeenCalledTimes(2))
-
-    // Abrir y cerrar el detalle: el listado NO se recarga de nuevo.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
-    await screen.findByRole('heading', { name: 'Consultar proyecto' })
-    fireEvent.click(screen.getByRole('button', { name: 'Cerrar detalle' }))
-
-    expect(screen.queryByRole('heading', { name: 'Consultar proyecto' })).toBeNull()
-    expect(listarProyectosRh).toHaveBeenCalledTimes(2)
-    // La paginación sigue presente (misma página, mismo estado).
-    expect(
-      screen.getByRole('navigation', { name: 'Paginación de proyectos' }),
-    ).toBeInTheDocument()
-  })
-
-  it('la ayuda contextual aparece sin detalle y desaparece al abrir uno', async () => {
-    render(<Proyectos token="token-rh" />)
-    await esperarListado()
-
-    expect(
-      screen.getByText('Selecciona un proyecto para consultar su detalle.'),
-    ).toBeInTheDocument()
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
-    await screen.findByRole('heading', { name: 'Consultar proyecto' })
-
-    expect(
-      screen.queryByText('Selecciona un proyecto para consultar su detalle.'),
-    ).toBeNull()
+    unmount()
+    expect(document.title).toBe(tituloPrevio)
   })
 })
 
-describe('Proyectos RH — 401 delega en alSesionExpirada (§31/§32)', () => {
-  it('un 401 al listar cierra la sesión', async () => {
-    vi.mocked(listarProyectosRh).mockRejectedValue(
-      Object.assign(new Error('no autorizado'), { estado: 401 }),
+describe('Proyectos RH (Index /proyectos) — presencia mínima del loading (RH-02.3.3)', () => {
+  it('una respuesta muy rápida no elimina el loading de inmediato: transición tras el mínimo', async () => {
+    renderIndex()
+    const inicio = performance.now()
+
+    expect(screen.getByText('Cargando proyectos…')).toBeInTheDocument()
+    await new Promise((resolver) => setTimeout(resolver, 150))
+    // Dentro del mínimo perceptible: el loading sigue visible.
+    expect(screen.getByText('Cargando proyectos…')).toBeInTheDocument()
+
+    // La transición al contenido llega con el mínimo cumplido (450 ms con
+    // margen de tolerancia del entorno), nunca con el flash instantáneo.
+    await screen.findByText('Proyecto 1')
+    expect(performance.now() - inicio).toBeGreaterThanOrEqual(430)
+  })
+
+  it('un error del catálogo no espera el mínimo', async () => {
+    vi.mocked(listarProyectosRh).mockRejectedValueOnce(
+      Object.assign(new Error('Error del servidor'), { estado: 500 }),
     )
+    const inicio = performance.now()
+    renderIndex()
+
+    expect(
+      await screen.findByText('No pudimos cargar los proyectos'),
+    ).toBeInTheDocument()
+    expect(performance.now() - inicio).toBeLessThan(400)
+  })
+
+  it('el 401 sigue subiendo sin esperar el mínimo', async () => {
     const alSesionExpirada = vi.fn()
-    render(<Proyectos token="token-rh" alSesionExpirada={alSesionExpirada} />)
+    vi.mocked(listarProyectosRh).mockRejectedValueOnce(
+      Object.assign(new Error('No autorizado'), { estado: 401 }),
+    )
+    const inicio = performance.now()
+    renderIndex({ alSesionExpirada })
 
     await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(performance.now() - inicio).toBeLessThan(400)
+    // Sin estado de error visible: el 401 pertenece a la sesión, no al catálogo.
     expect(screen.queryByText('No pudimos cargar los proyectos')).toBeNull()
   })
-
-  it('un 401 al consultar el detalle cierra la sesión', async () => {
-    vi.mocked(consultarProyectoRh).mockRejectedValue(
-      Object.assign(new Error('no autorizado'), { estado: 401 }),
-    )
-    const alSesionExpirada = vi.fn()
-    render(<Proyectos token="token-rh" alSesionExpirada={alSesionExpirada} />)
-    await esperarListado()
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
-
-    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
-  })
-
-  it('un 401 al guardar cierra la sesión', async () => {
-    vi.mocked(actualizarProyectoRh).mockRejectedValue(
-      Object.assign(new Error('no autorizado'), { estado: 401 }),
-    )
-    const alSesionExpirada = vi.fn()
-    render(<Proyectos token="token-rh" alSesionExpirada={alSesionExpirada} />)
-    await esperarListado()
-    await abrirEdicion()
-
-    fireEvent.change(screen.getByLabelText('Área'), {
-      target: { value: 'Operaciones' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
-
-    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
-    expect(screen.queryByText('No pudimos guardar los cambios')).toBeNull()
-  })
 })
 
-describe('Proyectos RH — corrección administrativa de participación (RH-02.2)', () => {
-  const CON_PARTICIPANTE = {
-    total: 1,
-    pagina: 1,
-    por_pagina: 20,
-    items: [participacion(1)],
-  }
+describe('crearEsperaMinima — helper cancelable de la espera mínima (RH-02.3.3)', () => {
+  it('esperar() resuelve solo tras el mínimo y cancelar() impide resolver (timers limpios)', async () => {
+    const espera = crearEsperaMinima()
+    const inicio = performance.now()
 
-  /** Render + consulta del proyecto 1 + detalle expandido del participante. */
-  async function abrirParticipacion(props = {}) {
-    vi.mocked(listarParticipacionesDeProyecto).mockResolvedValue(CON_PARTICIPANTE)
-    render(<Proyectos token="token-rh" {...props} />)
-    await esperarListado()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Consultar' })[0])
-    await screen.findByRole('heading', { name: 'Consultar proyecto' })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Consultar participación' }),
-    )
-    // El detalle expandido muestra los entregables del participante.
-    expect(await screen.findByText('API de pagos')).toBeInTheDocument()
-  }
-
-  it('la corrección es una acción explícita separada de Editar proyecto', async () => {
-    await abrirParticipacion()
-
-    // Ambas acciones existen, cada una con su ámbito: participación vs proyecto.
-    expect(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Editar proyecto' }),
-    ).toBeInTheDocument()
-    // El formulario de corrección NO existe hasta pulsar su acción.
-    expect(screen.queryByText('Corrección administrativa')).toBeNull()
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    )
-    expect(screen.getByText('Corrección administrativa')).toBeInTheDocument()
-
-    // Entrar en la edición del proyecto desmonta participantes y corrección:
-    // dos formularios administrativos que nunca se mezclan.
-    fireEvent.click(screen.getByRole('button', { name: 'Editar proyecto' }))
-    expect(
-      await screen.findByRole('heading', { name: 'Editar proyecto' }),
-    ).toBeInTheDocument()
-    expect(screen.queryByText('Corrección administrativa')).toBeNull()
-    expect(screen.queryByText('Participantes')).toBeNull()
-    expect(actualizarProyectoRh).not.toHaveBeenCalled()
-  })
-
-  it('RH corrige: PATCH solo con los campos cambiados y recarga de participantes', async () => {
-    // ParticipacionOut corregida (contrato de corregirParticipacion, sin
-    // transformar): mismo patrón que los PATCH exitosos de «Editar proyecto».
-    vi.mocked(corregirParticipacion).mockResolvedValue(
-      participacion(1, { rol: 'QA Lead', en_equipo: false }),
-    )
-
-    await abrirParticipacion()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    )
-
-    fireEvent.change(screen.getByLabelText('Rol'), {
-      target: { value: 'QA Lead' },
+    let resuelta = false
+    espera.esperar(inicio).then(() => {
+      resuelta = true
     })
-    fireEvent.click(screen.getByLabelText('Trabajo en equipo')) // true ? false
-    fireEvent.change(screen.getByLabelText('Motivo'), {
-      target: { value: 'Solicitado por el empleado' },
+
+    // Dentro del mínimo: la espera sigue pendiente.
+    await new Promise((resolver) => setTimeout(resolver, 150))
+    expect(resuelta).toBe(false)
+
+    // Esperar de nuevo con el MISMO inicio ya no bloquea: el mínimo se mide
+    // DESDE EL INICIO DE LA PETICIÓN, no desde cada llamada a esperar().
+    await espera.esperar(inicio)
+    expect(resuelta).toBe(true)
+    expect(performance.now() - inicio).toBeGreaterThanOrEqual(430)
+
+    // Una espera cancelada NUNCA resuelve: desmontaje/limpieza sin setState
+    // posterior (los temporizadores pendientes quedan limpios).
+    let resueltaCancelada = false
+    espera.esperar().then(() => {
+      resueltaCancelada = true
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
-
-    await waitFor(() => expect(corregirParticipacion).toHaveBeenCalledTimes(1))
-    const [token, id, cambios] = vi.mocked(corregirParticipacion).mock.calls[0]
-    expect(token).toBe('token-rh')
-    expect(id).toBe(1)
-    // Exactamente lo corregido + motivo: ni entregables ni horas sin cambio.
-    expect(cambios).toEqual({
-      rol: 'QA Lead',
-      en_equipo: false,
-      motivo: 'Solicitado por el empleado',
-    })
-    // El proyecto NO se tocó: la corrección es de la participación.
-    expect(actualizarProyectoRh).not.toHaveBeenCalled()
-    // Los participantes se recargan para reflejar la corrección persistida.
-    await waitFor(() =>
-      expect(listarParticipacionesDeProyecto).toHaveBeenCalledTimes(2),
+    espera.cancelar()
+    await new Promise((resolver) =>
+      setTimeout(resolver, MIN_CARGA_PROYECTOS_MS + 100),
     )
-    expect(
-      await screen.findByText('Participación corregida'),
-    ).toBeInTheDocument()
-    expect(screen.queryByText('Corrección administrativa')).toBeNull()
-  })
-
-  it('cancelar la corrección no hace ningún PATCH y conserva el detalle', async () => {
-    await abrirParticipacion()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    )
-
-    fireEvent.change(screen.getByLabelText('Horas'), {
-      target: { value: '200' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-
-    expect(screen.queryByText('Corrección administrativa')).toBeNull()
-    expect(
-      screen.getByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-    expect(corregirParticipacion).not.toHaveBeenCalled()
-    expect(actualizarProyectoRh).not.toHaveBeenCalled()
-  })
-
-  it('sin cambios no envía ningún PATCH', async () => {
-    await abrirParticipacion()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
-
-    expect(
-      await screen.findByText('No pudimos corregir la participación'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('No hay cambios que corregir en esta participación.'),
-    ).toBeInTheDocument()
-    expect(corregirParticipacion).not.toHaveBeenCalled()
-  })
-
-  it('un rol vacío se valida en cliente sin llamar al backend', async () => {
-    await abrirParticipacion()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    )
-
-    fireEvent.change(screen.getByLabelText('Rol'), {
-      target: { value: '   ' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
-
-    expect(
-      await screen.findByText('El rol de la participación no puede estar vacío.'),
-    ).toBeInTheDocument()
-    expect(corregirParticipacion).not.toHaveBeenCalled()
-  })
-
-  it('un fallo del PATCH de corrección se muestra legible', async () => {
-    vi.mocked(corregirParticipacion).mockRejectedValue(
-      Object.assign(new Error('La participación ya no existe.'), {
-        estado: 404,
-      }),
-    )
-    await abrirParticipacion()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    )
-
-    fireEvent.change(screen.getByLabelText('Horas'), {
-      target: { value: '200' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
-
-    expect(
-      await screen.findByText('No pudimos corregir la participación'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('La participación ya no existe.'),
-    ).toBeInTheDocument()
-  })
-
-  it('un 401 al corregir cierra la sesión', async () => {
-    vi.mocked(corregirParticipacion).mockRejectedValue(
-      Object.assign(new Error('no autorizado'), { estado: 401 }),
-    )
-    const alSesionExpirada = vi.fn()
-    await abrirParticipacion({ alSesionExpirada })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    )
-
-    fireEvent.change(screen.getByLabelText('Horas'), {
-      target: { value: '200' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar corrección' }))
-
-    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
-    expect(
-      screen.queryByText('No pudimos corregir la participación'),
-    ).toBeNull()
-  })
-
-  it('Escape con la corrección abierta la cancela sin cerrar el detalle', async () => {
-    await abrirParticipacion()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Corregir participación' }),
-    )
-
-    fireEvent.keyDown(document, { key: 'Escape' })
-
-    expect(screen.queryByText('Corrección administrativa')).toBeNull()
-    expect(
-      screen.getByRole('heading', { name: 'Consultar proyecto' }),
-    ).toBeInTheDocument()
-    expect(corregirParticipacion).not.toHaveBeenCalled()
-    expect(listarProyectosRh).toHaveBeenCalledTimes(1)
+    expect(resueltaCancelada).toBe(false)
   })
 })

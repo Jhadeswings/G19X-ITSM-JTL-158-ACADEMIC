@@ -130,10 +130,15 @@
 
 /* Consulta / edición: dos modos explícitos de la misma tarjeta. */
 .proyectos-rh__detalle { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
-.proyectos-rh__detalle h2 { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.proyectos-rh__detalle--edicion { background: var(--color-primary-soft); border-color: var(--color-brand-deep); box-shadow: 0 1px 3px rgba(24,74,73,.10); }
+.proyectos-rh__edicion--etiqueta { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding: 3px 8px; background: var(--color-brand-deep); color: #ffffff; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+/* Modo edición: la cabecera acompaña a la tarjeta con el mismo acento del
+   borde y de la etiqueta «Editando» — sin rediseño de la disposición. */
+.proyectos-rh__detalle-cabecera--edicion h2 { color: var(--color-brand-deep); }
+.proyectos-rh__detalle-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
 .proyectos-rh__detalle .ui-alert { width: 100%; }
 .proyectos-rh__detalle .estado-carga, .proyectos-rh__detalle .estado-error { width: 100%; }
-.proyectos-rh__detalle-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
+.proyectos-rh__detalle-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
 .proyectos-rh__detalle-cabecera h2 { flex: 1 1 auto; margin: 0; }
 .proyectos-rh__nota { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
 
@@ -147,9 +152,27 @@
 /* RH-02.1: participantes del proyecto consultado — tabla limpia (§14.1),
    sin columnas de métricas ni ranking; los entregables viven en el detalle
    expandible de cada participante, no en una columna gigante. */
-.proyectos-rh__participantes { display: flex; flex-direction: column; gap: 12px; width: 100%; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+/* RH-02.3: la tarjeta de Participantes es una CARD propia de la PÁGINA de
+   detalle (/proyectos/:id), igual que la de «Detalle del proyecto». */
+.proyectos-rh__participantes { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 .proyectos-rh__participantes h3 { margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .proyectos-rh__participacion-detalle td { padding: 14px 16px; background: var(--color-surface-soft); }
+
+/* RH-02.3.3: pie de la participación expandida — «Fecha de registro» a la
+   izquierda y «Corregir participación» justificada al borde derecho de la
+   tarjeta (space-between con hueco proporcional). flex-wrap apila los dos en
+   viewport pequeño sin que el botón salga de la card. Misma tipografía de
+   etiqueta/valor que los dt/dd de datos (tamaño, peso y tracking). */
+.proyectos-rh__participacion-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; width: 100%; margin-top: 12px; }
+.proyectos-rh__participacion-fecha { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; }
+.proyectos-rh__participacion-fecha-etiqueta { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.proyectos-rh__participacion-fecha-valor { color: var(--color-text-primary); font-size: 14px; }
+
+/* RH-02.3.1: búsqueda LOCAL de participante — filtro visual discreto sobre
+   los ya cargados (icono + input con los tokens existentes, ancho completo). */
+.proyectos-rh__busqueda { display: flex; align-items: center; gap: 8px; width: 100%; color: var(--ink-soft); }
+.proyectos-rh__busqueda svg { flex: 0 0 auto; width: 16px; height: 16px; }
+.proyectos-rh__busqueda .ui-input { flex: 1 1 auto; }
 
 /* Alineación de la tabla de participantes: encabezado y filas comparten
    EXACTAMENTE las mismas columnas (`table-layout: fixed`); Horas y Acción
@@ -165,12 +188,20 @@
 
 /* RH-02.2: corrección administrativa de una participación (PRD §12.2). Vive
    dentro del detalle expandido del participante, separada de la edición del
-   proyecto. Tarjeta blanca sobre el fondo suave de la fila expandida, con
-   título propio que la identifica como corrección administrativa. */
-.proyectos-rh__correccion { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 620px; margin-top: 14px; padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; }
+   proyecto. RH-02.3.3: aprovecha TODO el ancho disponible de la fila
+   expandida (sin tope propio) con el mismo lenguaje de card del detalle:
+   padding, borde, radio y tipografía idénticos a las demás tarjetas. */
+.proyectos-rh__correccion { display: flex; flex-direction: column; gap: 14px; width: 100%; margin-top: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 .proyectos-rh__correccion-titulo { margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .proyectos-rh__correccion-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 16px; width: 100%; }
-.proyectos-rh__correccion .proyectos-indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+/* RH-02.3.4: alineación de los indicadores de la corrección — el título
+   «Indicadores» ocupa la fila COMPLETA del grid (grid-column: 1 / -1) para que
+   los CUATRO indicadores arranquen todos en la misma línea de referencia y
+   nadie quede desfasado verticalmente. `align-items: start` mantiene cada
+   checkbox/label alineado al inicio de su celda aunque una etiqueta ocupe dos
+   líneas. Sin posicionamiento absoluto; responsive por el auto-fit existente. */
+.proyectos-rh__correccion .proyectos-indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; align-items: start; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.proyectos-rh__correccion .proyectos-indicadores__titulo { grid-column: 1 / -1; }
 .proyectos-rh__correccion-acciones { display: flex; flex-wrap: wrap; gap: 12px; }
 
 .proyectos-rh__formulario { width: 100%; display: flex; flex-direction: column; gap: 16px; }
@@ -178,8 +209,21 @@
 .proyectos-rh__acciones { display: flex; flex-wrap: wrap; gap: 12px; }
 
 @media (max-width: 760px) {
-  .proyectos-rh__catalogo, .proyectos-rh__detalle { padding: 18px; }
+  .proyectos-rh__catalogo, .proyectos-rh__detalle, .proyectos-rh__participantes { padding: 18px; }
   /* Mobile: la fila colapsa a una sola columna (datos → estado → acción). */
   .proyectos-rh__item { grid-template-columns: 1fr; align-items: flex-start; }
   .proyectos-rh__datos-admin { grid-template-columns: 1fr; }
 }
+
+/* RH-02.3: breadcrumb del Show (Style Guide §11) — discreto, responde
+   «¿dónde estoy?» y envuelve en mobile sin rediseñar la pantalla. El botón
+   «Proyectos» regresa al catálogo (/proyectos). */
+.proyectos-rh__migas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; color: var(--ink-soft); font-size: 12px; }
+.proyectos-rh__migas-enlace { padding: 0; border: 0; background: none; color: var(--color-brand-deep); font: inherit; font-weight: 650; cursor: pointer; }
+.proyectos-rh__migas-enlace:hover, .proyectos-rh__migas-enlace:focus-visible { text-decoration: underline; }
+.proyectos-rh__migas-separador { color: var(--ink-soft); }
+.proyectos-rh__migas-actual { color: var(--color-text-primary); font-weight: 650; overflow-wrap: anywhere; }
+
+/* RH-02.3: «‹ Volver al listado» — navegación primaria de regreso de la
+   página de detalle. Sin X ni «Cerrar»: es una página, no un overlay. */
+.proyectos-rh__volver { align-self: flex-start; }

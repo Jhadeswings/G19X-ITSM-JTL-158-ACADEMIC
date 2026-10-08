@@ -22,7 +22,7 @@
 //      visual con el orden de bloques del PRD, sin calcular nada.
 //      SECCION_INICIAL sigue siendo 'mi-progreso'.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   actualizarSesion,
   guardarSesion,
@@ -41,9 +41,10 @@ import {
   SECCION_INICIAL,
   SECCION_RH_INICIAL,
 } from './navegacion.js'
+import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
+import { RutasProyectos, esRutaProyectos } from './rutas/router.jsx'
 import InicioRH from './vistas/InicioRH.jsx'
 import Empleados from './vistas/Empleados.jsx'
-import Proyectos from './vistas/Proyectos.jsx'
 import Evaluaciones from './vistas/Evaluaciones.jsx'
 import Inicio from './vistas/Inicio.jsx'
 import MiCuenta from './vistas/MiCuenta.jsx'
@@ -54,8 +55,32 @@ import MisProyectos from './vistas/MisProyectos.jsx'
 import SeccionTemporal from './vistas/SeccionTemporal.jsx'
 
 function App() {
+  // Router real (RH-02.3): BrowserRouter vive AQUÍ para que cualquier
+  // consumidor de <App /> (main.jsx y los tests) tenga el contexto de
+  // navegación sin cambios externos. El resto de la app conserva su
+  // arquitectura por secciones; SOLO Proyectos tiene rutas reales.
+  return (
+    <BrowserRouter>
+      <Aplicacion />
+    </BrowserRouter>
+  )
+}
+
+function Aplicacion() {
   const [sesion, setSesion] = useState(obtenerSesion)
-  const [seccion, setSeccion] = useState(SECCION_INICIAL)
+  const ubicacion = useLocation()
+  const navegar = useNavigate()
+  const enRutaProyectos = esRutaProyectos(ubicacion.pathname)
+  // RH-02.3: una entrada profunda /proyectos[/{id}] con sesión RH reconoce
+  // la sección al iniciar; sin esa sesión la ruta queda ignorada (login y
+  // 401 conservan su comportamiento actual).
+  const [seccion, setSeccion] = useState(() =>
+    enRutaProyectos && sesion?.rol === 'RH' ? 'proyectos' : SECCION_INICIAL,
+  )
+  // Ruta actual legible desde callbacks estables (sin cierres obsoletos).
+  const rutaActualRef = useRef(ubicacion.pathname)
+  rutaActualRef.current = ubicacion.pathname
+
   const [cuenta, setCuenta] = useState(null)
   // Proyecto que Inicio pide abrir en «Mis proyectos» (MB-7-2E). Solo el id:
   // la identidad del empleado la sigue derivando el backend del token.
@@ -69,19 +94,27 @@ function App() {
   const iniciar = useCallback((sesionNueva) => {
     guardarSesion(sesionNueva)
     setSeccion(SECCION_INICIAL)
+    // RH-02.3: una URL de Proyectos no sobrevive a un inicio de sesión.
+    if (esRutaProyectos(rutaActualRef.current)) {
+      navegar('/', { replace: true })
+    }
     setSesion(sesionNueva)
-  }, [])
+  }, [navegar])
 
   const cerrarSesion = useCallback((motivo = 'voluntaria') => {
     // Un solo punto de salida: limpiar storage, reiniciar navegación y sesión.
     limpiarSesion()
     setSeccion(SECCION_INICIAL)
     setProyectoPendiente(null)
+    // RH-02.3: una URL de Proyectos no sobrevive a un cierre de sesión.
+    if (esRutaProyectos(rutaActualRef.current)) {
+      navegar('/', { replace: true })
+    }
     setSesion(null)
     // Solo el cierre por INACTIVIDAD deja rastro en el login. El logout manual
     // y el 401 del backend siguen sin mensaje, exactamente como antes.
     setMotivoCierre(motivo === 'inactividad' ? 'inactividad' : null)
-  }, [])
+  }, [navegar])
 
   // Sesión por inactividad (Bloque F): renueva mientras hay actividad y, si la
   // hay, cierra la sesión. `cerrarSesion` ya es estable, así que el efecto no
@@ -91,6 +124,28 @@ function App() {
     onCerrar: cerrarSesion,
     onRenovar: setSesion,
   })
+
+  // --- RH-02.3: «Proyectos» es una RUTA REAL del sidebar ----------------
+  // UNA sola entrada (sin «Detalle»): lleva SIEMPRE al Index /proyectos,
+  // incluso si se está en /proyectos/{id}. Index/Show los decide el router.
+  const seleccionarSeccionRh = useCallback(
+    (id) => {
+      if (id === 'proyectos') {
+        setSeccion('proyectos')
+        if (rutaActualRef.current !== '/proyectos') {
+          navegar('/proyectos')
+        }
+        return
+      }
+      setSeccion(id)
+      // Al salir de Proyectos la URL deja de ser de esta sección: se limpia
+      // con replace para no inventar entradas de historial de otras secciones.
+      if (esRutaProyectos(rutaActualRef.current)) {
+        navegar('/', { replace: true })
+      }
+    },
+    [navegar],
+  )
 
   const alCambiarPassword = useCallback(() => {
     setSesion(actualizarSesion({ mustChangePassword: false }))
@@ -118,6 +173,34 @@ function App() {
       cancelado = true
     }
   }, [esEmpleadoActivo, sesion?.token])
+
+  // --- RH-02.3: la URL manda en Proyectos (router real) ------------------
+  // Back/Forward y deep-links cambian la ubicación; este efecto sincroniza
+  // la sección del sidebar SIN escribir la URL (solo lectura → sin bucles).
+  // Una entrada fuera de Proyectos (p. ej. '/' al retroceder) devuelve la
+  // sección inicial de RH si estábamos en Proyectos.
+  useEffect(() => {
+    if (sesion?.rol !== 'RH') return undefined
+    if (enRutaProyectos) {
+      setSeccion((actual) => (actual === 'proyectos' ? actual : 'proyectos'))
+    } else {
+      setSeccion((actual) =>
+        actual === 'proyectos' ? SECCION_RH_INICIAL : actual,
+      )
+    }
+    return undefined
+  }, [enRutaProyectos, sesion?.rol])
+
+  // Al desmontar la app, la URL no debe quedar apuntando a Proyectos
+  // (cierre de la SPA y limpieza entre pruebas).
+  useEffect(
+    () => () => {
+      if (esRutaProyectos(window.location.pathname)) {
+        window.history.replaceState(null, '', '/')
+      }
+    },
+    [],
+  )
 
   if (!sesion) {
     return <InicioSesion onExito={iniciar} motivoCierre={motivoCierre} />
@@ -149,19 +232,19 @@ function App() {
         rol="RH"
         secciones={SECCIONES_RH}
         activa={activaRh.id}
-        onSeleccionar={setSeccion}
+        onSeleccionar={seleccionarSeccionRh}
         onCerrarSesion={() => cerrarSesion('voluntaria')}
       >
         {activaRh.id === 'inicio' ? (
           <InicioRH
             token={sesion.token}
             onSesionExpirada={cerrarSesion}
-            onVerEmpleados={() => setSeccion('empleados')}
+            onVerEmpleados={() => seleccionarSeccionRh('empleados')}
           />
         ) : activaRh.id === 'empleados' ? (
           <Empleados token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : activaRh.id === 'proyectos' ? (
-          <Proyectos token={sesion.token} alSesionExpirada={cerrarSesion} />
+          <RutasProyectos token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : activaRh.id === 'evaluaciones' ? (
           <Evaluaciones token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : (
