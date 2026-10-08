@@ -1,0 +1,6 @@
+/* Sección RH → Brechas (PRD §15/§20.7): contenedor de la sección y nota de
+   contexto. El panel reutiliza .distribution-panel de dashboard.css sin
+   cambios: misma lectura por competencia, sin alarma automática. */
+.brechas { display: flex; flex-direction: column; gap: 30px; }
+.brechas > .section-header { margin-bottom: -8px; }
+.brechas__contexto { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }

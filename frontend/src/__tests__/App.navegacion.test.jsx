@@ -483,7 +483,6 @@ describe('Shell de RH — navegación', () => {
       'Búsqueda',
       'Comparar',
       'Mentoría',
-      'Brechas',
     ]) {
       abrir(titulo)
       expect(
@@ -494,6 +493,21 @@ describe('Shell de RH — navegación', () => {
       ).not.toBeInTheDocument()
     }
     expect(obtenerProgreso).not.toHaveBeenCalled()
+  })
+
+  it('Brechas abre su vista real (§20.7), no la sección temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Empleados activos' })
+
+    abrir('Brechas')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Distribución de niveles' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('«Brechas» todavía no está disponible'),
+    ).not.toBeInTheDocument()
   })
 
   it('Proyectos abre su vista real (§20.3), no el estado temporal', async () => {
