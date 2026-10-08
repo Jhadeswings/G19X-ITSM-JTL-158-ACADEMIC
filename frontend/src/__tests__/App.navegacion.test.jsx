@@ -481,7 +481,6 @@ describe('Shell de RH — navegación', () => {
 
     for (const titulo of [
       'Búsqueda',
-      'Comparar',
       'Mentoría',
     ]) {
       abrir(titulo)
@@ -493,6 +492,22 @@ describe('Shell de RH — navegación', () => {
       ).not.toBeInTheDocument()
     }
     expect(obtenerProgreso).not.toHaveBeenCalled()
+  })
+
+  it('Comparar abre su vista real (§20.5), no la sección temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Empleados activos' })
+
+    abrir('Comparar')
+
+    // El campo de búsqueda de la selección es único de la vista real.
+    expect(
+      await screen.findByRole('searchbox'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('«Comparar» todavía no está disponible'),
+    ).not.toBeInTheDocument()
   })
 
   it('Brechas abre su vista real (§20.7), no la sección temporal', async () => {

@@ -47,6 +47,7 @@ import InicioRH from './vistas/InicioRH.jsx'
 import Empleados from './vistas/Empleados.jsx'
 import Evaluaciones from './vistas/Evaluaciones.jsx'
 import Brechas from './vistas/Brechas.jsx'
+import Comparar from './vistas/Comparar.jsx'
 import Inicio from './vistas/Inicio.jsx'
 import MiCuenta from './vistas/MiCuenta.jsx'
 import MiHistorial from './vistas/MiHistorial.jsx'
@@ -248,6 +249,8 @@ function Aplicacion() {
           <RutasProyectos token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : activaRh.id === 'brechas' ? (
           <Brechas token={sesion.token} alSesionExpirada={cerrarSesion} />
+        ) : activaRh.id === 'comparar' ? (
+          <Comparar token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : activaRh.id === 'evaluaciones' ? (
           <Evaluaciones token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : (

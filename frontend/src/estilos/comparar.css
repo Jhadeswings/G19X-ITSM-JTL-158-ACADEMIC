@@ -1,0 +1,37 @@
+/* Sección RH → Comparar (PRD §20.5; Style Guide §27 barra contextual y §995:
+   sin colores que declaren un ganador). Reutiliza la tabla y la paginación
+   existentes; solo aporta el layout propio de la selección y del resultado. */
+.comparar { display: flex; flex-direction: column; gap: 22px; }
+.comparar > .section-header { margin-bottom: -8px; }
+.comparar-seleccion { display: flex; flex-direction: column; gap: 14px; }
+.comparar-seleccion__busqueda { display: flex; flex-direction: column; gap: 8px; max-width: 360px; }
+.comparar-seleccion__busqueda .ui-input { min-height: 36px; }
+.comparar-seleccion td input[type='checkbox'] { width: 16px; height: 16px; margin: 0; accent-color: var(--color-primary); }
+
+/* Barra contextual (SG §27): aparece SOLO cuando hay selección y no ocupa
+   espacio permanente del flujo (sticky al pie). Neutra: cuenta y acción. */
+.comparar-barra { position: sticky; bottom: 12px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; box-shadow: 0 8px 24px rgba(38, 50, 56, .10); }
+.comparar-barra__conteo { margin: 0; color: var(--color-text-primary); font-size: 14px; font-weight: 650; }
+.comparar-acciones { display: flex; }
+
+/* Resultados: una tarjeta por empleado en el ORDEN del backend (neutral). */
+.comparar-resultados { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; }
+.comparar-empleado { display: flex; flex-direction: column; gap: 12px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.comparar-empleado h3 { margin: 0; color: var(--color-text-primary); font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.comparar-empleado__meta { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+.comparar-empleado__competencias { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.comparar-empleado__competencia { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.comparar-empleado__competencia dt { color: var(--color-text-secondary); font-size: 12px; font-weight: 650; }
+.comparar-empleado__competencia dd { margin: 0; color: var(--color-text-primary); font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+
+/* Experiencia: VISUALMENTE contexto — separada, secundaria y con su nota. */
+.comparar-empleado__experiencia { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px dashed var(--line-soft); }
+.comparar-empleado__experiencia h4 { margin: 0; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.comparar-empleado__experiencia dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin: 0; }
+.comparar-empleado__experiencia dt { color: var(--color-text-secondary); font-size: 12px; }
+.comparar-empleado__experiencia dd { margin: 0; color: var(--color-text-primary); font-size: 14px; font-weight: 650; }
+.comparar-empleado__experiencia p { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+
+@media (max-width: 760px) {
+  .comparar-resultados { grid-template-columns: minmax(0, 1fr); }
+}
