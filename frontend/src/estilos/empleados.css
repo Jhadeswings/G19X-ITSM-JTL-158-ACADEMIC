@@ -9,6 +9,10 @@
 .empleados-filtros__grupo { display: flex; flex-wrap: wrap; gap: 8px; }
 .empleados-filtros__area { display: flex; flex-direction: column; gap: 8px; min-width: 210px; }
 .empleados-filtros__area .ui-input { min-height: 36px; }
+/* Búsqueda por nombre/puesto (PRD §20.1): misma altura que el filtro de área;
+   crece primero porque es el control más usado. Concepto distinto del área. */
+.empleados-filtros__busqueda { display: flex; flex-direction: column; gap: 8px; flex: 1 1 240px; min-width: 210px; }
+.empleados-filtros__busqueda .ui-input { min-height: 36px; }
 .empleados-filtros__activos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -8px 0 0; color: var(--ink-soft); font-size: 12px; }
 .empleados-filtros__activos span { padding: 4px 9px; color: var(--color-brand-deep); background: var(--color-primary-soft); border: 1px solid #c7ddda; border-radius: 999px; font-weight: 700; }
 .empleados__volver { display: flex; }
@@ -52,7 +56,8 @@
 }
 @media (max-width: 640px) {
   .empleados-filtros { padding: 16px; }
-  .empleados-filtros__area { width: 100%; min-width: 0; }
+  .empleados-filtros__area,
+  .empleados-filtros__busqueda { width: 100%; min-width: 0; flex-basis: 100%; }
   .empleados-filtros__grupo { width: 100%; }
   .empleados-filtros__grupo .ui-button { flex: 1 1 auto; }
 }

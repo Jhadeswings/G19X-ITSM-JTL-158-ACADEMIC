@@ -4,7 +4,8 @@
 // Qué se verifica aquí y NO debe romperse con cambios de diseño:
 // - las cuatro columnas exactas del PRD;
 // - el texto Activo/Inactivo (nunca solo color);
-// - los únicos filtros que el backend soporta (estado y área);
+// - los únicos filtros que el backend soporta (estado y área) y la búsqueda
+//   por nombre/puesto (q, PRD §20.1), que resuelve el backend;
 // - la paginación calculada con `total`, no con `items.length`;
 // - los estados de carga, vacío y error con reintento;
 // - el 401 delegando en `alSesionExpirada`;
@@ -211,7 +212,6 @@ describe('Empleados — filtros soportados por el backend', () => {
 
     expect(screen.queryByLabelText('Competencia')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Nivel')).not.toBeInTheDocument()
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
   })
 
   it('vuelve a la primera página al cambiar un filtro', async () => {
@@ -227,6 +227,82 @@ describe('Empleados — filtros soportados por el backend', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Activos' }))
 
     await waitFor(() => expect(ultimaConsulta()[1].pagina).toBe(1))
+  })
+})
+
+describe('Empleados — búsqueda por nombre/puesto (PRD §20.1)', () => {
+  it('ofrece un campo de búsqueda distinto del filtro exacto de área', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    const busqueda = screen.getByRole('searchbox')
+    expect(busqueda).toHaveAttribute('placeholder', 'Nombre o puesto')
+    // El área conserva SU semántica: sigue siendo coincidencia exacta.
+    expect(screen.getByLabelText('Área')).toHaveAttribute('placeholder', 'Área exacta')
+  })
+
+  it('envía q al backend al escribir y vuelve a la primera página', async () => {
+    vi.mocked(listarEmpleados).mockResolvedValue(
+      pagina(EMPLEADOS, { total: 42, porPagina: 20 }),
+    )
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Página 3' }))
+    await waitFor(() => expect(ultimaConsulta()[1].pagina).toBe(3))
+
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'ana' },
+    })
+
+    await waitFor(() => {
+      expect(ultimaConsulta()[1].q).toBe('ana')
+      expect(ultimaConsulta()[1].pagina).toBe(1)
+    })
+  })
+
+  it('la búsqueda vacía no viaja: omite el parámetro como el área', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    expect(ultimaConsulta()[1].q).toBe('')
+    expect(ultimaConsulta()[1].area).toBe('')
+  })
+
+  it('sin resultados muestra el vacío por filtros, no el del catálogo', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    vi.mocked(listarEmpleados).mockResolvedValue(pagina([]))
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'noexiste' },
+    })
+
+    expect(
+      await screen.findByText('No hay empleados que coincidan con estos filtros.'),
+    ).toBeInTheDocument()
+  })
+
+  it('muestra la búsqueda entre los filtros activos y la limpia con el resto', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'luis' },
+    })
+    await waitFor(() =>
+      expect(screen.getByText('Búsqueda: luis')).toBeInTheDocument(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }))
+
+    await waitFor(() => {
+      const filtros = ultimaConsulta()[1]
+      expect(filtros.q).toBe('')
+      expect(filtros.area).toBe('')
+      expect(filtros.activo).toBeUndefined()
+    })
+    expect(screen.queryByText('Búsqueda: luis')).not.toBeInTheDocument()
   })
 })
 

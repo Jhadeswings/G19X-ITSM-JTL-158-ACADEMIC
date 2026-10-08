@@ -59,11 +59,16 @@ def listar_empleados(
     por_pagina: int = Query(20, ge=1, le=100),
     activo: bool | None = Query(None),
     area: str | None = Query(None),
+    q: str | None = Query(None, max_length=100),
     db: Session = Depends(get_db),
 ) -> EmpleadoPageOut:
-    """Lista administrativa paginada de empleados."""
+    """Lista administrativa paginada de empleados.
+
+    ``q`` busca por nombre/puesto (PRD §20.1, coincidencia parcial en
+    backend); ``area`` sigue siendo coincidencia EXACTA normalizada.
+    """
     empleados, total = empleado_service.listar_empleados(
-        db, pagina=pagina, por_pagina=por_pagina, activo=activo, area=area
+        db, pagina=pagina, por_pagina=por_pagina, activo=activo, area=area, q=q
     )
     return EmpleadoPageOut(
         total=total,

@@ -100,14 +100,15 @@ export async function obtenerNineBox(token, empleadoId) {
 
 // Listado administrativo de empleados (PRD §20.1; ET §31, §40).
 //
-// Usa EXCLUSIVAMENTE los parámetros que el backend ya acepta: `pagina`,
-// `por_pagina`, `activo` y `area`. No se filtra por nombre ni por puesto
-// porque el contrato no los expone, y no se calculan competencias ni niveles
-// aquí: esas reglas viven en el backend (ET §42) y en otros módulos.
+// Usa EXCLUSIVAMENTE los parámetros que el backend acepta: `pagina`,
+// `por_pagina`, `activo`, `area` y `q`. La BÚSQUEDA (`q`) es la del PRD §20.1
+// por nombre/puesto: coincidencia parcial que ejecuta y resuelve el BACKEND;
+// aquí no se filtra ni se ordena nada en el cliente. El filtro de Área sigue
+// siendo coincidencia EXACTA normalizada (concepto distinto de la búsqueda).
+// No se filtra por competencia ni nivel: el contrato no los expone (ET §42).
 //
-// `area` viaja tal cual: el backend aplica coincidencia EXACTA normalizada.
-// El campo de la interfaz se presenta como filtro exacto, nunca como búsqueda
-// general (no hay catálogo de áreas ni listado de coincidencias parciales).
+// `area` y `q` viajan tal cual: el backend normaliza ambos lados de cada
+// comparación (el acento es significativo, sin `unaccent`).
 
 /** Tope superior de `por_pagina` aceptado por el backend (evita un 422). */
 export const POR_PAGINA_MAXIMO = 100
@@ -116,7 +117,7 @@ export const POR_PAGINA_MAXIMO = 100
 export const POR_PAGINA_DEFECTO = 20
 
 /** Normaliza los parámetros de la vista a query params, omitting los vacíos. */
-function parametrosListado({ pagina, porPagina, activo, area }) {
+function parametrosListado({ pagina, porPagina, activo, area, q }) {
   const consulta = new URLSearchParams()
 
   const paginaActual = Number.isFinite(pagina) ? Math.max(1, Math.trunc(pagina)) : 1
@@ -135,6 +136,11 @@ function parametrosListado({ pagina, porPagina, activo, area }) {
   if (areaLimpia) {
     consulta.set('area', areaLimpia)
   }
+  // La búsqueda solo viaja si quedó algo tras el trim: vacía = sin búsqueda.
+  const busquedaLimpia = typeof q === 'string' ? q.trim() : ''
+  if (busquedaLimpia) {
+    consulta.set('q', busquedaLimpia)
+  }
   return consulta.toString()
 }
 
@@ -142,7 +148,7 @@ function parametrosListado({ pagina, porPagina, activo, area }) {
  * Lista empleados paginados con los filtros que el backend soporta.
  * @param {string} token token de la sesión RH.
  * @param {{pagina?: number, porPagina?: number, activo?: boolean|null,
- *          area?: string|null}} filtros
+ *          area?: string|null, q?: string|null}} filtros
  * @returns {Promise<{total: number, pagina: number, por_pagina: number,
  *                    items: object[]}>} EmpleadoPageOut del backend, sin transformar.
  */

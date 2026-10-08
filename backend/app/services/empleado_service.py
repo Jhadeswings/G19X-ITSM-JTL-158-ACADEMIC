@@ -16,7 +16,7 @@ import logging
 import secrets
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.security import hash_password, validar_politica_password
@@ -53,17 +53,25 @@ def _normalizar_para_comparacion(texto: str | None) -> str:
     return " ".join(texto.strip().lower().split())
 
 
-def _area_normalizada_sql():
-    """Expresión SQL equivalente a ``_normalizar_para_comparacion``.
+def _columna_normalizada(columna):
+    """Expresión SQL equivalente a ``_normalizar_para_comparacion`` para
+    cualquier columna de texto (área, nombre, puesto...).
 
     ``regexp_replace`` pertenece al núcleo de PostgreSQL (no requiere ninguna
     extensión): colapsa cualquier secuencia de espacios en un único espacio y
     el ``trim`` exterior elimina el que queda en los extremos. Así la columna
-    recibe la MISMA transformación que el parámetro, sin volver la comparación
-    parcial ni insensible a acentos.
+    recibe la MISMA transformación que el parámetro.
     """
-    colapsada = func.regexp_replace(func.lower(Empleado.area), r"\s+", " ", "g")
+    colapsada = func.regexp_replace(func.lower(columna), r"\s+", " ", "g")
     return func.trim(colapsada)
+
+
+def _area_normalizada_sql():
+    """Expresión SQL del área con la misma normalización del parámetro.
+
+    La comparación sigue siendo EXACTA (ni parcial ni insensible a acentos).
+    """
+    return _columna_normalizada(Empleado.area)
 
 
 def generar_credencial_temporal() -> str:
@@ -151,8 +159,17 @@ def listar_empleados(
     por_pagina: int = POR_PAGINA_DEFECTO,
     activo: bool | None = None,
     area: str | None = None,
+    q: str | None = None,
 ) -> tuple[list[Empleado], int]:
-    """Lista paginada de empleados (§40: paginar listas RH, no cargar todo)."""
+    """Lista paginada de empleados (§40: paginar listas RH, no cargar todo).
+
+    ``q`` es la búsqueda por nombre/puesto del PRD §20.1: coincidencia PARCIAL
+    (``contains``) e insensible a mayúsculas/espacios, ejecutada por el
+    backend sobre ambos campos con la misma normalización simétrica del filtro
+    de área. El acento sigue siendo significativo (sin ``unaccent``), igual
+    que en ``area``. ``area`` conserva su semántica EXACTA: son conceptos
+    distintos y componen con AND.
+    """
     por_pagina = min(max(por_pagina, 1), MAX_POR_PAGINA)
     pagina = max(pagina, 1)
 
@@ -164,6 +181,17 @@ def listar_empleados(
     area_normalizada = _normalizar_para_comparacion(area)
     if area_normalizada:
         filtros.append(_area_normalizada_sql() == area_normalizada)
+    # Búsqueda q: igual simetría de normalización, pero PARCIAL sobre nombre
+    # y puesto. Un q vacío al normalizar equivale a NO buscar.
+    busqueda = _normalizar_para_comparacion(q)
+    if busqueda:
+        patron = f"%{busqueda}%"
+        filtros.append(
+            or_(
+                _columna_normalizada(Empleado.nombre).like(patron),
+                _columna_normalizada(Empleado.puesto).like(patron),
+            )
+        )
 
     consulta = select(Empleado).options(joinedload(Empleado.cuenta))
     if filtros:

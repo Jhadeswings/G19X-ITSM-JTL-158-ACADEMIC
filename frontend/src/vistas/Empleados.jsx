@@ -9,10 +9,12 @@
 // del EmpleadoOut (GET /api/v1/rh/employees/{id}).
 //
 // Contrato: se usa EXCLUSIVAMENTE GET /api/v1/rh/employees con los parámetros
-// que el backend ya acepta (pagina, por_pagina, activo, area). NO hay filtrado
-// por nombre/puesto ni por competencia/nivel: el contrato no los expone y esas
-// reglas son del backend (ET §42). El campo Área es coincidencia EXACTA
-// normalizada, y se presenta como tal, no como búsqueda general.
+// que el backend acepta (pagina, por_pagina, activo, area y q). La BÚSQUEDA
+// por nombre/puesto (q, PRD §20.1) la ejecuta el backend: aquí no se filtra
+// nada en el cliente. El filtro de Área sigue siendo coincidencia EXACTA
+// normalizada, y se presenta como tal, no como búsqueda general; la búsqueda
+// (q) es parcial y vive separada del filtro. NO hay filtros por competencia
+// ni nivel: el contrato no los expone (ET §42).
 //
 // El total y el rango de la paginación salen de `total`/`por_pagina` del
 // backend, nunca de `items.length`.
@@ -68,6 +70,7 @@ export default function Empleados({ token, alSesionExpirada }) {
   const [pagina, setPagina] = useState(1)
   const [estado, setEstado] = useState('todos')
   const [area, setArea] = useState('')
+  const [busqueda, setBusqueda] = useState('')
   const [consulta, setConsulta] = useState(consultaInicial)
 
   const filtroEstado = OPCIONES_ESTADO.find((opcion) => opcion.id === estado)
@@ -79,6 +82,7 @@ export default function Empleados({ token, alSesionExpirada }) {
       porPagina: POR_PAGINA_DEFECTO,
       activo: filtroEstado?.activo,
       area,
+      q: busqueda,
     })
       .then((datos) => setConsulta({ fase: 'listo', datos, error: null }))
       .catch((error) => {
@@ -91,7 +95,7 @@ export default function Empleados({ token, alSesionExpirada }) {
         // NUNCA se convierte en cero registros (§13.6).
         setConsulta({ fase: 'error', datos: null, error })
       })
-  }, [token, pagina, filtroEstado, area, alSesionExpirada])
+  }, [token, pagina, filtroEstado, area, busqueda, alSesionExpirada])
 
   useEffect(() => {
     cargar()
@@ -131,6 +135,7 @@ export default function Empleados({ token, alSesionExpirada }) {
   function limpiarFiltros() {
     setEstado('todos')
     setArea('')
+    setBusqueda('')
     setPagina(1)
   }
 
@@ -165,7 +170,8 @@ export default function Empleados({ token, alSesionExpirada }) {
   const items = fase === 'listo' ? datos?.items || [] : []
   const total = fase === 'listo' ? datos?.total ?? 0 : 0
   const porPagina = fase === 'listo' ? datos?.por_pagina ?? POR_PAGINA_DEFECTO : POR_PAGINA_DEFECTO
-  const hayFiltros = estado !== 'todos' || area.trim().length > 0
+  const hayFiltros =
+    estado !== 'todos' || area.trim().length > 0 || busqueda.trim().length > 0
 
   return (
     <div className="empleados">
@@ -180,8 +186,26 @@ export default function Empleados({ token, alSesionExpirada }) {
         }
       />
 
-      {/* Filtros: solo los que el backend soporta (Style Guide §14.4). */}
+      {/* Filtros y búsqueda: solo los que el backend soporta (Style Guide §14.4).
+          La búsqueda (q) es parcial por nombre/puesto y la resuelve el
+          backend; el Área sigue siendo coincidencia EXACTA (PRD §20.1). */}
       <section className="empleados-filtros" aria-label="Filtros de empleados">
+        <div className="empleados-filtros__busqueda">
+          <label className="form-field__label" htmlFor="empleados-busqueda">
+            Búsqueda
+          </label>
+          <input
+            id="empleados-busqueda"
+            className="ui-input"
+            type="search"
+            value={busqueda}
+            placeholder="Nombre o puesto"
+            onChange={(evento) => {
+              setBusqueda(evento.target.value)
+              setPagina(1)
+            }}
+          />
+        </div>
         <div className="empleados-filtros__grupo" role="group" aria-label="Filtrar por estado">
           {OPCIONES_ESTADO.map((opcion) => (
             <Button
@@ -224,6 +248,7 @@ export default function Empleados({ token, alSesionExpirada }) {
       {hayFiltros && (
         <p className="empleados-filtros__activos">
           Filtros activos:{' '}
+          {busqueda.trim().length > 0 && <span>Búsqueda: {busqueda.trim()}</span>}
           {estado !== 'todos' && <span>{filtroEstado?.label}</span>}
           {area.trim().length > 0 && <span>Área: {area.trim()}</span>}
         </p>

@@ -258,6 +258,109 @@ class TestFiltroArea:
         assert self._filtrar(client, token_rh, "Tecnología")["total"] == 1
 
 
+class TestBusquedaNombrePuesto:
+    """Búsqueda ``q`` por nombre/puesto (PRD §20.1).
+
+    Es un concepto DISTINTO del filtro de área: coincidencia PARCIAL sobre
+    ``nombre`` y ``puesto``, con la misma normalización simétrica (minúsculas,
+    ``trim``, espacios internos colapsados) y el acento significativo (sin
+    ``unaccent``, igual que ``area``). La ejecuta el backend; ``area`` conserva
+    su semántica EXACTA y ambos componen con AND.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _personas(self, db):
+        from tests.helpers import crear_cuenta, crear_empleado
+
+        for nombre, puesto in (
+            ("Ana López", "Analista de datos"),
+            ("Luis Pérez", "Desarrollador backend"),
+            ("María Gómez", "Analista senior"),
+        ):
+            empleado = crear_empleado(db, nombre=nombre)
+            empleado.puesto = puesto
+            db.commit()
+            crear_cuenta(
+                db,
+                rol="EMPLEADO",
+                email=f"{nombre.split()[0].lower()}@empresa.dev",
+                empleado=empleado,
+            )
+
+    def _buscar(self, client, token, q: str):
+        respuesta = client.get(
+            URL_RH_EMPLEADOS,
+            params={"q": q},
+            headers=cabecera(token),
+        )
+        assert respuesta.status_code == 200, respuesta.text
+        return respuesta.json()
+
+    def test_busca_por_nombre_parcial(self, client, token_rh):
+        datos = self._buscar(client, token_rh, "gómez")
+        assert datos["total"] == 1
+        assert datos["items"][0]["nombre"] == "María Gómez"
+
+    def test_busca_por_puesto(self, client, token_rh):
+        datos = self._buscar(client, token_rh, "desarrollador")
+        assert datos["total"] == 1
+        assert datos["items"][0]["nombre"] == "Luis Pérez"
+
+    def test_busca_en_ambos_campos(self, client, token_rh):
+        """El puesto de Ana y de María comparten «Analista»: ambas aparecen."""
+        datos = self._buscar(client, token_rh, "analista")
+        assert datos["total"] == 2
+        assert {item["nombre"] for item in datos["items"]} == {
+            "Ana López",
+            "María Gómez",
+        }
+
+    def test_ignora_mayusculas_y_espacios_exteriores(self, client, token_rh):
+        for variante in ("ANALISTA", "  analista  ", "Ana"):
+            assert self._buscar(client, token_rh, variante)["total"] >= 1, variante
+
+    def test_el_acento_es_significativo_como_en_area(self, client, token_rh):
+        """Sin ``unaccent``: «lopez» no encuentra a «López», como el filtro
+        de área. La búsqueda insensible a acentos sería un bloque aparte."""
+        assert self._buscar(client, token_rh, "lopez")["total"] == 0
+        assert self._buscar(client, token_rh, "lópez")["total"] == 1
+
+    def test_busqueda_sin_resultados_devuelve_cero(self, client, token_rh):
+        datos = self._buscar(client, token_rh, "finanzas")
+        assert datos["total"] == 0
+        assert datos["items"] == []
+
+    def test_busqueda_vacia_o_solo_espacios_no_filtra(self, client, token_rh):
+        sin_q = client.get(URL_RH_EMPLEADOS, headers=cabecera(token_rh)).json()
+        assert sin_q["total"] >= 3
+
+        for vacia in ("", "   "):
+            assert self._buscar(client, token_rh, vacia)["total"] == sin_q["total"]
+
+    def test_combina_con_el_filtro_exacto_de_area(self, client, token_rh, db):
+        """``q`` (parcial) y ``area`` (exacta) componen con AND: cada uno con
+        su semántica, sin que la búsqueda relaje al filtro."""
+        from tests.helpers import crear_cuenta, crear_empleado
+
+        empleado = crear_empleado(db, nombre="Ana Torres")
+        empleado.puesto = "Analista de datos"
+        empleado.area = "Datos"
+        db.commit()
+        crear_cuenta(
+            db, rol="EMPLEADO", email="anatorres@empresa.dev", empleado=empleado
+        )
+
+        respuesta = client.get(
+            URL_RH_EMPLEADOS,
+            params={"q": "analista", "area": "Datos"},
+            headers=cabecera(token_rh),
+        )
+        assert respuesta.status_code == 200, respuesta.text
+        datos = respuesta.json()
+        assert datos["total"] == 1
+        assert datos["items"][0]["nombre"] == "Ana Torres"
+
+
 class TestConsultarYModificar:
     def _empleado_id(self, db) -> int:
         from tests.helpers import crear_cuenta, crear_empleado
