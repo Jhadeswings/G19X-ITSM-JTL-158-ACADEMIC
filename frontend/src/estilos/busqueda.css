@@ -1,0 +1,47 @@
+/* Sección RH → Búsqueda de talento manual (PRD §13.1; SG §27/§995: sin
+   ranking ni colores de ganador). Reutiliza inputs, botones y estados
+   existentes; aporta solo el layout de criterios, revisión y resultados. */
+.busqueda { display: flex; flex-direction: column; gap: 22px; }
+.busqueda > .section-header { margin-bottom: -8px; }
+
+.busqueda-criterios { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.busqueda-criterios__cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.busqueda-criterios__cabecera h2 { margin: 0; color: var(--color-text-primary); font-size: 16px; font-weight: 700; }
+.busqueda-criterios__lista { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.busqueda-criterios__fila { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; padding: 12px 14px; background: #f7f9f8; border: 1px solid #e7ecea; border-radius: 8px; }
+.busqueda-criterios__campo { display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px; min-width: 180px; }
+.busqueda-criterios__campo--nivel { flex: 0 0 120px; min-width: 110px; }
+.busqueda-criterios__campo select { min-height: 36px; padding: 8px 12px; color: var(--color-text-primary); background: #fff; border: 1px solid #e7ecea; border-radius: 8px; font-size: 13px; }
+
+.busqueda-informativos { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 20px; }
+.busqueda-informativos__campo { display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px; min-width: 200px; }
+.busqueda-informativos__campo .ui-input { min-height: 36px; }
+.busqueda-informativos__nota { flex: 1 1 100%; margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+
+.busqueda-revision { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: var(--color-primary-soft); border-left: 3px solid var(--color-brand-deep); border-radius: 8px; }
+.busqueda-revision h2 { margin: 0; color: var(--color-brand-deep); font-size: 13px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.busqueda-revision__lista { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; color: var(--color-text-primary); font-size: 14px; }
+.busqueda-revision__contexto { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+.busqueda-revision__nota { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.busqueda-revision .ui-button { align-self: flex-start; }
+
+.busqueda-resultados { display: flex; flex-direction: column; gap: 14px; }
+.busqueda-resultados__cabecera { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+.busqueda-resultados__cabecera h2 { margin: 0; color: var(--color-text-primary); font-size: 16px; font-weight: 700; }
+.busqueda-resultados__total { margin: 0; color: var(--color-text-secondary); font-size: 14px; }
+.busqueda-resultados__criterios { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding-left: 18px; color: var(--color-text-secondary); font-size: 13px; }
+.busqueda-resultados__lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.busqueda-resultados__empleado { display: flex; flex-direction: column; gap: 10px; padding: 18px 22px 22px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.busqueda-resultados__empleado h3 { margin: 0; color: var(--color-text-primary); font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.busqueda-resultados__meta { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+.busqueda-resultados__competencias { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.busqueda-resultados__competencias > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.busqueda-resultados__competencias dt { color: var(--color-text-secondary); font-size: 12px; font-weight: 650; }
+.busqueda-resultados__competencias dd { margin: 0; color: var(--color-text-primary); font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+.busqueda-resultados__promedio { margin: 0; padding-top: 10px; border-top: 1px dashed var(--line-soft); color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+
+@media (max-width: 760px) {
+  .busqueda-criterios__fila { flex-direction: column; align-items: stretch; }
+  .busqueda-criterios__campo { width: 100%; min-width: 0; }
+  .busqueda-resultados__lista { grid-template-columns: minmax(0, 1fr); }
+}

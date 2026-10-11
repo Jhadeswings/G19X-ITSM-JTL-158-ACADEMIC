@@ -474,23 +474,34 @@ describe('Shell de RH — navegación', () => {
     expect(screen.getByText('4')).toBeInTheDocument()
   })
 
-  it('las secciones no implementadas reutilizan SeccionTemporal', async () => {
+  it('ninguna sección RH usa ya la SeccionTemporal', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
     await screen.findByRole('heading', { name: 'Empleados activos' })
 
-    for (const titulo of [
-      'Búsqueda',
-    ]) {
-      abrir(titulo)
+    for (const seccion of SECCIONES_RH) {
+      abrir(seccion.titulo)
       expect(
-        screen.getByText(`«${titulo}» todavía no está disponible`),
-      ).toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: 'Crear empleado' }),
+        screen.queryByText(`«${seccion.titulo}» todavía no está disponible`),
       ).not.toBeInTheDocument()
     }
     expect(obtenerProgreso).not.toHaveBeenCalled()
+  })
+
+  it('Búsqueda abre su vista real (§13.1), no la sección temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Empleados activos' })
+
+    abrir('Búsqueda')
+
+    // El botón de agregar criterio es único de la vista real.
+    expect(
+      await screen.findByRole('button', { name: 'Agregar competencia' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('«Búsqueda» todavía no está disponible'),
+    ).not.toBeInTheDocument()
   })
 
   it('Comparar abre su vista real (§20.5), no la sección temporal', async () => {
