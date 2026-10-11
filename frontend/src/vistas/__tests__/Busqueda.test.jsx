@@ -1,4 +1,4 @@
-// Sección RH → Búsqueda de talento manual (PRD §13.1; ET §26; SG §27/§995).
+// Sección RH → Búsqueda de talento (PRD §13.1/§13.3; ET §26/§27; SG §27/§995).
 // APIs mockeadas.
 //
 // Qué se verifica aquí y NO debe romperse:
@@ -11,15 +11,20 @@
 // - estados: sin criterios, loading, cero resultados, 401, 422, error con
 //   reintento;
 // - sin «mejor», «top», «ranking», «ganador», 9-Box ni score global;
-// - editar criterios invalida resultados anteriores.
+// - editar criterios invalida resultados anteriores;
+// - 5B-2: la IA SOLO interpreta la necesidad ({ query_text } exacto, máx
+//   500): carga los criterios propuestos en el editor para revisión de RH y
+//   NUNCA ejecuta la búsqueda; 502 es estado esperado con reintento y el
+//   flujo manual queda siempre disponible.
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Busqueda from '../Busqueda.jsx'
-import { buscarTalento } from '../../api/busqueda.js'
+import { buscarTalento, interpretarBusqueda } from '../../api/busqueda.js'
 
 vi.mock('../../api/busqueda.js', () => ({
   buscarTalento: vi.fn(),
+  interpretarBusqueda: vi.fn(),
 }))
 
 /** Respuesta del backend fiel a BusquedaManualOut. */
@@ -42,6 +47,19 @@ function resultado(id, nombre, sobre = {}) {
   }
 }
 
+/** Interpretación fiel a InterpretacionOut del backend (5B-2). */
+function interpretacion({
+  proveedor = 'groq',
+  competencias = [{ code: 'liderazgo', min_level: 4 }],
+  area = null,
+  position = null,
+} = {}) {
+  return {
+    proveedor,
+    criterios: { competencies: competencias, area, position },
+  }
+}
+
 /** Agrega un criterio (con la competencia por defecto: la primera libre). */
 function agregarCriterio() {
   fireEvent.click(screen.getByRole('button', { name: 'Agregar competencia' }))
@@ -50,6 +68,8 @@ function agregarCriterio() {
 beforeEach(() => {
   vi.mocked(buscarTalento).mockReset()
   vi.mocked(buscarTalento).mockResolvedValue(respuesta([resultado(1, 'Ana López')]))
+  vi.mocked(interpretarBusqueda).mockReset()
+  vi.mocked(interpretarBusqueda).mockResolvedValue(interpretacion())
 })
 
 describe('Búsqueda — criterios de competencia', () => {
@@ -320,6 +340,354 @@ describe('Búsqueda — ejecución y resultados', () => {
 
     await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
     expect(screen.queryByText(/No pudimos ejecutar/)).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 5B-2 — Interpretación de la necesidad con IA (PRD §13.3; ET §27).
+//
+// La IA SOLO interpreta: carga los criterios propuestos en el editor para
+// que RH los revise y edite; NUNCA ejecuta la búsqueda. El 502 es un estado
+// esperado (la IA es la respuesta) y el flujo manual queda siempre operativo.
+// ---------------------------------------------------------------------------
+
+describe('Búsqueda — interpretación de la necesidad (5B-2)', () => {
+  /** Escribe la necesidad en el textarea del paso 0. */
+  function escribirNecesidad(texto) {
+    fireEvent.change(screen.getByLabelText('Necesidad de RH'), {
+      target: { value: texto },
+    })
+  }
+
+  function interpretarNecesidad() {
+    fireEvent.click(screen.getByRole('button', { name: 'Interpretar necesidad' }))
+  }
+
+  it('sin texto no se llama a la IA: contador en 0/500 y botón deshabilitado', () => {
+    render(<Busqueda token="token-rh" />)
+
+    expect(screen.getByText('0/500')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Interpretar necesidad' }),
+    ).toBeDisabled()
+    expect(interpretarBusqueda).not.toHaveBeenCalled()
+  })
+
+  it('el texto de solo espacios tampoco habilita la interpretación', () => {
+    render(<Busqueda token="token-rh" />)
+
+    escribirNecesidad('   ')
+
+    expect(
+      screen.getByRole('button', { name: 'Interpretar necesidad' }),
+    ).toBeDisabled()
+    expect(interpretarBusqueda).not.toHaveBeenCalled()
+  })
+
+  it('respeta el límite de 500 caracteres del contrato (InterpretacionIn)', () => {
+    render(<Busqueda token="token-rh" />)
+
+    escribirNecesidad('x'.repeat(600))
+
+    expect(screen.getByLabelText('Necesidad de RH')).toHaveValue('x'.repeat(500))
+    expect(screen.getByLabelText('Necesidad de RH')).toHaveAttribute(
+      'maxlength',
+      '500',
+    )
+    expect(screen.getByText('500/500')).toBeInTheDocument()
+  })
+
+  it('envía EXACTAMENTE el texto descrito como query_text', async () => {
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    interpretarNecesidad()
+
+    await waitFor(() => expect(interpretarBusqueda).toHaveBeenCalledTimes(1))
+    expect(interpretarBusqueda).toHaveBeenCalledWith(
+      'token-rh',
+      'Necesito personas con liderazgo fuerte',
+    )
+  })
+
+  it('carga los criterios interpretados en el editor y el contexto informativo', async () => {
+    vi.mocked(interpretarBusqueda).mockResolvedValue(
+      interpretacion({
+        proveedor: 'gemini',
+        competencias: [
+          { code: 'liderazgo', min_level: 4 },
+          { code: 'trabajo_equipo', min_level: 3 },
+        ],
+        area: 'TI',
+        position: 'Desarrollador backend',
+      }),
+    )
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Liderazgo y trabajo en equipo fuertes en TI')
+    interpretarNecesidad()
+
+    expect(
+      await screen.findByText(/Criterios propuestos por la interpretación de gemini/),
+    ).toBeInTheDocument()
+
+    // Editor: una fila por criterio interpretado, tal cual llegó del backend.
+    expect(screen.getByLabelText('Competencia del criterio 1')).toHaveValue('liderazgo')
+    expect(screen.getByLabelText('Nivel mínimo del criterio 1')).toHaveValue('4')
+    expect(screen.getByLabelText('Competencia del criterio 2')).toHaveValue('trabajo_equipo')
+    expect(screen.getByLabelText('Nivel mínimo del criterio 2')).toHaveValue('3')
+
+    // Contexto informativo (DT #41): visible en el editor y en la revisión.
+    expect(screen.getByLabelText('Área (informativo)')).toHaveValue('TI')
+    expect(screen.getByLabelText('Puesto (informativo)')).toHaveValue(
+      'Desarrollador backend',
+    )
+    expect(screen.getByText('Área: TI')).toBeInTheDocument()
+    expect(screen.getByText('Puesto: Desarrollador backend')).toBeInTheDocument()
+    expect(screen.getByText('Liderazgo: nivel mínimo 4')).toBeInTheDocument()
+    expect(screen.getByText('Trabajo en equipo: nivel mínimo 3')).toBeInTheDocument()
+  })
+
+  it('interpretar NUNCA ejecuta la búsqueda automáticamente', async () => {
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    interpretarNecesidad()
+
+    await screen.findByText(/Criterios propuestos por la interpretación de groq/)
+
+    expect(buscarTalento).not.toHaveBeenCalled()
+    expect(screen.queryByText('Resultados')).toBeNull()
+  })
+
+  it('RH edita los criterios interpretados y el payload manual sigue exacto', async () => {
+    vi.mocked(interpretarBusqueda).mockResolvedValue(
+      interpretacion({ competencias: [{ code: 'liderazgo', min_level: 4 }] }),
+    )
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Liderazgo fuerte')
+    interpretarNecesidad()
+    await screen.findByText(/Criterios propuestos por la interpretación de groq/)
+
+    fireEvent.change(screen.getByLabelText('Nivel mínimo del criterio 1'), {
+      target: { value: '5' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar búsqueda' }))
+
+    await waitFor(() => expect(buscarTalento).toHaveBeenCalledTimes(1))
+    expect(buscarTalento).toHaveBeenCalledWith('token-rh', [
+      { code: 'liderazgo', min_level: 5 },
+    ])
+  })
+
+  it('interpretar invalida los resultados de una búsqueda anterior', async () => {
+    render(<Busqueda token="token-rh" />)
+    agregarCriterio()
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar búsqueda' }))
+    await screen.findByText('Resultados')
+
+    escribirNecesidad('Ahora necesito comunicación alta')
+    interpretarNecesidad()
+
+    await screen.findByText(/Criterios propuestos por la interpretación de groq/)
+    expect(screen.queryByText('Resultados')).toBeNull()
+  })
+
+  it('una interpretación posterior reemplaza los criterios anteriores', async () => {
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Primera necesidad')
+    interpretarNecesidad()
+    await screen.findByText(/Criterios propuestos por la interpretación de groq/)
+
+    vi.mocked(interpretarBusqueda).mockResolvedValue(
+      interpretacion({
+        proveedor: 'gemini',
+        competencias: [{ code: 'aprendizaje', min_level: 2 }],
+      }),
+    )
+    escribirNecesidad('Segunda necesidad')
+    interpretarNecesidad()
+
+    expect(await screen.findByText(/interpretación de gemini/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Competencia del criterio 1')).toHaveValue('aprendizaje')
+    expect(screen.getByLabelText('Nivel mínimo del criterio 1')).toHaveValue('2')
+    expect(screen.queryByLabelText('Competencia del criterio 2')).toBeNull()
+    // Sin contexto interpretado, los informativos quedan vacíos.
+    expect(screen.getByLabelText('Área (informativo)')).toHaveValue('')
+  })
+
+  it('mientras interpreta no se duplican solicitudes', async () => {
+    let resolver
+    vi.mocked(interpretarBusqueda).mockImplementationOnce(
+      () => new Promise((resuelve) => (resolver = resuelve)),
+    )
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+
+    const boton = screen.getByRole('button', { name: 'Interpretar necesidad' })
+    fireEvent.click(boton)
+    expect(boton).toBeDisabled()
+    fireEvent.click(boton)
+    await waitFor(() => expect(interpretarBusqueda).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      resolver(interpretacion())
+    })
+    expect(
+      await screen.findByText(/Criterios propuestos por la interpretación de groq/),
+    ).toBeInTheDocument()
+  })
+
+  it('sin lenguaje prohibido en todo el flujo, incluida la interpretación', async () => {
+    vi.mocked(interpretarBusqueda).mockResolvedValue(
+      interpretacion({ area: 'TI', position: 'Backend' }),
+    )
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    interpretarNecesidad()
+    await screen.findByText(/Criterios propuestos por la interpretación de groq/)
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar búsqueda' }))
+    await screen.findByText('Resultados')
+
+    const vista = document.querySelector('.busqueda')
+    expect(vista.textContent).not.toMatch(/mejor|top |ranking|ganador/i)
+    expect(vista.textContent).not.toMatch(/9-box|score global/i)
+  })
+})
+
+describe('Búsqueda — errores de la interpretación (5B-2)', () => {
+  function escribirNecesidad(texto) {
+    fireEvent.change(screen.getByLabelText('Necesidad de RH'), {
+      target: { value: texto },
+    })
+  }
+
+  it('422 muestra un error de validación legible y permite reintentar', async () => {
+    vi.mocked(interpretarBusqueda)
+      .mockRejectedValueOnce(
+        Object.assign(
+          new Error('El texto de la búsqueda no puede exceder 500 caracteres.'),
+          { estado: 422 },
+        ),
+      )
+      .mockResolvedValueOnce(interpretacion())
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    fireEvent.click(screen.getByRole('button', { name: 'Interpretar necesidad' }))
+
+    expect(
+      await screen.findByText('No pudimos interpretar la necesidad: revisa el texto'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('El texto de la búsqueda no puede exceder 500 caracteres.'),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+    expect(
+      await screen.findByText(/Criterios propuestos por la interpretación de groq/),
+    ).toBeInTheDocument()
+  })
+
+  it('502 es un estado esperado: informa y el reintento puede tener éxito', async () => {
+    vi.mocked(interpretarBusqueda)
+      .mockRejectedValueOnce(
+        Object.assign(
+          new Error(
+            'No fue posible interpretar la búsqueda con los proveedores de IA disponibles. Formule los criterios manualmente e inténtelo de nuevo.',
+          ),
+          { estado: 502 },
+        ),
+      )
+      .mockResolvedValueOnce(interpretacion())
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    fireEvent.click(screen.getByRole('button', { name: 'Interpretar necesidad' }))
+
+    expect(
+      await screen.findByText('La interpretación no está disponible en este momento'),
+    ).toBeInTheDocument()
+    // El mensaje del backend guía hacia el flujo manual.
+    expect(screen.getByText(/Formule los criterios manualmente/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+    expect(
+      await screen.findByText(/Criterios propuestos por la interpretación de groq/),
+    ).toBeInTheDocument()
+  })
+
+  it('tras un 502 no hay criterios inventados y la búsqueda manual sigue disponible', async () => {
+    vi.mocked(interpretarBusqueda).mockRejectedValueOnce(
+      Object.assign(new Error('proveedores caídos'), { estado: 502 }),
+    )
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    fireEvent.click(screen.getByRole('button', { name: 'Interpretar necesidad' }))
+    await screen.findByText('La interpretación no está disponible en este momento')
+
+    // Sin criterios inventados: el editor arranca vacío y el flujo manual
+    // de 5B-1 continúa intacto.
+    expect(screen.getByText('Aún no hay criterios de competencia.')).toBeInTheDocument()
+    agregarCriterio()
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar búsqueda' }))
+
+    await waitFor(() => expect(buscarTalento).toHaveBeenCalledTimes(1))
+    expect(buscarTalento).toHaveBeenCalledWith('token-rh', [
+      { code: 'desempeno_tecnico', min_level: 4 },
+    ])
+  })
+
+  it('401 cierra la sesión sin mostrar estado de error', async () => {
+    const alSesionExpirada = vi.fn()
+    vi.mocked(interpretarBusqueda).mockRejectedValueOnce(
+      Object.assign(new Error('no autorizado'), { estado: 401 }),
+    )
+    render(<Busqueda token="token-rh" alSesionExpirada={alSesionExpirada} />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    fireEvent.click(screen.getByRole('button', { name: 'Interpretar necesidad' }))
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText(/No pudimos interpretar/)).toBeNull()
+  })
+
+  it('403 muestra acceso denegado sin cambiar reglas de autorización', async () => {
+    vi.mocked(interpretarBusqueda).mockRejectedValueOnce(
+      Object.assign(new Error('Sin permiso de interpretación'), { estado: 403 }),
+    )
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    fireEvent.click(screen.getByRole('button', { name: 'Interpretar necesidad' }))
+
+    expect(
+      await screen.findByText('No tienes acceso a la interpretación con IA'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Tu cuenta no tiene permiso para usar la interpretación con IA. La búsqueda manual sigue disponible en esta misma sección.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('error de red muestra mensaje claro y permite reintentar', async () => {
+    vi.mocked(interpretarBusqueda)
+      .mockRejectedValueOnce(
+        Object.assign(
+          new Error(
+            'No fue posible conectar con el servidor. Verifica tu conexión e inténtalo de nuevo.',
+          ),
+          { estado: 0 },
+        ),
+      )
+      .mockResolvedValueOnce(interpretacion())
+    render(<Busqueda token="token-rh" />)
+    escribirNecesidad('Necesito personas con liderazgo fuerte')
+    fireEvent.click(screen.getByRole('button', { name: 'Interpretar necesidad' }))
+
+    expect(
+      await screen.findByText('No pudimos interpretar la necesidad'),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/No fue posible conectar con el servidor/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+    expect(
+      await screen.findByText(/Criterios propuestos por la interpretación de groq/),
+    ).toBeInTheDocument()
   })
 })
 

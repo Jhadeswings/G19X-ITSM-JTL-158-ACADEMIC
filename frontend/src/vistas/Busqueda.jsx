@@ -1,10 +1,22 @@
-// Sección RH → Búsqueda de talento (PRD §13.1; ET §26/§27; Style Guide §27).
+// Sección RH → Búsqueda de talento (PRD §13.1/§13.3; ET §26/§27; Style Guide §27).
 //
-// Flujo manual (5B-1, SIN interpretación IA):
-//   necesidad de RH → criterios configurados aquí → revisión de RH →
-//   ejecutar búsqueda → resultados del backend.
+// Flujo manual (5B-1):
+//   criterios configurados aquí → revisión de RH → ejecutar búsqueda →
+//   resultados del backend.
+//
+// Flujo con interpretación IA (5B-2, ET §27): la necesidad descrita por RH
+//   se interpreta con IA → los criterios propuestos se cargan en el MISMO
+//   editor para que RH los revise y edite → ejecutar búsqueda manual →
+//   resultados. La interpretación NUNCA ejecuta la búsqueda por sí sola.
 //
 // Reglas que esta vista respeta y no debe romper:
+// - la IA SOLO interpreta la intención de RH (PRD §17.3): jamás selecciona
+//   empleados, calcula niveles ni decide quién es «mejor»; los criterios
+//   los decide RH;
+// - 502 de la interpretación es un estado ESPERADO y controlado (la IA es
+//   la respuesta): se invita a reintentar o a configurar los criterios
+//   manualmente; jamás se inventan criterios ni se ejecuta una búsqueda de
+//   emergencia;
 // - los criterios se envían TAL CUAL a POST /rh/talent-search/manual:
 //   { competencies: [{ code, min_level }] } — el backend decide quién cumple
 //   (AND, solo activos, DI no satisface min_level) y en qué orden;
@@ -20,7 +32,7 @@
 //   reintento.
 
 import { useState } from 'react'
-import { buscarTalento } from '../api/busqueda.js'
+import { buscarTalento, interpretarBusqueda } from '../api/busqueda.js'
 import { NOMBRES_COMPETENCIAS } from '../textos.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
@@ -40,9 +52,50 @@ const COMPETENCIAS = [
 /** Niveles admitidos por el contrato (min_level entero 1–5, ET §26). */
 const NIVELES = [1, 2, 3, 4, 5]
 
+/** Límite del query_text de la interpretación (InterpretacionIn, ET §27.1). */
+const MAX_NECESIDAD = 500
+
 /** Estado inicial de la búsqueda: aún no se ha ejecutado. */
 function busquedaInicial() {
   return { fase: 'inactiva', datos: null, error: null }
+}
+
+/** Estado inicial de la interpretación: aún no se ha interpretado nada. */
+function interpretacionInicial() {
+  return { fase: 'inactiva', datos: null, error: null }
+}
+
+/** Título legible del error de interpretación según el estado HTTP. */
+function tituloErrorInterpretacion(error) {
+  if (error?.estado === 422) {
+    return 'No pudimos interpretar la necesidad: revisa el texto'
+  }
+  if (error?.estado === 502) {
+    return 'La interpretación no está disponible en este momento'
+  }
+  if (error?.estado === 403) {
+    return 'No tienes acceso a la interpretación con IA'
+  }
+  return 'No pudimos interpretar la necesidad'
+}
+
+/** Mensaje legible del error de interpretación (sin detalles técnicos). */
+function mensajeErrorInterpretacion(error) {
+  if (error?.estado === 403) {
+    return (
+      'Tu cuenta no tiene permiso para usar la interpretación con IA. ' +
+      'La búsqueda manual sigue disponible en esta misma sección.'
+    )
+  }
+  if (error?.estado === 502) {
+    // El backend ya envía un mensaje controlado que invita al flujo manual.
+    return (
+      error.message ||
+      'El servicio de IA no respondió correctamente o no está disponible. ' +
+        'Puedes reintentar la interpretación o configurar los criterios manualmente.'
+    )
+  }
+  return error?.message
 }
 
 export default function Busqueda({ token, alSesionExpirada }) {
@@ -52,6 +105,9 @@ export default function Busqueda({ token, alSesionExpirada }) {
   const [area, setArea] = useState('')
   const [puesto, setPuesto] = useState('')
   const [busqueda, setBusqueda] = useState(busquedaInicial)
+  // Necesidad descrita por RH (query_text) para la interpretación IA (5B-2).
+  const [necesidad, setNecesidad] = useState('')
+  const [interpretacion, setInterpretacion] = useState(interpretacionInicial)
 
   // Editar criterios invalida resultados anteriores: nunca convive un
   // resultado con criterios distintos a los que lo generaron.
@@ -81,6 +137,43 @@ export default function Busqueda({ token, alSesionExpirada }) {
     invalidarResultados()
   }
 
+  function interpretar() {
+    // En carga no se acepta una segunda solicitud (prevención de duplicados).
+    if (interpretacion.fase === 'cargando') return
+    // Validación local del contrato de entrada (InterpretacionIn): texto no
+    // vacío tras limpiar espacios y dentro de los 500 caracteres. Si no
+    // cumple, ni se envía: el backend respondería 422.
+    const texto = necesidad.trim()
+    if (!texto || texto.length > MAX_NECESIDAD) return
+    setInterpretacion({ fase: 'cargando', datos: null, error: null })
+    interpretarBusqueda(token, texto)
+      .then((datos) => {
+        // La IA SOLO interpreta (PRD §17.3): los criterios propuestos se
+        // cargan en el editor para que RH los revise y modifique. NUNCA se
+        // ejecuta la búsqueda aquí.
+        setCriterios(
+          datos.criterios.competencies.map((criterio) => ({
+            code: criterio.code,
+            min_level: criterio.min_level,
+          })),
+        )
+        // Contexto informativo de la interpretación (DT #41): se muestra en
+        // la revisión, pero jamás viaja en el payload manual.
+        setArea(datos.criterios.area ?? '')
+        setPuesto(datos.criterios.position ?? '')
+        invalidarResultados()
+        setInterpretacion({ fase: 'listo', datos, error: null })
+      })
+      .catch((error) => {
+        // 401: el backend ya decidió que la sesión no sirve (ET §32).
+        if (error?.estado === 401) {
+          alSesionExpirada?.()
+          return
+        }
+        setInterpretacion({ fase: 'error', datos: null, error })
+      })
+  }
+
   function ejecutar() {
     setBusqueda({ fase: 'cargando', datos: null, error: null })
     buscarTalento(token, criterios)
@@ -97,14 +190,76 @@ export default function Busqueda({ token, alSesionExpirada }) {
 
   const hayCriterios = criterios.length > 0
   const todosSeleccionados = criterios.length >= COMPETENCIAS.length
+  const necesidadValida =
+    necesidad.trim().length > 0 && necesidad.trim().length <= MAX_NECESIDAD
 
   return (
     <div className="busqueda">
       <SectionHeader
         eyebrow="Criterios del sistema"
         title="Búsqueda"
-        description="Configura los criterios de competencia y nivel mínimo, revísalos y ejecuta la búsqueda: el backend determina qué empleados activos los cumplen."
+        description="Describe tu necesidad para que la IA proponga criterios, o configúralos manualmente. En ambos casos tú los revisas y ejecutas la búsqueda: el backend determina qué empleados activos los cumplen."
       />
+
+      {/* --- Paso 0 (5B-2): describir la necesidad e interpretarla con IA --- */}
+      <section
+        className="busqueda-necesidad"
+        aria-label="Interpretación de la necesidad con IA"
+      >
+        <div className="busqueda-necesidad__cabecera">
+          <h2>Describe tu necesidad</h2>
+          <span className="busqueda-necesidad__contador">
+            {necesidad.length}/{MAX_NECESIDAD}
+          </span>
+        </div>
+        <label className="form-field__label" htmlFor="busqueda-necesidad">
+          Necesidad de RH
+        </label>
+        <textarea
+          id="busqueda-necesidad"
+          className="ui-input busqueda-necesidad__texto"
+          value={necesidad}
+          maxLength={MAX_NECESIDAD}
+          placeholder="Ej. Necesito personas con liderazgo y trabajo en equipo fuertes."
+          onChange={(evento) =>
+            setNecesidad(evento.target.value.slice(0, MAX_NECESIDAD))
+          }
+        />
+        <p className="busqueda-necesidad__ayuda">
+          La interpretación con IA solo propone criterios: tú los revisas,
+          los ajustas si hace falta y decides cuándo ejecutar la búsqueda.
+          También puedes configurar los criterios manualmente en el siguiente
+          bloque.
+        </p>
+        <Button
+          variant="secondary"
+          onClick={interpretar}
+          loading={interpretacion.fase === 'cargando'}
+          disabled={!necesidadValida}
+        >
+          Interpretar necesidad
+        </Button>
+
+        {interpretacion.fase === 'listo' && interpretacion.datos && (
+          <p className="busqueda-necesidad__origen">
+            Criterios propuestos por la interpretación de{' '}
+            {interpretacion.datos.proveedor}. Revísalos, edítalos si hace
+            falta y ejecuta la búsqueda cuando estén listos.
+          </p>
+        )}
+
+        {interpretacion.fase === 'cargando' && (
+          <EstadoCarga texto="Interpretando tu necesidad con la IA…" />
+        )}
+
+        {interpretacion.fase === 'error' && (
+          <EstadoError
+            titulo={tituloErrorInterpretacion(interpretacion.error)}
+            mensaje={mensajeErrorInterpretacion(interpretacion.error)}
+            onReintentar={interpretar}
+          />
+        )}
+      </section>
 
       {/* --- Paso 1: criterios configurados por RH -------------------------- */}
       <section className="busqueda-criterios" aria-label="Criterios de competencia">

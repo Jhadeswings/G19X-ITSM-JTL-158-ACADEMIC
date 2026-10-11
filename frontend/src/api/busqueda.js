@@ -31,3 +31,33 @@ export async function buscarTalento(token, criterios) {
     },
   })
 }
+
+// ---------------------------------------------------------------------------
+// Interpretación IA de la necesidad de RH (PRD §13.3; ET §27; DT #39).
+//
+// POST /api/v1/rh/talent-search/interpret con EXACTAMENTE { query_text }:
+// la IA SOLO interpreta la intención de RH (jamás selecciona empleados ni
+// calcula niveles) y devuelve criterios estructurados que RH revisa y
+// modifica antes de ejecutar la búsqueda manual. El endpoint NO ejecuta
+// ninguna búsqueda ni persiste nada.
+// ---------------------------------------------------------------------------
+
+/**
+ * Interpreta la necesidad descrita por RH como criterios estructurados.
+ * @param {string} token token de la sesión RH.
+ * @param {string} queryText la necesidad de RH tal como la escribió: el
+ *   backend la limpia con strip(), exige que no quede vacía y admite un
+ *   máximo de 500 caracteres (fuera de eso responde 422).
+ * @returns {Promise<{proveedor: string, criterios: {competencies:
+ *   Array<{code: string, min_level: number}>, area: string|null,
+ *   position: string|null}}>} InterpretacionOut del backend, sin
+ *   transformar. `area`/`position` son contexto informativo para la
+ *   revisión de RH (DT #41), NO filtros ejecutables.
+ */
+export async function interpretarBusqueda(token, queryText) {
+  return solicitar('/api/v1/rh/talent-search/interpret', {
+    metodo: 'POST',
+    token,
+    cuerpo: { query_text: queryText },
+  })
+}

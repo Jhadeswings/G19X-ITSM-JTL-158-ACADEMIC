@@ -40,6 +40,17 @@
 .busqueda-resultados__competencias dd { margin: 0; color: var(--color-text-primary); font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
 .busqueda-resultados__promedio { margin: 0; padding-top: 10px; border-top: 1px dashed var(--line-soft); color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
 
+/* 5B-2: descripción de la necesidad e interpretación IA (SG §12.8 textarea
+   96–120 px; sin patrones nuevos: mismos tokens y mismos estados). */
+.busqueda-necesidad { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.busqueda-necesidad__cabecera { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.busqueda-necesidad__cabecera h2 { margin: 0; color: var(--color-text-primary); font-size: 16px; font-weight: 700; }
+.busqueda-necesidad__contador { color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+.busqueda-necesidad__texto { min-height: 96px; padding: 12px 14px; resize: vertical; font-size: 14px; line-height: 1.6; }
+.busqueda-necesidad__ayuda { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+.busqueda-necesidad .ui-button { align-self: flex-start; }
+.busqueda-necesidad__origen { margin: 0; padding: 10px 14px; color: var(--color-brand-deep); background: var(--color-primary-soft); border-left: 3px solid var(--color-brand-deep); border-radius: 8px; font-size: 13px; line-height: 1.6; }
+
 @media (max-width: 760px) {
   .busqueda-criterios__fila { flex-direction: column; align-items: stretch; }
   .busqueda-criterios__campo { width: 100%; min-width: 0; }
