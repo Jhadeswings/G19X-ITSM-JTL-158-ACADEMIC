@@ -123,6 +123,7 @@ from sqlalchemy import text  # noqa: E402
 
 from app.core.db import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services import correo_service  # noqa: E402
 from tests.helpers import crear_cuenta, crear_empleado  # noqa: E402
 
 # TRUNCATE de TODAS las tablas de dominio (mismo criterio que
@@ -139,6 +140,41 @@ _TABLAS = (
 # Registrada en pytest.ini para que el marcador sea explícito y no genere
 # warnings de "unknown mark".
 no_db = pytest.mark.no_db
+
+
+# --- PROVEEDOR DE CORREO SIMULADO (alta y recuperación) ---------------------
+# La suite JAMÁS envía correos reales: el transporte SMTP real
+# (``correo_service._enviar_smtp``) se sustituye en CADA test por este
+# simulado en memoria que solo registra los mensajes "aceptados". Los tests
+# que necesitan provocar un fallo del proveedor vuelven a parchear esa
+# MISMA función con una que lanza ``ErrorEnvioCorreo`` /
+# ``ErrorCorreoNoConfigurado`` (monkeypatch posterior pisa al autouse).
+class _TransporteCorreoSimulado:
+    """Acepta todo y guarda los mensajes; nunca toca la red."""
+
+    def __init__(self) -> None:
+        self.aceptados = []
+
+    def __call__(self, mensaje, _conf=None):
+        self.aceptados.append(mensaje)
+
+
+@pytest.fixture(autouse=True)
+def correo_simulado(monkeypatch):
+    """Proveedor de correo simulado para TODA la suite (aislamiento total).
+
+    ``autouse`` a propósito: ningún test, ni nuevo ni antiguo, puede
+    terminar hablando con un SMTP real por accidente. Los tests que
+    quieren inspeccionar los envíos lo piden por nombre.
+
+    ``transporte.real`` conserva la implementación REAL del transporte:
+    los tests de unidad de ``test_correo.py`` la ejecutan directamente
+    (con ``smtplib`` simulado) aunque el atributo del módulo esté parcheado.
+    """
+    transporte = _TransporteCorreoSimulado()
+    transporte.real = correo_service._enviar_smtp
+    monkeypatch.setattr(correo_service, "_enviar_smtp", transporte)
+    yield transporte
 
 
 @pytest.fixture(scope="session")

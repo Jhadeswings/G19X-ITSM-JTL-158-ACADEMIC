@@ -62,9 +62,14 @@ inventar uno. El flujo es:
    y se guarda **solo su hash SHA-256** en la tabla `tokens_recuperacion`
    (migración Alembic `938cef8a3bac`), con expiración (30 min por defecto)
    y flag de un solo uso.
-2. **Entrega en desarrollo local**: el token se escribe en el log del
-   backend, controlado por `RECOVERY_TOKEN_DEV_LOG` (default true).
-   **Este mecanismo es EXCLUSIVO de desarrollo local y NO debe usarse
+2. **Entrega por correo** (ver §53; sustituye al mecanismo provisional de
+   log que usaba `RECOVERY_TOKEN_DEV_LOG`, eliminado): el token viaja
+   EXCLUSIVAMENTE en el correo de restablecimiento. Si el envío falla o
+   no hay proveedor, el token queda vigente y la respuesta 202 uniforme
+   no cambia.
+3. `POST /auth/recovery/reset` → valida política, expiración y un solo
+   uso; restablece la contraseña y limpia tokens expirados. Errores:
+   400 genérico "Token inválido o expirado.".
 
 ## 5. must_change_password
 
@@ -200,9 +205,9 @@ determinista por `nombre_normalizado` ASC. La verificación exacta por
 `POST /rh/employees` crea Empleado + CuentaAcceso (`must_change_password
 = true`) en una transacción. La credencial temporal la genera el sistema
 (`secrets`, cumple política §3.5) y NUNCA se expone en la respuesta API:
-en desarrollo local se registra en el log con el prefijo
-`[SOLO DESARROLLO LOCAL]` (mismo patrón que la recuperación; sustituible
-por envío de correo real sin tocar el flujo).
+se entrega EXCLUSIVAMENTE por correo, dentro de la transacción —si el
+envío falla, 503 y la cuenta no se crea— (antes se registraba en el log
+de desarrollo local; mecanismo eliminado, ver §53).
 
 ## 15. RH no crea proyectos
 
@@ -278,19 +283,11 @@ Ninguna: `Participacion` ya tenía UNIQUE (empleado_id, proyecto_id) y
 CHECK horas>=0; `Capacitacion` y `AuditoriaModificacion` ya tenían todos
 los campos e índices exigidos (§9, §11, §25).
 
-
-
-   como mecanismo de envío en producción** (queda registrado con el
-   prefijo `[SOLO DESARROLLO LOCAL]`).
-3. `POST /auth/recovery/reset` → valida política, expiración y un solo
-   uso; restablece la contraseña y limpia tokens expirados. Errores:
-   400 genérico "Token inválido o expirado.".
-
-**Envío posterior en producción**: la entrega está aislada en la función
-`_entregar_token_recuperacion` (`app/services/auth_service.py`). Cuando la
-organización defina un proveedor (SMTP u otro), se sustituye SOLO esa
-función por una interfaz de envío real; el resto del flujo (emisión,
-hash, expiración, un solo uso, respuesta uniforme) no cambia.
+> Nota: un fragmento huérfano de la antigua redacción del §4 quedaba
+> duplicado aquí (describía la entrega del token por log y la función
+> `_entregar_token_recuperacion` como sustituible en el futuro). Se
+> eliminó al implementar el envío real de correo (§53); el flujo vigente
+> de recuperación está completo en §4.
 
 ---
 
@@ -805,6 +802,49 @@ restricción exclusiva por estado activo; inexistente → 404) y deja
 - Las instrucciones del prompt que nombran «Mi progreso» se conservan
   intactas en el MVP (mención histórica); el texto y las acciones de la
   IA no se reescriben en el frontend.
+
+## 53. Envío de correo SMTP configurable (alta y recuperación)
+
+**Contexto.** La auditoría de secretos detectó que la credencial temporal
+del alta y el token de recuperación se registraban en los logs del backend
+(`RECOVERY_TOKEN_DEV_LOG`, prefijos `[SOLO DESARROLLO LOCAL]`). El PRD §3.3
+exige que la credencial «se envía al correo de acceso» y §3.4 respuesta
+uniforme: el log no es un canal de entrega aceptable.
+
+**Decisión.**
+
+1. Proveedor SMTP configurable SOLO por entorno (`SMTP_HOST`, `SMTP_PORT`,
+   `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_STARTTLS`,
+   `SMTP_TIMEOUT_SEGUNDOS`), con la biblioteca estándar (`smtplib`): sin
+   dependencias nuevas ni credenciales en el código. `SMTP_PASSWORD`
+   está vigilada por `test_secretos_no_versionados.py`.
+2. `app/services/correo_service.py` centraliza plantillas y transporte.
+   Cuerpos de texto plano con lo estrictamente necesario; el correo de
+   recuperación entrega el TOKEN vigente (un solo uso, 30 min) SIN
+   enlaces: el MVP no define URL pública ni pantalla que lo consuma
+   (inventarlas sería decisión de producto). Ningún secreto o cuerpo se
+   escribe en logs ni en mensajes de error (como máximo, asunto y
+   destinatario).
+3. Alta (`POST /rh/employees`): el envío ocurre DENTRO de la transacción
+   (flush → correo → commit). Sin proveedor configurado o con envío
+   rechazado → **503** y rollback: nunca queda una cuenta cuya credencial
+   nadie recibió ni se reporta un envío que no ocurrió. El contrato de
+   éxito (201 + credencial jamás en la respuesta) y el cambio obligatorio
+   de contraseña en el primer acceso NO cambian.
+4. Recuperación (`POST /auth/recovery/request`): la respuesta **202
+   uniforme no cambia** exista o no la cuenta, falle o no el correo. Con
+   fallo se registra el error interno SIN el token; el token queda
+   vigente y la solicitud puede repetirse (un fallo de correo no
+   inutiliza la recuperación).
+5. Se elimina `RECOVERY_TOKEN_DEV_LOG` y todo registro de secretos en
+   logs. La suite usa un proveedor SIMULADO (fixture autouse
+   `correo_simulado` en `conftest`): cero envíos reales en pruebas y los
+   flujos se verifican capturando el mensaje aceptado.
+6. Desarrollo local: MailHog opcional (`docker compose --profile mail
+   up`) con `SMTP_HOST=localhost`, `SMTP_PORT=1025`,
+   `SMTP_STARTTLS=false` (bandeja en `:8025`). La entrega contra un
+   proveedor REAL queda pendiente de validar con credenciales de
+   producción.
 
 **Invariantes de seguridad.**
 

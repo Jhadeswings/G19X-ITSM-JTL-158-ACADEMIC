@@ -4,6 +4,8 @@ Se importa desde ``conftest.py`` y desde los módulos de test. NO es código
 de producción.
 """
 
+import re
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -132,14 +134,29 @@ def login_y_token(
     return respuesta.json()["access_token"]
 
 
-def extraer_de_log(caplog, texto_busqueda: str) -> str:
-    """Extrae el primer valor secreto registrado en el log de desarrollo local.
+def correos_a(transporte, destinatario: str) -> list:
+    """Correos capturados por el proveedor simulado hacia ``destinatario``."""
+    return [
+        mensaje
+        for mensaje in transporte.aceptados
+        if destinatario in (mensaje["To"] or "")
+    ]
 
-    El formato de los mensajes es: '... para <email>: <secreto> (...)',
-    por lo que el secreto es el segmento tras el último ': '.
+
+def secreto_de_correo(transporte, marcador: str) -> str:
+    """Extrae el secreto de un correo capturado por el proveedor simulado.
+
+    ``marcador`` es la etiqueta que precede al secreto en la plantilla
+    (p. ej. ``"Credencial temporal"`` o ``"Token de restablecimiento"``),
+    que lo escribe como ``"<marcador>: <secreto>"`` en línea propia.
+
+    Sustituye al antiguo ``extraer_de_log``: los secretos ya NO se
+    registran en logs; se entregan por correo y la suite los captura del
+    proveedor simulado.
     """
-    for registro in caplog.records:
-        mensaje = registro.getMessage()
-        if texto_busqueda in mensaje:
-            return mensaje.split(": ")[-1].split(" ")[0]
-    raise AssertionError(f"No apareció en el log: {texto_busqueda}")
+    patron = re.compile(rf"{re.escape(marcador)}:\s*(\S+)")
+    for mensaje in reversed(transporte.aceptados):
+        coincidencia = patron.search(mensaje.get_content())
+        if coincidencia:
+            return coincidencia.group(1)
+    raise AssertionError(f"El correo capturado no contiene: {marcador}")

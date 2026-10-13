@@ -28,6 +28,7 @@ from app.core.security import (
 )
 from app.models.cuenta_acceso import CuentaAcceso
 from app.models.token_recuperacion import TokenRecuperacion
+from app.services import correo_service
 
 logger = logging.getLogger(__name__)
 
@@ -154,38 +155,19 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _entregar_token_recuperacion(email: str, token: str) -> None:
-    """Entrega del token de recuperación.
-
-    SOLO DESARROLLO LOCAL: la documentación no define proveedor de correo,
-    por lo que en local el token se escribe en el log del backend (controlado
-    por ``RECOVERY_TOKEN_DEV_LOG``). Esto NO es un mecanismo de envío para
-    producción: cuando exista un proveedor real (SMTP u otro), se sustituye
-    exclusivamente esta función, sin tocar el resto del flujo
-    (ver backend/DECISIONES_TECNICAS.md).
-    """
-    settings = get_settings()
-    if settings.RECOVERY_TOKEN_DEV_LOG:
-        logger.warning(
-            "[SOLO DESARROLLO LOCAL] Token de recuperación para %s: %s "
-            "(no usar este mecanismo en producción)",
-            email,
-            token,
-        )
-    else:
-        logger.info(
-            "Solicitud de recuperación registrada para %s "
-            "(envío de correo aún no configurado).",
-            email,
-        )
-
-
 def solicitar_recuperacion(db: Session, email: str) -> None:
     """Registra un token de recuperación si el email corresponde a una cuenta activa.
 
     Respuesta externa SIEMPRE uniforme (PRD §3.4): esta función no revela
-    nada; si la cuenta no existe o está inactiva, no se escribe nada en la
-    base de datos y el endpoint responde exactamente lo mismo.
+    nada ni lanza errores hacia fuera; si la cuenta no existe o está
+    inactiva, no se escribe nada en la base de datos y el endpoint
+    responde exactamente lo mismo.
+
+    Entrega por correo (DECISIONES §53): si el envío falla o no hay
+    proveedor configurado, se registra el error interno SIN el token y la
+    respuesta 202 uniforme no cambia. El token QUEDA vigente: un fallo del
+    correo jamás inutiliza la recuperación, el usuario puede volver a
+    solicitarla.
     """
     cuenta = _buscar_cuenta_activa(db, email)
     if cuenta is None:
@@ -203,7 +185,20 @@ def solicitar_recuperacion(db: Session, email: str) -> None:
         )
     )
     db.commit()
-    _entregar_token_recuperacion(cuenta.email, token)
+    try:
+        correo_service.enviar_correo(
+            correo_service.construir_correo_recuperacion(
+                cuenta.email, token, settings.RESET_TOKEN_EXPIRE_MINUTES
+            )
+        )
+    except correo_service.ErrorCorreo as error:
+        # El log registra la causa y el destinatario, JAMÁS el token.
+        logger.error(
+            "El correo de recuperación para %s no pudo enviarse (%s); el "
+            "token sigue vigente y la solicitud puede repetirse.",
+            cuenta.email,
+            type(error).__name__,
+        )
 
 
 def restablecer_password(db: Session, token: str, password_nueva: str) -> None:

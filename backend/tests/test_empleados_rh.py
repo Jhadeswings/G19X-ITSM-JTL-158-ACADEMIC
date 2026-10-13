@@ -1,14 +1,21 @@
 """Tests de gestión de empleados por RH (Fase 4A)."""
 
-import pytest
+import logging
 
+import pytest
+from sqlalchemy import select
+
+from app.models.cuenta_acceso import CuentaAcceso
+from app.models.empleado import Empleado
+from app.services import correo_service
 from tests.helpers import (
     PASSWORD_PRUEBA,
     URL_LOGIN,
     URL_RH_EMPLEADOS,
     cabecera,
-    extraer_de_log,
+    correos_a,
     login_y_token,
+    secreto_de_correo,
 )
 
 ALTA = {
@@ -48,12 +55,12 @@ class TestCrearEmpleado:
         assert "credencial" not in texto
         assert "temporal" not in texto
 
-    def test_cuenta_nueva_usa_credencial_temporal(self, client, token_rh, caplog):
-        """La credencial temporal funciona para el primer login."""
+    def test_cuenta_nueva_usa_credencial_temporal(self, client, token_rh, correo_simulado):
+        """La credencial temporal llega por correo y funciona en el primer login."""
         assert client.post(
             URL_RH_EMPLEADOS, json=ALTA, headers=cabecera(token_rh)
         ).status_code == 201
-        credencial = extraer_de_log(caplog, "Credencial temporal")
+        credencial = secreto_de_correo(correo_simulado, "Credencial temporal")
         login = client.post(
             URL_LOGIN, json={"email": "nuevo@empresa.dev", "password": credencial}
         )
@@ -77,6 +84,86 @@ class TestCrearEmpleado:
 
     def test_sin_token_rechazado(self, client):
         assert client.post(URL_RH_EMPLEADOS, json=ALTA).status_code == 401
+
+
+class TestEnvioCredencialTemporal:
+    """Entrega por correo (PRD §3.3; DECISIONES §53), con proveedor simulado."""
+
+    def test_envia_al_correo_correcto_y_mantiene_cambio_obligatorio(
+        self, client, token_rh, correo_simulado
+    ):
+        respuesta = client.post(
+            URL_RH_EMPLEADOS, json=ALTA, headers=cabecera(token_rh)
+        )
+        assert respuesta.status_code == 201, respuesta.text
+
+        # UN correo, dirigido al correo de acceso registrado.
+        assert len(correos_a(correo_simulado, "nuevo@empresa.dev")) == 1
+        credencial = secreto_de_correo(correo_simulado, "Credencial temporal")
+
+        # La credencial del correo ES la de la cuenta: el primer login
+        # funciona y sigue exigiendo el cambio (§4.2).
+        login = client.post(
+            URL_LOGIN,
+            json={"email": "nuevo@empresa.dev", "password": credencial},
+        )
+        assert login.status_code == 200
+        assert login.json()["must_change_password"] is True
+
+        # La respuesta API sigue SIN exponer la credencial.
+        assert credencial not in respuesta.text
+
+    def test_proveedor_falla_503_y_no_crea_la_cuenta(
+        self, client, token_rh, db, correo_simulado, monkeypatch, caplog
+    ):
+        def _rechazar(_mensaje, _conf=None):
+            raise correo_service.ErrorEnvioCorreo("proveedor caído")
+
+        monkeypatch.setattr(correo_service, "_enviar_smtp", _rechazar)
+        caplog.set_level(logging.ERROR, logger="app.services.empleado_service")
+
+        respuesta = client.post(
+            URL_RH_EMPLEADOS, json=ALTA, headers=cabecera(token_rh)
+        )
+
+        assert respuesta.status_code == 503
+        assert "credencial temporal" in respuesta.json()["detail"]
+        # Nada quedó creado: ni empleado ni cuenta huérfana.
+        assert (
+            db.scalar(
+                select(CuentaAcceso).where(
+                    CuentaAcceso.email == "nuevo@empresa.dev"
+                )
+            )
+            is None
+        )
+        assert db.scalars(select(Empleado)).all() == []
+        # Ningún correo aceptado; el log explica la causa SIN la credencial.
+        assert correo_simulado.aceptados == []
+        assert "Temporal" not in caplog.text
+        assert "nuevo@empresa.dev" in caplog.text
+
+    def test_proveedor_no_configurado_503_sin_cuenta(
+        self, client, token_rh, db, monkeypatch
+    ):
+        def _sin_configurar(_mensaje, _conf=None):
+            raise correo_service.ErrorCorreoNoConfigurado("sin SMTP")
+
+        monkeypatch.setattr(correo_service, "_enviar_smtp", _sin_configurar)
+
+        respuesta = client.post(
+            URL_RH_EMPLEADOS, json=ALTA, headers=cabecera(token_rh)
+        )
+
+        assert respuesta.status_code == 503
+        assert (
+            db.scalar(
+                select(CuentaAcceso).where(
+                    CuentaAcceso.email == "nuevo@empresa.dev"
+                )
+            )
+            is None
+        )
 
 
 class TestListarYPaginacion:

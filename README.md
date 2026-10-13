@@ -46,6 +46,36 @@ Servicios resultantes:
 > Docker Compose garantiza que el backend solo ejecuta `alembic upgrade head`
 > después de que PostgreSQL pase su healthcheck (Especificación Técnica §34).
 
+## Correo: credencial temporal y recuperación de acceso
+
+El alta de empleados (PRD §3.3) y la recuperación de acceso (PRD §3.4)
+entregan su secreto **solo por correo**, mediante un proveedor SMTP
+configurable por entorno (`backend/.env`; decisión y variables en
+`backend/DECISIONES_TECNICAS.md` §53):
+
+| Variable | Uso | Ejemplo local (MailHog) |
+|---|---|---|
+| `SMTP_HOST` / `SMTP_PORT` | Servidor SMTP | `localhost` / `1025` |
+| `SMTP_USER` / `SMTP_PASSWORD` | Credenciales (opcionales en local) | (vacío) |
+| `SMTP_FROM` | Remitente | `no-reply@empresa.dev` |
+| `SMTP_STARTTLS` | Conexión segura STARTTLS | `false` |
+
+- **Entorno local (recomendado):** `docker compose --profile mail up`
+  levanta MailHog (SMTP `localhost:1025`, bandeja en
+  `http://localhost:8025`). Configura las variables anteriores en
+  `backend/.env`, reinicia el backend, crea un empleado o solicita una
+  recuperación: el correo debe aparecer en la bandeja.
+- **Producción:** define host/puerto/usuario/contraseña del proveedor real
+  y `SMTP_STARTTLS=true`. Jamás versiones credenciales (`SMTP_PASSWORD`
+  debe estar vacía en `.env.example`; un test lo vigila).
+- **Sin proveedor o con fallo del envío:** el **alta** responde 503 y NO
+  crea la cuenta (nunca queda una credencial sin entregar); la
+  **recuperación** responde 202 uniforme, registra el error interno y
+  conserva el token vigente para reintentar.
+- Las pruebas automatizadas usan un proveedor simulado: nunca envían
+  correos reales. **La entrega contra un proveedor SMTP real aún no ha
+  sido validada con credenciales de producción.**
+
 ## Estructura del repositorio
 
 ```

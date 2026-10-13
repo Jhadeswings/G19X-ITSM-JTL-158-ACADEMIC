@@ -6,7 +6,9 @@ Reglas de los documentos:
 - El correo vive SOLO en CuentaAcceso (§4.1): nunca se duplica en Empleado.
 - La cuenta inicial de empleado usa credencial temporal y
   ``must_change_password = true`` (§4.2, PRD §3.3).
-- Las credenciales NUNCA se exponen en respuestas API.
+- Las credenciales NUNCA se exponen en respuestas API: se entregan
+  EXCLUSIVAMENTE por correo (proveedor SMTP configurable, DECISIONES
+  TECNICAS §53) dentro de la transacción del alta.
 - ``Empleado.activo`` y ``CuentaAcceso.activo`` son estados SEPARADOS:
   desactivar un empleado NO modifica su cuenta (relación no definida por
   los documentos; ver DECISIONES_TECNICAS.md).
@@ -23,6 +25,7 @@ from app.core.security import hash_password, validar_politica_password
 from app.models.cuenta_acceso import CuentaAcceso
 from app.models.empleado import Empleado
 from app.schemas.empleado import EmpleadoCreateIn, EmpleadoUpdateIn
+from app.services import correo_service
 from app.services.auth_service import normalizar_email
 
 logger = logging.getLogger(__name__)
@@ -86,24 +89,15 @@ def generar_credencial_temporal() -> str:
         return credencial
 
 
-def _entregar_credencial_temporal(email: str, credencial: str) -> None:
-    """Entrega de la credencial temporal (PRD §3.3: se envía al correo).
-
-    SOLO DESARROLLO LOCAL: sin proveedor de correo definido, la credencial
-    se escribe en el log del backend. NO es un mecanismo de envío para
-    producción: cuando exista un proveedor real se sustituye exclusivamente
-    esta función, sin tocar el resto del flujo (ver DECISIONES_TECNICAS.md).
-    """
-    logger.warning(
-        "[SOLO DESARROLLO LOCAL] Credencial temporal para %s: %s "
-        "(el primer acceso exigirá cambiarla)",
-        email,
-        credencial,
-    )
-
-
 def crear_empleado(db: Session, datos: EmpleadoCreateIn) -> Empleado:
-    """Crea Empleado + CuentaAcceso en una sola transacción (PRD §3.3)."""
+    """Crea Empleado + CuentaAcceso en una sola transacción (PRD §3.3).
+
+    La credencial temporal se entrega SOLO por correo y el envío ocurre
+    DENTRO de la transacción, ANTES del commit (DECISIONES §53): si el
+    proveedor no está configurado o no acepta el mensaje, se hace rollback
+    y responde 503 — jamás queda creada una cuenta cuya credencial nadie
+    recibió ni se declara un envío que no ocurrió.
+    """
     email = normalizar_email(datos.email)
 
     ya_existe = db.scalar(
@@ -132,10 +126,33 @@ def crear_empleado(db: Session, datos: EmpleadoCreateIn) -> Empleado:
     )
     empleado.cuenta = cuenta  # relación 1:1
     db.add(empleado)
+    # IDs sin persistir todavía: el envío del correo ocurre antes del
+    # commit para poder deshacer TODO si el proveedor falla.
+    db.flush()
+    try:
+        correo_service.enviar_correo(
+            correo_service.construir_correo_credencial_temporal(
+                empleado.nombre, email, credencial
+            )
+        )
+    except correo_service.ErrorCorreo as error:
+        db.rollback()
+        # El log registra la CAUSA y el destinatario, jamás la credencial.
+        logger.error(
+            "Alta cancelada: el correo con la credencial temporal no pudo "
+            "enviarse a %s (%s). La cuenta no se creó.",
+            email,
+            type(error).__name__,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "No pudimos enviar el correo con la credencial temporal. "
+                "Inténtalo de nuevo en unos momentos."
+            ),
+        ) from error
     db.commit()
     db.refresh(empleado)
-
-    _entregar_credencial_temporal(email, credencial)
     return empleado
 
 

@@ -76,5 +76,18 @@ services:
       # (los binarios nativos de Vite/esbuild son de Linux, no del host).
       - /app/node_modules
 
+  # Buzón SMTP de desarrollo (catch-all). NO arranca con `docker compose
+  # up`: se levanta a demanda con `docker compose --profile mail up`.
+  # Configurar luego backend/.env con SMTP_HOST=localhost, SMTP_PORT=1025,
+  # SMTP_STARTTLS=false y SMTP_FROM=no-reply@empresa.dev; los correos se
+  # consultan en http://localhost:8025 (DECISIONES_TECNICAS §53).
+  mailhog:
+    image: mailhog/mailhog
+    container_name: talento_mailhog
+    profiles: ["mail"]
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   postgres_data:

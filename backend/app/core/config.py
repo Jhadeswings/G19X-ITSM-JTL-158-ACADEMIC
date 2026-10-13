@@ -48,11 +48,21 @@ class Settings(BaseSettings):
     SEED_RH_EMAIL: str = ""
     SEED_RH_PASSWORD: str = ""
 
-    # SOLO DESARROLLO LOCAL: registrar el token de recuperación en el log
-    # del backend, dado que la documentación no define proveedor de correo.
-    # NO es un mecanismo de envío para producción: allí debe sustituirse
-    # por un proveedor real (ver backend/DECISIONES_TECNICAS.md).
-    RECOVERY_TOKEN_DEV_LOG: bool = True
+    # ------------------------------------------------------------------
+    # Correo (PRD §3.3/§3.4): proveedor SMTP configurable por entorno
+    # (DECISIONES_TECNICAS §53). Sin SMTP_HOST o sin SMTP_FROM el
+    # proveedor está "no configurado": el alta responde 503 sin crear la
+    # cuenta (nunca queda una credencial sin entregar) y la recuperación
+    # mantiene su 202 uniforme con registro de error interno. Las
+    # credenciales del SMTP viven SOLO en el entorno, jamás en el código.
+    # ------------------------------------------------------------------
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_STARTTLS: bool = True
+    SMTP_TIMEOUT_SEGUNDOS: float = 10.0
 
     # ------------------------------------------------------------------
     # IA (Fase 8): interpretación de búsqueda con lenguaje natural

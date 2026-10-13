@@ -61,8 +61,10 @@ PLACEHOLDERS_ADMITIDOS = {
     "generar-con-secrets-token-urlsafe",
 }
 
-# Cualquier otra variable de secreto: se exige vacío.
-VARIABLES_OTRAS_SECRETAS = ("SECRET_KEY",)
+# Cualquier otra variable de secreto: se exige vacío. `SMTP_PASSWORD`
+# acompaña desde DECISIONES §53 (correo): la plantilla documenta el
+# nombre, jamás la credencial del proveedor.
+VARIABLES_OTRAS_SECRETAS = ("SECRET_KEY", "SMTP_PASSWORD")
 
 # Valor claramente sintético: NO imita el formato de ninguna clave real.
 VALOR_FALSO = "VALOR_FALSO_NO_ES_UNA_CLAVE_REAL"
