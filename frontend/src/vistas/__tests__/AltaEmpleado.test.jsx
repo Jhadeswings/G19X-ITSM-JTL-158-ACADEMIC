@@ -172,6 +172,23 @@ describe('AltaEmpleado — estados', () => {
     ).toBeInTheDocument()
   })
 
+  it('la nota operativa explica la entrega por correo y no menciona logs', async () => {
+    vi.mocked(crearEmpleado).mockResolvedValue(CREADO)
+    render(<AltaEmpleado token="token-rh" alSesionExpirada={vi.fn()} />)
+
+    llenarFormulario()
+    enviar()
+
+    // PRD §3.3 y DECISIONES_TECNICAS §53: la credencial temporal se entrega
+    // EXCLUSIVAMENTE por correo al correo de acceso de la persona; jamás se
+    // registra en logs del backend (auditoría de secretos, §53).
+    const nota = await screen.findByRole('status')
+    expect(nota).toHaveTextContent(/no se muestra aquí/)
+    expect(nota).toHaveTextContent(/envía al correo de acceso/)
+    expect(nota).toHaveTextContent(CREADO.cuenta.email)
+    expect(nota).not.toHaveTextContent(/log/i)
+  })
+
   it('permite registrar otro empleado tras el éxito', async () => {
     vi.mocked(crearEmpleado).mockResolvedValue(CREADO)
     render(<AltaEmpleado token="token-rh" alSesionExpirada={vi.fn()} />)

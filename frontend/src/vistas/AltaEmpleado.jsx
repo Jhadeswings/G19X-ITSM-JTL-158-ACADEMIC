@@ -4,8 +4,10 @@
 // Usa Únicamente el endpoint existente POST /api/v1/rh/employees (ET §31).
 // El backend exige rol RH (require_rh) y crea Empleado + CuentaAcceso con
 // credencial temporal: esa credencial NUNCA se pide ni se muestra aquí
-// (DECISIONES_TECNICAS.md §14). En desarrollo local se entrega mediante el
-// log del backend.
+// (DECISIONES_TECNICAS.md §14). Se entrega EXCLUSIVAMENTE por correo al
+// correo de acceso de la persona, dentro de la misma transacción del alta
+// (PRD §3.3; DECISIONES_TECNICAS.md §53): si el envío falla el alta se
+// cancela y la credencial jamás se registra en logs.
 //
 // Campos: los cinco que registra RH según PRD §3.3. El contrato actual solo
 // exige nombre y correo; puesto, área y fecha de ingreso son opcionales en
@@ -134,7 +136,7 @@ export default function AltaEmpleado({ token, alSesionExpirada }) {
           <div><dt>Cuenta</dt><dd>{alta.cuenta?.activo ? 'Activa' : 'Inactiva'}</dd></div>
           <div><dt>Primer acceso</dt><dd>{alta.cuenta?.must_change_password ? 'requiere cambio de contraseña en el primer acceso' : 'Completado'}</dd></div>
         </dl>
-        <Alert tone="info" title="Nota operativa">La credencial temporal no se muestra aquí. En este entorno de desarrollo, el backend la registra en su log para entregársela a la persona.</Alert>
+        <Alert tone="info" title="Nota operativa">La credencial temporal no se muestra aquí: el sistema la envía al correo de acceso de la persona ({correo}). En su primer inicio de sesión se le pedirá cambiarla por una contraseña propia.</Alert>
         <Button type="button" onClick={reiniciar}><RotateCcw aria-hidden="true" /> Registrar otro empleado</Button>
       </div>
     )
