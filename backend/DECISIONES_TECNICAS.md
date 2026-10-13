@@ -1,7 +1,7 @@
 # Decisiones técnicas — Fase 3: Autenticación y Autorización
 
-Fuente de verdad: `PRD_Sistema_Talento_Alto_Potencial_MVP_v1.3.md` y
-`Especificacion_Tecnica_Definitiva_MVP_v1.5.md`. Este documento registra
+Fuente de verdad: `PRD_Sistema_Talento_Alto_Potencial_MVP_v1.4.md` y
+`Especificacion_Tecnica_Definitiva_MVP_v1.6.md` (antes v1.3/v1.5). Este documento registra
 las decisiones de implementación que la documentación NO fija, para que
 sean explícitas, auditables y reversibles.
 
@@ -772,4 +772,51 @@ se añadirá después; hoy el dato se expone sin interpretación.
 **Alcance de la UI.** Este cambio es exclusivamente de contrato. La pantalla
 "Mi cuenta" y el flujo de cambio de contraseña son microbloques posteriores y no
 se implementan aquí.
+
+# Decisiones técnicas — Recomendación de desarrollo para RH (PRD v1.4 §20.2.1)
+
+## 52. Ruta RH separada, mismo generador, mismos invariantes
+
+**Decisión.** PRD v1.4 §20.2.1 exige el bloque «Acciones de desarrollo»
+en el Perfil RH. Se crea una ruta separada
+`GET /api/v1/rh/employees/{empleado_id}/recommendation` (ET v1.6
+§31.1), con `require_rh` y `empleado_id` desde el path, que reutiliza
+`RecommendationService`, `AIOrchestrator.generar_recomendacion` y los
+DTO existentes sin duplicar lógica.
+
+**Por qué una ruta nueva y no reutilizar `/me`.**
+`GET /api/v1/me/progress/recommendation` es exclusivo del empleado
+(`require_empleado` + `empleado_id_propio`) y rechaza a RH con 403
+(verificado por test). La frase «RH no necesita acceso a este bloque»
+de su router se acota a dicha ruta: describe que RH no consume la vista
+«Mi progreso», no una prohibición general de sugerencias. La nueva ruta
+RH aplica los permisos del perfil RH (mismo alcance que `/result`, sin
+restricción exclusiva por estado activo; inexistente → 404) y deja
+`/me` intacto.
+
+**Límites de la nueva ruta.**
+
+- Bajo demanda explícita: el perfil no la genera al abrirse; cada
+  consulta deriva el resultado vigente y pide una sugerencia nueva.
+- Sin persistencia, sin caché persistente, sin historial y sin
+  auditoría. No se promete reproducir un texto anterior.
+- IA no disponible → 200 con `recomendacion_ia: null`. Nunca texto
+  inventado ni fijo.
+- Las instrucciones del prompt que nombran «Mi progreso» se conservan
+  intactas en el MVP (mención histórica); el texto y las acciones de la
+  IA no se reescriben en el frontend.
+
+**Invariantes de seguridad.**
+
+- El `empleado_id` del path NUNCA se envía al LLM (el contexto mínimo
+  ya lo excluye, PRD §18).
+- Sin PII, sin evidencia interna, sin evaluaciones históricas en el
+  prompt (mismo contexto mínimo del endpoint del empleado).
+- Salida validada con el contrato cerrado `SalidaRecomendacionIA`
+  (`extra="forbid"`); fuera de contrato → fallo de proveedor →
+  fallback Groq→Gemini → `null`.
+- La sugerencia viaja separada con `origen: "IA"` y nunca modifica el
+  resultado oficial (Style Guide §3.6/§17.2).
+
+**Migraciones:** NINGUNA.
 
