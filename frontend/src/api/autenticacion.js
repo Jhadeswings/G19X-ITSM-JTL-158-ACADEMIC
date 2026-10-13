@@ -173,3 +173,43 @@ export async function cambiarPasswordConActual(
     },
   })
 }
+
+/**
+ * Solicita la recuperación de acceso (PRD §3.4). Transporte PURO.
+ *
+ * El backend responde SIEMPRE 202 con el mismo `mensaje`, exista o no la
+ * cuenta activa (anti-enumeración, DECISIONES §3): esta función no inspecciona
+ * ni altera esa uniformidad, y el formulario debe mostrar el mensaje tal cual.
+ * No guarda nada del correo ni del resultado.
+ *
+ * @param {string} email correo de acceso de la cuenta a recuperar.
+ * @returns {Promise<{mensaje: string}>} respuesta del backend, sin transformar.
+ */
+export async function solicitarRecuperacion(email) {
+  return solicitar('/api/v1/auth/recovery/request', {
+    metodo: 'POST',
+    cuerpo: { email },
+  })
+}
+
+/**
+ * Restablece la contraseña con el token recibido por correo (PRD §3.4).
+ * Transporte PURO.
+ *
+ * El token es de un solo uso y caduca (DECISIONES §4; 30 minutos por defecto).
+ * Los fallos llegan como `ErrorApi`: 400 con el mensaje uniforme
+ * «Token inválido o expirado.» (sin distinguir inválido, vencido, reutilizado
+ * o cuenta inactiva) o 422 cuando la contraseña no cumple la política §3.5.
+ * Aquí no se valida, no se cachea y no se persiste nada: el token viaja tal
+ * cual llegó por correo y la autoridad de la política es el backend.
+ *
+ * @param {string} token token de recuperación, sin transformar.
+ * @param {string} passwordNueva nueva contraseña.
+ * @returns {Promise<{mensaje: string}>} respuesta del backend, sin transformar.
+ */
+export async function restablecerPassword(token, passwordNueva) {
+  return solicitar('/api/v1/auth/recovery/reset', {
+    metodo: 'POST',
+    cuerpo: { token, password_nueva: passwordNueva },
+  })
+}

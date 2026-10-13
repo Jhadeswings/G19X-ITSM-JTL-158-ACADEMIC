@@ -12,6 +12,8 @@ import {
   iniciarSesion,
   limpiarSesion,
   obtenerSesion,
+  restablecerPassword,
+  solicitarRecuperacion,
 } from '../autenticacion.js'
 
 vi.mock('../clienteApi.js', () => ({ solicitar: vi.fn() }))
@@ -286,5 +288,77 @@ describe('autenticacion — el primer acceso no se ve afectado', () => {
     const [primera, segunda] = vi.mocked(solicitar).mock.calls
     expect(primera[0]).toBe(segunda[0])
     expect(primera[1].cuerpo).not.toEqual(segunda[1].cuerpo)
+  })
+})
+
+describe('autenticacion — recuperación de acceso (H1, PRD §3.4)', () => {
+  const MENSAJE_UNIFORME =
+    'Si el correo corresponde a una cuenta activa, recibirás instrucciones para restablecer tu acceso.'
+
+  it('solicitarRecuperacion envía el email a la ruta exacta con POST', async () => {
+    vi.mocked(solicitar).mockResolvedValue({ mensaje: MENSAJE_UNIFORME })
+
+    const respuesta = await solicitarRecuperacion('persona@empresa.dev')
+
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/auth/recovery/request', {
+      metodo: 'POST',
+      cuerpo: { email: 'persona@empresa.dev' },
+    })
+    expect(respuesta).toEqual({ mensaje: MENSAJE_UNIFORME })
+  })
+
+  it('solicitarRecuperacion propaga el 422 de validación sin transformarlo', async () => {
+    const error = Object.assign(new Error('Algunos datos enviados no son válidos.'), {
+      estado: 422,
+    })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(solicitarRecuperacion('no-un-correo')).rejects.toBe(error)
+  })
+
+  it('restablecerPassword usa los nombres EXACTOS del contrato', async () => {
+    vi.mocked(solicitar).mockResolvedValue({ mensaje: 'Contraseña restablecida.' })
+
+    await restablecerPassword('token-recibido', 'nueva1234')
+
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toBe('/api/v1/auth/recovery/reset')
+    expect(opciones.metodo).toBe('POST')
+    expect(opciones.cuerpo).toEqual({
+      token: 'token-recibido',
+      password_nueva: 'nueva1234',
+    })
+    expect(opciones.cuerpo).not.toHaveProperty('password')
+    expect(opciones.cuerpo).not.toHaveProperty('email')
+  })
+
+  it('restablecerPassword no valida la contraseña: transporte puro', async () => {
+    vi.mocked(solicitar).mockResolvedValue({ mensaje: 'Contraseña restablecida.' })
+
+    await restablecerPassword('token-recibido', 'corta')
+
+    expect(vi.mocked(solicitar).mock.calls[0][1].cuerpo).toEqual({
+      token: 'token-recibido',
+      password_nueva: 'corta',
+    })
+  })
+
+  it('restablecerPassword propaga el 400 uniforme del token', async () => {
+    const error = Object.assign(new Error('Token inválido o expirado.'), {
+      estado: 400,
+    })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(restablecerPassword('usado', 'nueva1234')).rejects.toBe(error)
+  })
+
+  it('ninguna de las dos funciones toca la sesión local (transporte puro)', async () => {
+    vi.mocked(solicitar).mockResolvedValue({ mensaje: MENSAJE_UNIFORME })
+
+    await solicitarRecuperacion('persona@empresa.dev')
+    await restablecerPassword('token-recibido', 'nueva1234')
+
+    expect(localStorage.getItem('talento.sesion')).toBeNull()
+    expect(localStorage.getItem('talento.token')).toBeNull()
   })
 })

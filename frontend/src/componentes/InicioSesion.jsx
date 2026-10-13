@@ -14,8 +14,17 @@ import ContextualNetwork from './ContextualNetwork.jsx'
  *   cerró por inactividad, se explica en el login. El logout manual y el
  *   rechazo del backend llegan como `null` y NO muestran mensaje (comportamiento
  *   previo intacto).
+ * @param {() => void} [props.onRecuperar] abre la vista pública «Recuperar
+ *   acceso» (PRD §3.4): el enlace «¿Olvidaste tu contraseña?» del pie.
+ * @param {() => void} [props.onIrAToken] abre directamente la vista pública
+ *   de restablecimiento para quien YA tiene un token recibido por correo.
  */
-export default function InicioSesion({ onExito, motivoCierre = null }) {
+export default function InicioSesion({
+  onExito,
+  motivoCierre = null,
+  onRecuperar,
+  onIrAToken,
+}) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -87,7 +96,23 @@ export default function InicioSesion({ onExito, motivoCierre = null }) {
               {enviando ? 'Ingresando…' : 'Ingresar'} {!enviando && <ArrowRight aria-hidden="true" />}
             </Button>
           </form>
-          <p className="auth-access__help">¿Necesitas ayuda para acceder? Contacta a RH.</p>
+          {/* Recuperación de acceso (PRD §3.4, H1): dos entradas públicas del
+              login. «¿Olvidaste tu contraseña?» inicia el flujo completo y
+              «Ya tengo un token» lleva directo al paso 2 para quien vuelve
+              con su token ya en mano. Opcionales para no romper usos
+              previos del componente. */}
+          <div className="auth-access__help">
+            {onRecuperar && (
+              <Button type="button" variant="ghost" size="small" onClick={onRecuperar}>
+                ¿Olvidaste tu contraseña?
+              </Button>
+            )}
+            {onIrAToken && (
+              <Button type="button" variant="ghost" size="small" onClick={onIrAToken}>
+                Ya tengo un token de recuperación
+              </Button>
+            )}
+          </div>
         </div>
       </section>
     </main>

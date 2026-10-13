@@ -6,7 +6,9 @@
 // petición. Cualquier 401 cierra la sesión y vuelve al inicio de sesión.
 //
 // Orden de decisión:
-//   1. sin sesión → InicioSesion;
+//   1. sin sesión → shell público: InicioSesion o, si la persona sigue el
+//      flujo de recuperación (PRD §3.4), las vistas públicas «Recuperar
+//      acceso» y «Restablecer contraseña» (token copiado del correo, H1);
 //   2. credencial temporal → CambioContrasena (PRD §3.3: el backend bloquea
 //      el resto de endpoints mientras must_change_password = true), sin shell;
 //   3. rol RH → shell con las ocho secciones del Style Guide §10; "Empleados"
@@ -32,6 +34,8 @@ import {
 import { obtenerCuenta } from './api/cuenta.js'
 import CambioContrasena from './componentes/CambioContrasena.jsx'
 import InicioSesion from './componentes/InicioSesion.jsx'
+import RecuperarContrasena from './componentes/RecuperarContrasena.jsx'
+import RestablecerContrasena from './componentes/RestablecerContrasena.jsx'
 import AvisoInactividad from './componentes/AvisoInactividad.jsx'
 import useInactividad from './lib/useInactividad.js'
 import Layout from './componentes/Layout.jsx'
@@ -91,6 +95,11 @@ function Aplicacion() {
   const [proyectoPendiente, setProyectoPendiente] = useState(null)
   // Motivo del cierre, SOLO para informar en el login. `null` = sin mensaje.
   const [motivoCierre, setMotivoCierre] = useState(null)
+  // Vista pública activa cuando NO hay sesión (H1): 'login' (InicioSesion),
+  // 'recuperar' (solicitar el token por correo) o 'restablecer' (usarlo).
+  // Estados locales del shell público, SIN rutas nuevas: el MVP entrega el
+  // token por correo para copiarlo, no como enlace (DECISIONES §53).
+  const [vistaPublica, setVistaPublica] = useState('login')
 
   const esEmpleadoActivo =
     sesion?.rol === 'EMPLEADO' && sesion?.mustChangePassword === false
@@ -98,6 +107,7 @@ function Aplicacion() {
   const iniciar = useCallback((sesionNueva) => {
     guardarSesion(sesionNueva)
     setSeccion(SECCION_INICIAL)
+    setVistaPublica('login')
     // RH-02.3: una URL de Proyectos no sobrevive a un inicio de sesión.
     if (esRutaProyectos(rutaActualRef.current)) {
       navegar('/', { replace: true })
@@ -109,6 +119,7 @@ function Aplicacion() {
     // Un solo punto de salida: limpiar storage, reiniciar navegación y sesión.
     limpiarSesion()
     setSeccion(SECCION_INICIAL)
+    setVistaPublica('login')
     setProyectoPendiente(null)
     // RH-02.3: una URL de Proyectos no sobrevive a un cierre de sesión.
     if (esRutaProyectos(rutaActualRef.current)) {
@@ -207,7 +218,33 @@ function Aplicacion() {
   )
 
   if (!sesion) {
-    return <InicioSesion onExito={iniciar} motivoCierre={motivoCierre} />
+    // Shell público (H1): el login y, desde él, la recuperación de acceso en
+    // dos pasos (solicitar token → restablecer contraseña; PRD §3.4). Todas
+    // las vistas públicas pueden volver al login y ninguna requiere sesión.
+    if (vistaPublica === 'recuperar') {
+      return (
+        <RecuperarContrasena
+          alVolverLogin={() => setVistaPublica('login')}
+          alIrAToken={() => setVistaPublica('restablecer')}
+        />
+      )
+    }
+    if (vistaPublica === 'restablecer') {
+      return (
+        <RestablecerContrasena
+          alVolverLogin={() => setVistaPublica('login')}
+          alSolicitarOtro={() => setVistaPublica('recuperar')}
+        />
+      )
+    }
+    return (
+      <InicioSesion
+        onExito={iniciar}
+        motivoCierre={motivoCierre}
+        onRecuperar={() => setVistaPublica('recuperar')}
+        onIrAToken={() => setVistaPublica('restablecer')}
+      />
+    )
   }
 
   if (sesion.mustChangePassword) {
