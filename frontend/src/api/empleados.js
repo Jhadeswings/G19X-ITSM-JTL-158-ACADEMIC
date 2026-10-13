@@ -142,8 +142,23 @@ export const POR_PAGINA_MAXIMO = 100
 /** Valor por defecto del backend, reutilizado para no duplicar el contrato. */
 export const POR_PAGINA_DEFECTO = 20
 
-/** Normaliza los parámetros de la vista a query params, omitting los vacíos. */
-function parametrosListado({ pagina, porPagina, activo, area, q }) {
+/** Normaliza los parámetros de la vista a query params, omitting los vacíos.
+ *
+ * Filtros por competencia y nivel (DECISIONES §54): `competencia` solo viaja
+ * con un criterio de resultado ACTIVO — `nivel_min` (inclusivo) o
+ * `solo_di` —, que son excluyentes entre sí y dependen de ella. Si llega
+ * `soloDi`, tiene prioridad y ningún nivel viaja: DI nunca es numérico.
+ */
+function parametrosListado({
+  pagina,
+  porPagina,
+  activo,
+  area,
+  q,
+  competencia,
+  nivelMin,
+  soloDi,
+}) {
   const consulta = new URLSearchParams()
 
   const paginaActual = Number.isFinite(pagina) ? Math.max(1, Math.trunc(pagina)) : 1
@@ -167,6 +182,18 @@ function parametrosListado({ pagina, porPagina, activo, area, q }) {
   if (busquedaLimpia) {
     consulta.set('q', busquedaLimpia)
   }
+  // §54: criterio de resultado. Sin competencia no viaja nada (la competencia
+  // sola no filtra); con DI no viaja ningún nivel.
+  const competenciaLimpia =
+    typeof competencia === 'string' ? competencia.trim() : ''
+  if (competenciaLimpia) {
+    consulta.set('competencia', competenciaLimpia)
+    if (soloDi === true) {
+      consulta.set('solo_di', 'true')
+    } else if (Number.isFinite(nivelMin)) {
+      consulta.set('nivel_min', String(Math.trunc(nivelMin)))
+    }
+  }
   return consulta.toString()
 }
 
@@ -174,7 +201,9 @@ function parametrosListado({ pagina, porPagina, activo, area, q }) {
  * Lista empleados paginados con los filtros que el backend soporta.
  * @param {string} token token de la sesión RH.
  * @param {{pagina?: number, porPagina?: number, activo?: boolean|null,
- *          area?: string|null, q?: string|null}} filtros
+ *          area?: string|null, q?: string|null,
+ *          competencia?: string|null, nivelMin?: number|null,
+ *          soloDi?: boolean|null}} filtros
  * @returns {Promise<{total: number, pagina: number, por_pagina: number,
  *                    items: object[]}>} EmpleadoPageOut del backend, sin transformar.
  */

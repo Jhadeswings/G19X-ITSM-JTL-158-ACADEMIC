@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { UserPlus } from 'lucide-react'
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
+import { NOMBRES_COMPETENCIAS } from '../textos.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
@@ -52,6 +53,24 @@ const OPCIONES_ESTADO = [
   { id: 'inactivos', label: 'Inactivos', activo: false },
 ]
 
+// Catálogo OFICIAL de competencias (PRD §16): el mismo diccionario que usa
+// el resto de la app. Solo presentación: el backend valida el código.
+const OPCIONES_COMPETENCIA = Object.entries(NOMBRES_COMPETENCIAS).map(
+  ([id, label]) => ({ id, label }),
+)
+
+// Criterio de resultado (DECISIONES §54): sin filtro, nivel mínimo o DI.
+// Nivel mínimo y DI son EXCLUYENTES: elegir uno restablece al otro.
+const OPCIONES_CRITERIO = [
+  { id: 'ninguno', label: 'Sin filtro de resultado' },
+  { id: 'nivel', label: 'Nivel mínimo' },
+  { id: 'di', label: 'Datos insuficientes (DI)' },
+]
+
+// Niveles oficiales 1–5 (PRD §5). Solo números: las etiquetas de nivel
+// pertenecen a los resultados del backend y aquí no se duplican.
+const NIVELES = [1, 2, 3, 4, 5]
+
 /** Texto neutro para datos ausentes: nunca un hueco ni un error. */
 const SIN_DATO = '—'
 
@@ -71,6 +90,11 @@ export default function Empleados({ token, alSesionExpirada }) {
   const [estado, setEstado] = useState('todos')
   const [area, setArea] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  // Filtros por competencia y nivel (DECISIONES §54): la competencia SOLA no
+  // filtra; el criterio (nivel mínimo inclusivo o DI) depende de ella.
+  const [competencia, setCompetencia] = useState('')
+  const [criterio, setCriterio] = useState('ninguno')
+  const [nivelMin, setNivelMin] = useState('1')
   const [consulta, setConsulta] = useState(consultaInicial)
 
   const filtroEstado = OPCIONES_ESTADO.find((opcion) => opcion.id === estado)
@@ -83,6 +107,13 @@ export default function Empleados({ token, alSesionExpirada }) {
       activo: filtroEstado?.activo,
       area,
       q: busqueda,
+      // §54: solo viaja un criterio de resultado ACTIVO (competencia +
+      // nivel_min, o competencia + solo_di). La competencia sin criterio no
+      // filtra y no se envía; nada se calcula ni se filtra en React.
+      competencia:
+        competencia && criterio !== 'ninguno' ? competencia : undefined,
+      nivelMin: competencia && criterio === 'nivel' ? Number(nivelMin) : undefined,
+      soloDi: competencia && criterio === 'di' ? true : undefined,
     })
       .then((datos) => setConsulta({ fase: 'listo', datos, error: null }))
       .catch((error) => {
@@ -95,7 +126,17 @@ export default function Empleados({ token, alSesionExpirada }) {
         // NUNCA se convierte en cero registros (§13.6).
         setConsulta({ fase: 'error', datos: null, error })
       })
-  }, [token, pagina, filtroEstado, area, busqueda, alSesionExpirada])
+  }, [
+    token,
+    pagina,
+    filtroEstado,
+    area,
+    busqueda,
+    competencia,
+    criterio,
+    nivelMin,
+    alSesionExpirada,
+  ])
 
   useEffect(() => {
     cargar()
@@ -132,10 +173,42 @@ export default function Empleados({ token, alSesionExpirada }) {
     setPagina(1)
   }
 
+  // §54: al limpiar o cambiar la competencia, el criterio y su nivel
+  // dependiente se restablecen: nunca queda un filtro huérfano de una
+  // competencia que ya no es la seleccionada.
+  function cambiarCompetencia(nuevaCompetencia) {
+    setCompetencia(nuevaCompetencia)
+    // §54, regla 5: CAMBIAR (no solo limpiar) la competencia restablece el
+    // criterio dependiente y su nivel, para que nunca quede un nivel o un DI
+    // huérfanos de la competencia anterior. Hasta que RH vuelva a elegir un
+    // criterio no se envía ningún filtro de competencia a la API.
+    setCriterio('ninguno')
+    setNivelMin('1')
+    setPagina(1)
+  }
+
+  function cambiarCriterio(nuevoCriterio) {
+    setCriterio(nuevoCriterio)
+    // Exclusión mutua (§54): al salir de «Nivel mínimo» el nivel vuelve a su
+    // valor inicial; con DI ningún nivel se muestra ni se envía.
+    if (nuevoCriterio !== 'nivel') {
+      setNivelMin('1')
+    }
+    setPagina(1)
+  }
+
+  function cambiarNivel(nuevoNivel) {
+    setNivelMin(nuevoNivel)
+    setPagina(1)
+  }
+
   function limpiarFiltros() {
     setEstado('todos')
     setArea('')
     setBusqueda('')
+    setCompetencia('')
+    setCriterio('ninguno')
+    setNivelMin('1')
     setPagina(1)
   }
 
@@ -170,8 +243,14 @@ export default function Empleados({ token, alSesionExpirada }) {
   const items = fase === 'listo' ? datos?.items || [] : []
   const total = fase === 'listo' ? datos?.total ?? 0 : 0
   const porPagina = fase === 'listo' ? datos?.por_pagina ?? POR_PAGINA_DEFECTO : POR_PAGINA_DEFECTO
+  const competenciaSeleccionada = OPCIONES_COMPETENCIA.find(
+    (opcion) => opcion.id === competencia,
+  )
   const hayFiltros =
-    estado !== 'todos' || area.trim().length > 0 || busqueda.trim().length > 0
+    estado !== 'todos' ||
+    area.trim().length > 0 ||
+    busqueda.trim().length > 0 ||
+    Boolean(competencia && criterio !== 'ninguno')
 
   return (
     <div className="empleados">
@@ -238,6 +317,84 @@ export default function Empleados({ token, alSesionExpirada }) {
           />
         </div>
 
+        {/* Competencia y criterio de resultado (DECISIONES §54; PRD §20.1).
+            La competencia SOLA no filtra: el criterio (nivel mínimo
+            inclusivo o DI) es quien activa el filtro, y ambos dependen de
+            ella. Las competencias siguen FUERA de la tabla (SG §26). */}
+        <div className="empleados-filtros__competencia">
+          <label
+            className="form-field__label"
+            htmlFor="empleados-filtro-competencia"
+          >
+            Competencia
+          </label>
+          <select
+            id="empleados-filtro-competencia"
+            className="ui-input"
+            value={competencia}
+            onChange={(evento) => cambiarCompetencia(evento.target.value)}
+          >
+            <option value="">Sin competencia seleccionada</option>
+            {OPCIONES_COMPETENCIA.map((opcion) => (
+              <option key={opcion.id} value={opcion.id}>
+                {opcion.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="empleados-filtros__criterio">
+          <label
+            className="form-field__label"
+            htmlFor="empleados-filtro-criterio"
+          >
+            Resultado
+          </label>
+          <select
+            id="empleados-filtro-criterio"
+            className="ui-input"
+            value={criterio}
+            disabled={!competencia}
+            onChange={(evento) => cambiarCriterio(evento.target.value)}
+          >
+            {OPCIONES_CRITERIO.map((opcion) => (
+              <option key={opcion.id} value={opcion.id}>
+                {opcion.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {competencia && criterio === 'nivel' && (
+          <div className="empleados-filtros__nivel">
+            <label
+              className="form-field__label"
+              htmlFor="empleados-filtro-nivel"
+            >
+              Nivel mínimo
+            </label>
+            <select
+              id="empleados-filtro-nivel"
+              className="ui-input"
+              value={nivelMin}
+              aria-describedby="empleados-filtro-nivel-ayuda"
+              onChange={(evento) => cambiarNivel(evento.target.value)}
+            >
+              {NIVELES.map((nivel) => (
+                <option key={nivel} value={String(nivel)}>
+                  {nivel}
+                </option>
+              ))}
+            </select>
+            <p
+              className="form-field__hint"
+              id="empleados-filtro-nivel-ayuda"
+            >
+              El mínimo es inclusivo: 3 incluye los niveles 3, 4 y 5.
+            </p>
+          </div>
+        )}
+
         {hayFiltros && (
           <Button variant="ghost" size="small" onClick={limpiarFiltros}>
             Limpiar filtros
@@ -251,6 +408,14 @@ export default function Empleados({ token, alSesionExpirada }) {
           {busqueda.trim().length > 0 && <span>Búsqueda: {busqueda.trim()}</span>}
           {estado !== 'todos' && <span>{filtroEstado?.label}</span>}
           {area.trim().length > 0 && <span>Área: {area.trim()}</span>}
+          {competencia && criterio === 'nivel' && competenciaSeleccionada && (
+            <span>
+              {competenciaSeleccionada.label}: nivel mínimo {nivelMin}
+            </span>
+          )}
+          {competencia && criterio === 'di' && competenciaSeleccionada && (
+            <span>{competenciaSeleccionada.label}: datos insuficientes</span>
+          )}
         </p>
       )}
 

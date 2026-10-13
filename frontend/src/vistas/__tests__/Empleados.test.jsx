@@ -206,12 +206,157 @@ describe('Empleados — filtros soportados por el backend', () => {
     })
   })
 
-  it('no ofrece filtros de competencia ni de nivel en este bloque', async () => {
+  it('ofrece los filtros por competencia y nivel del contrato §54', async () => {
     render(<Empleados token="token-rh" />)
     await screen.findByText('Ana López')
 
-    expect(screen.queryByLabelText('Competencia')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Nivel')).not.toBeInTheDocument()
+    // Catálogo OFICIAL de las cinco + opción inicial sin competencia.
+    const selector = screen.getByLabelText('Competencia')
+    const valores = within(selector)
+      .getAllByRole('option')
+      .map((opcion) => opcion.value)
+    expect(valores).toEqual([
+      '',
+      'desempeno_tecnico',
+      'liderazgo',
+      'trabajo_equipo',
+      'comunicacion',
+      'aprendizaje',
+    ])
+    expect(selector.value).toBe('')
+  })
+
+  it('el criterio depende de la competencia y el nivel del criterio', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    // Sin competencia: criterio deshabilitado y sin selector de nivel.
+    expect(screen.getByLabelText('Resultado')).toBeDisabled()
+    expect(screen.queryByLabelText('Nivel mínimo')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    expect(screen.getByLabelText('Resultado')).toBeEnabled()
+
+    // El nivel solo aparece con el criterio «Nivel mínimo».
+    fireEvent.change(screen.getByLabelText('Resultado'), {
+      target: { value: 'nivel' },
+    })
+    expect(screen.getByLabelText('Nivel mínimo')).toBeInTheDocument()
+  })
+
+  it('una competencia sola no aplica ningún filtro de resultado', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+
+    await waitFor(() => {
+      const filtros = ultimaConsulta()[1]
+      expect(filtros.competencia).toBeUndefined()
+      expect(filtros.nivelMin).toBeUndefined()
+      expect(filtros.soloDi).toBeUndefined()
+    })
+  })
+
+  it('nivel mínimo envía competencia y nivelMin, nunca soloDi', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    fireEvent.change(screen.getByLabelText('Resultado'), {
+      target: { value: 'nivel' },
+    })
+    await screen.findByLabelText('Nivel mínimo')
+    fireEvent.change(screen.getByLabelText('Nivel mínimo'), {
+      target: { value: '3' },
+    })
+
+    await waitFor(() => {
+      const filtros = ultimaConsulta()[1]
+      expect(filtros.competencia).toBe('liderazgo')
+      expect(filtros.nivelMin).toBe(3)
+      expect(filtros.soloDi).toBeUndefined()
+    })
+  })
+
+  it('DI envía competencia y soloDi, sin ningún nivel', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    fireEvent.change(screen.getByLabelText('Resultado'), {
+      target: { value: 'di' },
+    })
+
+    await waitFor(() => {
+      const filtros = ultimaConsulta()[1]
+      expect(filtros.competencia).toBe('liderazgo')
+      expect(filtros.soloDi).toBe(true)
+      expect(filtros.nivelMin).toBeUndefined()
+    })
+    // Con DI no existe selector de nivel: DI no es un número (§54 H3-C).
+    expect(screen.queryByLabelText('Nivel mínimo')).not.toBeInTheDocument()
+  })
+
+  it('elegir DI después de un nivel descarta el nivel (exclusión mutua)', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    fireEvent.change(screen.getByLabelText('Resultado'), {
+      target: { value: 'nivel' },
+    })
+    await screen.findByLabelText('Nivel mínimo')
+    fireEvent.change(screen.getByLabelText('Nivel mínimo'), {
+      target: { value: '4' },
+    })
+    fireEvent.change(screen.getByLabelText('Resultado'), {
+      target: { value: 'di' },
+    })
+
+    await waitFor(() => {
+      const filtros = ultimaConsulta()[1]
+      expect(filtros.soloDi).toBe(true)
+      expect(filtros.nivelMin).toBeUndefined()
+    })
+    expect(screen.queryByLabelText('Nivel mínimo')).not.toBeInTheDocument()
+  })
+
+  it('cambiar la competencia restablece el criterio dependiente', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    fireEvent.change(screen.getByLabelText('Resultado'), {
+      target: { value: 'nivel' },
+    })
+    await waitFor(() => expect(ultimaConsulta()[1].competencia).toBe('liderazgo'))
+
+    // Al cambiar de competencia, el criterio vuelve a «Sin filtro»: no
+    // queda un nivel huérfano de la competencia anterior (§54, regla 5).
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'comunicacion' },
+    })
+
+    await waitFor(() => {
+      const filtros = ultimaConsulta()[1]
+      expect(filtros.competencia).toBeUndefined()
+      expect(filtros.nivelMin).toBeUndefined()
+      expect(filtros.soloDi).toBeUndefined()
+    })
+    expect(screen.getByLabelText('Resultado').value).toBe('ninguno')
   })
 
   it('vuelve a la primera página al cambiar un filtro', async () => {
