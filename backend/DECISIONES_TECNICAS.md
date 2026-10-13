@@ -860,3 +860,112 @@ uniforme: el log no es un canal de entrega aceptable.
 
 **Migraciones:** NINGUNA.
 
+# Decisiones técnicas — Filtros por competencia y nivel en el listado RH (PRD §20.1)
+
+## 54. Definición funcional de los filtros de competencia y nivel (H3)
+
+**Contexto.** El PRD v1.4 §20.1 exige filtros «limitados por: área;
+competencia; nivel» en la vista RH de empleados, pero ni el PRD ni la
+Especificación Técnica v1.6 definen su semántica: las reglas de
+competencia+nivel de §13.1–§13.2/§26/§28 aplican SOLO a la búsqueda manual
+de talento, y la vista actual implementa búsqueda (`q`), área y estado.
+Siguiendo el precedente de §41 —un filtro sin autorización inequívoca es
+una decisión de producto, no un gap de implementación—, esta sección
+REGISTRA esa decisión y fija el criterio de implementación de H3. Es una
+decisión funcional POSTERIOR a los documentos originales: no modifica el
+PRD, el ET ni el Style Guide; los complementa.
+
+### Decisiones registradas
+
+**H3-A — Semántica del nivel: mínimo e inclusivo.** El nivel se interpreta
+como nivel MÍNIMO sobre el resultado actual. Si RH selecciona nivel 3 para
+una competencia, se incluyen los empleados cuyo resultado actual calculable
+para esa competencia sea 3, 4 o 5; los niveles 1 y 2 quedan excluidos. La
+semántica es la de `min_level` de §13.1/§26, aplicada ahora al listado.
+
+**H3-B — Fuente: resultado actual calculado por el backend.** El filtro se
+basará en el resultado actual derivado con `CompetencyEngine` bajo las
+reglas existentes. NO se basará en una evaluación histórica seleccionada
+arbitrariamente, NO se persisten resultados derivados y NO se duplican
+fórmulas de competencias. React no calcula ni interpreta niveles: el
+frontend solo presenta los filtros y los resultados que devuelve el
+backend (ET §13/§42).
+
+**H3-C — Datos insuficientes: estado explícito e independiente.** DI podrá
+seleccionarse explícitamente como estado separado de los niveles
+numéricos. DI NUNCA equivale a nivel 0, NUNCA satisface un nivel mínimo
+numérico y NUNCA entra en promedios ni denominadores (reglas ya vigentes
+del sistema). Cuando se selecciona DI, el filtro devuelve los empleados
+cuyo resultado actual para la competencia elegida sea realmente DI.
+
+**H3-D — Activos e inactivos.** El filtro de competencia se aplica tanto a
+empleados activos como inactivos (el resultado actual existe para ambos,
+igual que en el perfil RH). El filtro de estado existente conserva su
+semántica y se combina con los demás mediante AND: competencia + nivel
+mínimo + área + inactivos devuelve únicamente quienes cumplen TODAS las
+condiciones.
+
+**H3-E — Cardinalidad y orden.** Se permite seleccionar UNA sola
+competencia por consulta (patrón «una a la vez» del dashboard y Brechas).
+El listado conserva su orden actual: NO se ordena por promedio, nivel,
+puntuación ni prioridad, y NO se generan rankings de empleados (el
+promedio informativo de §13.2 sigue siendo exclusivo de la búsqueda
+manual).
+
+### Reglas de interacción
+
+1. Sin competencia seleccionada no se aplica ningún filtro de competencia.
+2. El nivel mínimo y el estado DI SOLO pueden aplicarse cuando exista una
+   competencia seleccionada (son dependientes de ella).
+3. Nivel mínimo y DI son excluyentes para una misma consulta: nunca se
+   combinan como si DI fuera un nivel.
+4. Los filtros existentes de búsqueda (`q`), área y estado siguen
+   funcionando igual y se combinan con el de competencia mediante AND.
+5. Al cambiar o limpiar la competencia, los valores dependientes
+   (nivel/DI) se restablecen de manera coherente: nunca queda un nivel o
+   un DI huérfanos de competencia.
+6. El total de resultados y la paginación corresponden al conjunto
+   DESPUÉS de aplicar todos los filtros: sin páginas incompletas
+   artificiales.
+7. Los empleados sin resultado calculable en la competencia elegida
+   (estado DI) no se clasifican como nivel numérico: solo aparecen bajo el
+   filtro explícito de DI (H3-C).
+8. La fuente sigue siendo el resultado actual para activos e inactivos,
+   respetando los permisos y reglas de acceso existentes (solo RH).
+
+### Requisitos técnicos derivados (para la implementación posterior)
+
+- El backend mantiene la autoridad sobre cálculo, filtrado, permisos,
+  total y paginación.
+- Se reutiliza `CompetencyEngine`; no se duplican reglas de cálculo.
+- Los filtros por texto (`q`), área y estado limitan previamente los
+  candidatos cuando sea compatible con la implementación existente.
+- El filtrado por competencia se ejecuta ANTES de calcular la paginación
+  final y el total.
+- Evitar consultas N+1 y verificar el coste del cálculo (`calculate` por
+  empleado candidato) al filtrar conjuntos grandes (ET §40).
+- Sin persistencia, sin migraciones, sin puntuaciones globales, sin
+  rankings y sin cambios al contrato de evaluaciones históricas.
+- Los parámetros o esquemas concretos de la API se definirán durante la
+  implementación tras revisar el contrato real de `GET /rh/employees`;
+  esta decisión funcional NO fija nombres de parámetros.
+
+### Criterios de aceptación (verificables en la futura implementación)
+
+1. El nivel mínimo es inclusivo: nivel 3 incluye niveles 3, 4 y 5.
+2. DI es un estado separado de los niveles numéricos (nunca nivel 0,
+   nunca satisface un mínimo numérico).
+3. El filtro funciona para empleados activos e inactivos.
+4. Búsqueda, área, estado y competencia se combinan correctamente (AND).
+5. Totales y páginas corresponden al resultado filtrado, sin páginas
+   incompletas artificiales.
+6. La competencia y su nivel no se calculan en React: el backend decide.
+7. Se conserva el orden existente, sin ranking ni puntuación global.
+8. La implementación reutiliza `CompetencyEngine` y no persiste resultados
+   derivados.
+9. Se conservan los permisos y los comportamientos de errores existentes
+   (401 sin token, 403 Empleado, 422 de validación).
+10. Las pruebas cubren filtros combinados, niveles inclusivos, DI,
+    paginación, autorización y ausencia de escrituras en la base de datos
+    (comparación de row counts, patrón de §37).
+
