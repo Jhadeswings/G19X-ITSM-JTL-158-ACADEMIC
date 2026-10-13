@@ -69,6 +69,11 @@ URL_ME_RESULTADO = "/api/v1/me/result"
 URL_RH_EMPLEADO_RESULTADO = "/api/v1/rh/employees/{empleado_id}/result"
 URL_RH_EMPLEADO_NINE_BOX = "/api/v1/rh/employees/{empleado_id}/nine-box"
 
+# PRD v1.4 §20.2.1 / ET v1.6 §31.1 (recomendación de desarrollo para RH)
+URL_RH_EMPLEADO_RECOMENDACION = (
+    "/api/v1/rh/employees/{empleado_id}/recommendation"
+)
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}

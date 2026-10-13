@@ -1,4 +1,5 @@
-"""Router RH: gestión de empleados (Fase 4A) y resultado actual (Fase 13).
+"""Router RH: gestión de empleados (Fase 4A), resultado actual (Fase 13) y
+recomendación de desarrollo (PRD v1.4 §20.2.1, ET v1.6 §31.1).
 
 Todo protegido con ``require_rh``: la autorización se ejecuta en backend.
 Un Empleado no puede gestionar empleados (403).
@@ -10,6 +11,12 @@ Un Empleado no puede gestionar empleados (403).
 - ``GET /rh/employees/{id}/nine-box`` (ET §20/§31) devuelve el 9-Box vigente
   del empleado. Es un CONTRATO SEPARADO a propósito: ``ResultadoActualDTO`` no
   incluye 9-Box y su lectura histórica tampoco se recalcula.
+- ``GET /rh/employees/{id}/recommendation`` (ET §31.1) devuelve la
+  sugerencia de desarrollo con IA del empleado indicado, bajo demanda
+  explícita de RH. Reutiliza ``RecommendationService``,
+  ``AIOrchestrator`` y los DTO existentes sin duplicar lógica; ruta
+  separada de ``GET /me/progress/recommendation``, que sigue siendo
+  exclusiva del empleado.
 """
 
 from fastapi import APIRouter, Depends, Query, status
@@ -26,12 +33,15 @@ from app.schemas.empleado import (
     EstadoEmpleadoIn,
 )
 from app.schemas.evaluacion import NineBoxDTO
+from app.schemas.recomendacion_ia import RecomendacionIAOut
 from app.schemas.resultado_actual import ResultadoActualDTO
 from app.services import (
     empleado_service,
     nine_box_service,
     resultado_actual_service,
 )
+from app.services.ai.ai_orchestrator import construir_orchestrator
+from app.services.recomendacion_service import RecommendationService
 
 router = APIRouter(
     prefix="/rh/employees", tags=["rh-empleados"], dependencies=[Depends(require_rh)]
@@ -122,6 +132,29 @@ def consultar_nine_box_actual(
     - Empleado inexistente ⇒ 404 (mismo comportamiento que ``/result``).
     """
     return nine_box_service.obtener_nine_box_actual(db, empleado_id)
+
+
+@router.get("/{empleado_id}/recommendation", response_model=RecomendacionIAOut)
+def consultar_recomendacion(
+    empleado_id: int, db: Session = Depends(get_db)
+) -> RecomendacionIAOut:
+    """Sugerencia de desarrollo con IA del empleado indicado (RH, ET §31.1,
+    PRD v1.4 §20.2.1).
+
+    - Ruta separada de ``GET /me/progress/recommendation`` (exclusiva del
+      empleado): aquí el ``empleado_id`` viene del path y la autorización
+      es ``require_rh`` (401 sin token, 403 Empleado).
+    - Misma elegibilidad que el perfil RH y ``/result``: sin restricción
+      exclusiva por estado activo; inexistente ⇒ 404.
+    - Reutiliza ``RecommendationService`` + ``AIOrchestrator`` + DTO
+      existentes: el ``empleado_id`` NUNCA se envía al LLM (contexto
+      mínimo, PRD §18). IA no disponible ⇒ 200 con
+      ``recomendacion_ia: null``. Cero persistencia: sin tabla, sin
+      caché, sin historial, sin auditoría.
+    """
+    return RecommendationService(db).obtener(
+        empleado_id, construir_orchestrator()
+    )
 
 
 @router.patch("/{empleado_id}", response_model=EmpleadoOut)
