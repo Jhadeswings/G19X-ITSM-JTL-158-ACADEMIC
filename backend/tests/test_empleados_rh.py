@@ -14,6 +14,7 @@ from tests.helpers import (
     URL_RH_EMPLEADOS,
     cabecera,
     correos_a,
+    crear_empleado,
     login_y_token,
     secreto_de_correo,
 )
@@ -566,3 +567,260 @@ class TestIDORBasico:
 
     def test_sin_token_rechazado(self, client):
         assert client.get(URL_RH_EMPLEADOS).status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Filtros por competencia y nivel (DECISIONES_TECNICAS §54, fase 1 backend).
+#
+# Sembrado determinista sobre LIDERAZGO (indicadores booleanos): con 3
+# participaciones en proyectos COMPLETADO, verdaderos=3 → nivel 5; 2 → 4;
+# 1 → 2; 0 → 1 (porcentajes 100/67/33/0, ET §15). Nivel 3 se siembra con 4
+# participaciones × 2 verdaderos (50%). Menos de 3 participaciones ⇒
+# INSUFFICIENT_DATA (mínimo de evidencia del motor).
+# ---------------------------------------------------------------------------
+
+from datetime import date as _date  # noqa: E402
+
+from app.models.participacion import Participacion as _Participacion  # noqa: E402
+from app.models.proyecto import Proyecto as _Proyecto  # noqa: E402
+from sqlalchemy import func as _func  # noqa: E402
+
+from app.core.db import Base as _Base  # noqa: E402
+
+
+def _sembrar(
+    db,
+    nombre,
+    *,
+    verdaderos=3,
+    participaciones=3,
+    activo=True,
+    area=None,
+    puesto=None,
+):
+    """Empleado con participaciones COMPLETAD y ``verdaderos`` flags en
+    liderazgo/trabajo en equipo/comunicación (mismos valores)."""
+    empleado = crear_empleado(db, nombre=nombre, puesto=puesto, area=area)
+    empleado.activo = activo
+    for i in range(participaciones):
+        proyecto = _Proyecto(
+            nombre=f"{nombre}-{empleado.id}-P{i}",
+            nombre_normalizado=f"{nombre.lower()}-{empleado.id}-p{i}",
+            estado="COMPLETADO",
+        )
+        db.add(proyecto)
+        db.flush()
+        db.add(
+            _Participacion(
+                empleado_id=empleado.id,
+                proyecto_id=proyecto.id,
+                rol="QA",
+                en_equipo=i < verdaderos,
+                coordino_tareas=i < verdaderos,
+                explico_a_publico_distinto=i < verdaderos,
+                horas=10,
+                fecha_registro=_date(2026, 1, 15),
+            )
+        )
+    db.commit()
+    return empleado
+
+
+def _listar(client, token, **params):
+    return client.get(URL_RH_EMPLEADOS, params=params, headers=cabecera(token))
+
+
+class TestFiltrosCompetenciaNivel:
+    def test_sin_criterio_nivel_el_listado_conserva_el_comportamiento(
+        self, client, token_rh, db
+    ):
+        _sembrar(db, "Nivel Cinco", verdaderos=3)
+        crear_empleado(db, nombre="Sin Evidencia")
+
+        # Sin parámetros nuevos y con competencia SOLA (sin nivel/DI): el
+        # resultado es el listado actual, sin filtro (§54, regla 1).
+        base = _listar(client, token_rh)
+        con_competencia = _listar(client, token_rh, competencia="liderazgo")
+
+        assert base.status_code == 200 and con_competencia.status_code == 200
+        assert base.json()["total"] == con_competencia.json()["total"]
+        assert [i["id"] for i in base.json()["items"]] == [
+            i["id"] for i in con_competencia.json()["items"]
+        ]
+
+    def test_nivel_min_es_inclusivo(self, client, token_rh, db):
+        _sembrar(db, "Nivel Cinco", verdaderos=3)
+        _sembrar(db, "Nivel Cuatro", verdaderos=2)
+        _sembrar(db, "Nivel Tres", verdaderos=2, participaciones=4)
+        _sembrar(db, "Nivel Dos", verdaderos=1)
+        _sembrar(db, "Nivel Uno", verdaderos=0)
+
+        respuesta = _listar(
+            client, token_rh, competencia="liderazgo", nivel_min=3
+        )
+
+        assert respuesta.status_code == 200
+        nombres = {i["nombre"] for i in respuesta.json()["items"]}
+        assert nombres == {"Nivel Cinco", "Nivel Cuatro", "Nivel Tres"}
+
+    def test_datos_insuficientes_no_satisface_ningun_nivel(
+        self, client, token_rh, db
+    ):
+        _sembrar(db, "Nivel Uno", verdaderos=0)
+        _sembrar(db, "Sin Evidencia", participaciones=2)
+
+        respuesta = _listar(
+            client, token_rh, competencia="liderazgo", nivel_min=1
+        )
+
+        nombres = {i["nombre"] for i in respuesta.json()["items"]}
+        assert nombres == {"Nivel Uno"}
+
+    def test_solo_di_devuelve_exactamente_los_di(self, client, token_rh, db):
+        _sembrar(db, "Nivel Cinco", verdaderos=3)
+        _sembrar(db, "Sin Evidencia", participaciones=2)
+        _sembrar(db, "Otro Sin Evidencia", participaciones=0)
+
+        respuesta = _listar(client, token_rh, competencia="liderazgo", solo_di=True)
+
+        assert respuesta.status_code == 200
+        nombres = {i["nombre"] for i in respuesta.json()["items"]}
+        assert nombres == {"Sin Evidencia", "Otro Sin Evidencia"}
+
+    def test_el_filtro_aplica_a_activos_e_inactivos(self, client, token_rh, db):
+        _sembrar(db, "Activo Cuatro", verdaderos=2)
+        _sembrar(db, "Inactivo Cuatro", verdaderos=2, activo=False)
+        _sembrar(db, "Activo Uno", verdaderos=0)
+
+        # Sin filtro de estado: ambos (H3-D).
+        ambos = _listar(client, token_rh, competencia="liderazgo", nivel_min=4)
+        assert {i["nombre"] for i in ambos.json()["items"]} == {
+            "Activo Cuatro",
+            "Inactivo Cuatro",
+        }
+
+        # El filtro de estado existente se combina con AND.
+        activos = _listar(
+            client, token_rh, competencia="liderazgo", nivel_min=4, activo=True
+        )
+        inactivos = _listar(
+            client, token_rh, competencia="liderazgo", nivel_min=4, activo=False
+        )
+        assert {i["nombre"] for i in activos.json()["items"]} == {"Activo Cuatro"}
+        assert {i["nombre"] for i in inactivos.json()["items"]} == {
+            "Inactivo Cuatro"
+        }
+
+    def test_composicion_and_con_busqueda_area_y_estado(
+        self, client, token_rh, db
+    ):
+        _sembrar(db, "Ana Garcia", verdaderos=2, area="TI")
+        _sembrar(db, "Ana Lopez", verdaderos=2, area="Ventas")
+        _sembrar(db, "Bruno Garcia", verdaderos=2, area="TI")
+        _sembrar(db, "Ana Garcia Inactiva", verdaderos=2, area="TI", activo=False)
+        _sembrar(db, "Ana Garcia Baja", verdaderos=0, area="TI")
+
+        respuesta = _listar(
+            client,
+            token_rh,
+            q="Ana Garcia",
+            area="TI",
+            activo=True,
+            competencia="liderazgo",
+            nivel_min=4,
+        )
+
+        assert respuesta.status_code == 200
+        nombres = [i["nombre"] for i in respuesta.json()["items"]]
+        assert nombres == ["Ana Garcia"]
+        assert respuesta.json()["total"] == 1
+
+    def test_total_y_paginacion_reflejan_el_conjunto_filtrado(
+        self, client, token_rh, db
+    ):
+        # Cinco empleados pasan nivel_min=1 (niveles 5,4,3,2,1) y uno no (DI).
+        _sembrar(db, "Pagina Cinco", verdaderos=3)
+        _sembrar(db, "Pagina Cuatro", verdaderos=2)
+        _sembrar(db, "Pagina Tres", verdaderos=2, participaciones=4)
+        _sembrar(db, "Pagina Dos", verdaderos=1)
+        _sembrar(db, "Pagina Uno", verdaderos=0)
+        _sembrar(db, "Pagina DI", participaciones=2)
+
+        vistos = []
+        for pagina in (1, 2, 3):
+            respuesta = _listar(
+                client,
+                token_rh,
+                competencia="liderazgo",
+                nivel_min=1,
+                por_pagina=2,
+                pagina=pagina,
+            )
+            cuerpo = respuesta.json()
+            assert cuerpo["total"] == 5
+            esperados = (2, 2, 1)[pagina - 1]
+            assert len(cuerpo["items"]) == esperados
+            vistos.extend(i["id"] for i in cuerpo["items"])
+
+        # Sin omisiones ni duplicados: la paginación ocurre DESPUÉS del filtro.
+        assert len(vistos) == len(set(vistos)) == 5
+
+    def test_competencia_invalida_rechazada(self, client, token_rh):
+        respuesta = _listar(
+            client, token_rh, competencia="innovacion", nivel_min=3
+        )
+        assert respuesta.status_code == 422
+
+    @pytest.mark.parametrize("nivel", [0, 6])
+    def test_nivel_fuera_de_rango_rechazado(self, client, token_rh, nivel):
+        respuesta = _listar(
+            client, token_rh, competencia="liderazgo", nivel_min=nivel
+        )
+        assert respuesta.status_code == 422
+
+    def test_nivel_sin_competencia_rechazado(self, client, token_rh):
+        assert _listar(client, token_rh, nivel_min=3).status_code == 422
+
+    def test_solo_di_sin_competencia_rechazado(self, client, token_rh):
+        assert _listar(client, token_rh, solo_di=True).status_code == 422
+
+    def test_nivel_y_solo_di_son_excluyentes(self, client, token_rh):
+        respuesta = _listar(
+            client, token_rh, competencia="liderazgo", nivel_min=3, solo_di=True
+        )
+        assert respuesta.status_code == 422
+
+    def test_autorizacion_con_filtros(self, client, token_empleado):
+        filtros = {"competencia": "liderazgo", "nivel_min": 3}
+        assert (
+            client.get(URL_RH_EMPLEADOS, params=filtros).status_code == 401
+        )
+        assert (
+            client.get(
+                URL_RH_EMPLEADOS,
+                params=filtros,
+                headers=cabecera(token_empleado),
+            ).status_code
+            == 403
+        )
+
+    def test_filtrar_no_escribe_nada(self, client, token_rh, db):
+        _sembrar(db, "Persistencia Cinco", verdaderos=3)
+        _sembrar(db, "Persistencia DI", participaciones=2)
+
+        def _row_counts():
+            return {
+                tabla.name: db.scalar(select(_func.count()).select_from(tabla))
+                for tabla in _Base.metadata.sorted_tables
+            }
+
+        antes = _row_counts()
+        _listar(client, token_rh, competencia="liderazgo", nivel_min=4)
+        _listar(client, token_rh, competencia="liderazgo", solo_di=True)
+        _listar(
+            client, token_rh, q="Persistencia", competencia="liderazgo",
+            nivel_min=1, activo=True,
+        )
+        despues = _row_counts()
+
+        assert antes == despues

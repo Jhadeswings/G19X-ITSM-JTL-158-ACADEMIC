@@ -25,8 +25,10 @@ from app.core.security import hash_password, validar_politica_password
 from app.models.cuenta_acceso import CuentaAcceso
 from app.models.empleado import Empleado
 from app.schemas.empleado import EmpleadoCreateIn, EmpleadoUpdateIn
+from app.schemas.resultado_actual import ClaveCompetencia, EstadoCompetencia
 from app.services import correo_service
 from app.services.auth_service import normalizar_email
+from app.services.competency_engine import CompetencyEngine
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +179,9 @@ def listar_empleados(
     activo: bool | None = None,
     area: str | None = None,
     q: str | None = None,
+    competencia: ClaveCompetencia | None = None,
+    nivel_min: int | None = None,
+    solo_di: bool = False,
 ) -> tuple[list[Empleado], int]:
     """Lista paginada de empleados (§40: paginar listas RH, no cargar todo).
 
@@ -186,6 +191,15 @@ def listar_empleados(
     de área. El acento sigue siendo significativo (sin ``unaccent``), igual
     que en ``area``. ``area`` conserva su semántica EXACTA: son conceptos
     distintos y componen con AND.
+
+    Filtros por competencia y nivel (DECISIONES §54): ``competencia`` del
+    catálogo cerrado, ``nivel_min`` inclusivo 1–5 y ``solo_di`` como estado
+    independiente. Solo se aplican cuando hay criterio de nivel/DI: primero
+    los filtros SQL existentes (q/área/estado), después el resultado actual
+    en memoria (``CompetencyEngine``, sin duplicar fórmulas ni persistir
+    nada) y AL FINAL el total y la paginación sobre el conjunto filtrado.
+    Sin criterio de nivel/DI el camino queda INTACTO: SQL puro con count y
+    offset/limit, sin trabajo extra para las consultas existentes.
     """
     por_pagina = min(max(por_pagina, 1), MAX_POR_PAGINA)
     pagina = max(pagina, 1)
@@ -213,16 +227,62 @@ def listar_empleados(
     consulta = select(Empleado).options(joinedload(Empleado.cuenta))
     if filtros:
         consulta = consulta.where(*filtros)
-    total = db.scalar(
-        select(func.count()).select_from(Empleado).where(*filtros) if filtros
-        else select(func.count()).select_from(Empleado)
+
+    # §54: sin criterio de nivel/DI no hay trabajo extra. El camino actual
+    # (count SQL + offset/limit) se conserva exactamente igual: una
+    # ``competencia`` enviada sola no filtra (regla de interacción 1).
+    hay_criterio_nivel = competencia is not None and (
+        nivel_min is not None or solo_di
     )
-    empleados = db.scalars(
-        consulta.order_by(Empleado.id)
-        .offset((pagina - 1) * por_pagina)
-        .limit(por_pagina)
-    ).unique().all()
-    return list(empleados), int(total or 0)
+    if not hay_criterio_nivel:
+        total = db.scalar(
+            select(func.count()).select_from(Empleado).where(*filtros) if filtros
+            else select(func.count()).select_from(Empleado)
+        )
+        empleados = db.scalars(
+            consulta.order_by(Empleado.id)
+            .offset((pagina - 1) * por_pagina)
+            .limit(por_pagina)
+        ).unique().all()
+        return list(empleados), int(total or 0)
+
+    # Filtro por competencia/nivel (§54). Orden EXACTO del pipeline:
+    # (1) SQL con q/área/estado y el orden del listado (``Empleado.id``),
+    #     sin paginar y sin N+1 (``joinedload`` trae la cuenta);
+    # (2) resultado actual en memoria por candidato con UNA instancia de
+    #     ``CompetencyEngine`` (fórmulas reutilizadas, nada persistido);
+    # (3) total y paginación SOBRE el conjunto final: nunca se pagina antes
+    #     del filtro, o los totales y páginas serían incorrectos.
+    candidatos = db.scalars(consulta.order_by(Empleado.id)).unique().all()
+    motor = CompetencyEngine(db)
+    filtrados: list[Empleado] = []
+    for empleado in candidatos:
+        actual = motor.calculate(empleado.id)
+        competencia_dto = next(
+            (c for c in actual.competencias if c.clave == competencia), None
+        )
+        if competencia_dto is None:
+            continue
+        if solo_di:
+            # §54 H3-C: DI es un ESTADO, no un nivel (nunca 0 ni numérico).
+            cumple = (
+                competencia_dto.estado == EstadoCompetencia.INSUFFICIENT_DATA
+                and competencia_dto.nivel is None
+            )
+        else:
+            # §54 H3-A: nivel mínimo INCLUSIVO sobre resultado calculable;
+            # DI no satisface ningún mínimo numérico (H3-C).
+            cumple = (
+                competencia_dto.estado == EstadoCompetencia.CALCULABLE
+                and competencia_dto.nivel is not None
+                and competencia_dto.nivel >= nivel_min
+            )
+        if cumple:
+            filtrados.append(empleado)
+
+    total = len(filtrados)
+    inicio = (pagina - 1) * por_pagina
+    return filtrados[inicio : inicio + por_pagina], total
 
 
 def actualizar_empleado(

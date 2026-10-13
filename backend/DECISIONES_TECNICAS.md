@@ -946,9 +946,15 @@ manual).
   empleado candidato) al filtrar conjuntos grandes (ET §40).
 - Sin persistencia, sin migraciones, sin puntuaciones globales, sin
   rankings y sin cambios al contrato de evaluaciones históricas.
-- Los parámetros o esquemas concretos de la API se definirán durante la
-  implementación tras revisar el contrato real de `GET /rh/employees`;
-  esta decisión funcional NO fija nombres de parámetros.
+- Nombres finales de los parámetros de `GET /rh/employees` (fase 1,
+  backend): `competencia` (código oficial del catálogo cerrado de las
+  cinco), `nivel_min` (entero 1–5, inclusivo) y `solo_di` (booleano;
+  `false` o ausente = filtro DI no solicitado). FastAPI rechaza con 422
+  una competencia fuera del catálogo y un nivel fuera de 1–5; el endpoint
+  rechaza además con 422 `nivel_min` o `solo_di=true` sin `competencia`,
+  y su combinación simultánea. Una `competencia` enviada SIN criterio de
+  nivel/DI no filtra: el listado conserva el comportamiento actual
+  (regla de interacción 1).
 
 ### Criterios de aceptación (verificables en la futura implementación)
 

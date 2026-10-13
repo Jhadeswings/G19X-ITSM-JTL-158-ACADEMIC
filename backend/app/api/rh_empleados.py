@@ -19,7 +19,7 @@ Un Empleado no puede gestionar empleados (403).
   exclusiva del empleado.
 """
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_rh
@@ -34,7 +34,7 @@ from app.schemas.empleado import (
 )
 from app.schemas.evaluacion import NineBoxDTO
 from app.schemas.recomendacion_ia import RecomendacionIAOut
-from app.schemas.resultado_actual import ResultadoActualDTO
+from app.schemas.resultado_actual import ClaveCompetencia, ResultadoActualDTO
 from app.services import (
     empleado_service,
     nine_box_service,
@@ -70,15 +70,55 @@ def listar_empleados(
     activo: bool | None = Query(None),
     area: str | None = Query(None),
     q: str | None = Query(None, max_length=100),
+    competencia: ClaveCompetencia | None = Query(
+        None, description="Competencia del catálogo cerrado (DECISIONES §54)."
+    ),
+    nivel_min: int | None = Query(
+        None, ge=1, le=5, description="Nivel mínimo inclusivo (§54 H3-A)."
+    ),
+    solo_di: bool = Query(
+        False, description="Solo empleados con Datos insuficientes (§54 H3-C)."
+    ),
     db: Session = Depends(get_db),
 ) -> EmpleadoPageOut:
     """Lista administrativa paginada de empleados.
 
     ``q`` busca por nombre/puesto (PRD §20.1, coincidencia parcial en
     backend); ``area`` sigue siendo coincidencia EXACTA normalizada.
+
+    Filtros por competencia y nivel (DECISIONES §54): ``competencia`` +
+    ``nivel_min`` (inclusivo) o ``competencia`` + ``solo_di`` (estado DI
+    real). Son excluyentes entre sí y dependen de ``competencia`` (422 en
+    caso contrario); FastAPI rechaza con 422 una competencia fuera del
+    catálogo y un nivel fuera de 1–5. Una ``competencia`` sin criterio de
+    nivel/DI no filtra: el listado conserva el comportamiento actual.
     """
+    if competencia is None and (nivel_min is not None or solo_di):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "El filtro de nivel o de Datos insuficientes requiere "
+                "seleccionar una competencia."
+            ),
+        )
+    if solo_di and nivel_min is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "nivel_min y solo_di son excluyentes: Datos insuficientes "
+                "no es un nivel."
+            ),
+        )
     empleados, total = empleado_service.listar_empleados(
-        db, pagina=pagina, por_pagina=por_pagina, activo=activo, area=area, q=q
+        db,
+        pagina=pagina,
+        por_pagina=por_pagina,
+        activo=activo,
+        area=area,
+        q=q,
+        competencia=competencia,
+        nivel_min=nivel_min,
+        solo_di=solo_di,
     )
     return EmpleadoPageOut(
         total=total,
