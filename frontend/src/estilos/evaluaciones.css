@@ -15,6 +15,11 @@
 .evaluaciones-generacion__nota { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
 .evaluaciones-generacion .ui-alert { width: 100%; }
 
+/* Confirmación EN LÍNEA antes de generar (SG §26): sin modal; explica que la
+   fotografía será histórica e inmutable y ofrece confirmar o cancelar. */
+.evaluaciones-confirmacion__texto { margin: 0 0 12px; }
+.evaluaciones-confirmacion__acciones { display: flex; flex-wrap: wrap; gap: 10px; }
+
 /* --- Historial ---------------------------------------------------------- */
 .evaluaciones-historial { display: flex; flex-direction: column; gap: 14px; }
 .evaluaciones-historial h2 { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
@@ -54,6 +59,8 @@
 /* Adaptación a pantallas estrechas (§7): sin overflow horizontal. */
 @media (max-width: 760px) {
   .evaluaciones-generacion { padding: 18px; }
+  .evaluaciones-confirmacion__acciones { width: 100%; }
+  .evaluaciones-confirmacion__acciones .ui-button { flex: 1 1 auto; }
   .evaluaciones-filtro__campo { width: 100%; min-width: 0; }
   .evaluaciones-filtro .ui-button { flex: 1 1 auto; }
   .evaluaciones-item { padding: 16px; }

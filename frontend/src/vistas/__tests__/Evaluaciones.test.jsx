@@ -3,6 +3,8 @@
 //
 // Qué se verifica aquí y NO debe romperse con cambios de diseño:
 // - render inicial, carga, vacío, error con reintento y datos válidos;
+// - confirmación previa EN LÍNEA (SG §26): primer clic sin API, cancelar
+//   sin generar, confirmar UNA sola vez y texto histórico/inmutable;
 // - generación del periodo vigente (éxito, cero generadas y 409);
 // - historial paginado con filtro de periodo del contrato;
 // - 401 → alSesionExpirada en lectura y en generación;
@@ -14,7 +16,7 @@
 //   del snapshot —jamás del empleado actual ni del ID técnico— y explicación
 //   de "9-Box: Datos insuficientes" con las reglas oficiales del backend.
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   POR_PAGINA_DEFECTO,
@@ -110,6 +112,18 @@ async function esperarListado() {
         document.querySelector('.evaluaciones-item'),
     ).toBeTruthy(),
   )
+}
+
+/**
+ * Recorre el flujo obligatorio de generación (SG §26): el primer clic solo
+ * abre la confirmación en línea y la petición SOLO empieza con «Confirmar
+ * generación».
+ */
+function abrirYConfirmar() {
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmar generación' }))
 }
 
 
@@ -254,9 +268,7 @@ describe('Evaluaciones — generación del periodo vigente', () => {
     render(<Evaluaciones token="token-rh" />)
     await esperarListado()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
-    )
+    abrirYConfirmar()
 
     expect(await screen.findByText('Evaluaciones generadas')).toBeInTheDocument()
     expect(generarEvaluaciones).toHaveBeenCalledTimes(1)
@@ -277,9 +289,7 @@ describe('Evaluaciones — generación del periodo vigente', () => {
     render(<Evaluaciones token="token-rh" />)
     await esperarListado()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
-    )
+    abrirYConfirmar()
 
     expect(
       await screen.findByText(/no tiene empleados activos/i),
@@ -296,9 +306,7 @@ describe('Evaluaciones — generación del periodo vigente', () => {
     render(<Evaluaciones token="token-rh" />)
     await esperarListado()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
-    )
+    abrirYConfirmar()
 
     expect(await screen.findByText('El periodo ya fue generado')).toBeInTheDocument()
     expect(
@@ -315,13 +323,112 @@ describe('Evaluaciones — generación del periodo vigente', () => {
     render(<Evaluaciones token="token-rh" />)
     await esperarListado()
 
+    abrirYConfirmar()
+
+    expect(
+      await screen.findByText('No pudimos generar las evaluaciones'),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('Evaluaciones — confirmación previa a la generación (SG §26)', () => {
+  it('el primer clic solo muestra la confirmación y NO llama a la API', async () => {
+    render(<Evaluaciones token="token-rh" />)
+    await esperarListado()
+
     fireEvent.click(
       screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
     )
 
     expect(
-      await screen.findByText('No pudimos generar las evaluaciones'),
+      screen.getByText('¿Generar las evaluaciones del periodo vigente?'),
     ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirmar generación' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+    // Sin confirmar NO existe ninguna petición de generación.
+    expect(generarEvaluaciones).not.toHaveBeenCalled()
+  })
+
+  it('la confirmación explica que la fotografía será histórica e inmutable', async () => {
+    render(<Evaluaciones token="token-rh" />)
+    await esperarListado()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
+    )
+
+    expect(
+      screen.getByText(/fotografía histórica e inmutable/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/no podrá editarse ni eliminarse/),
+    ).toBeInTheDocument()
+    expect(generarEvaluaciones).not.toHaveBeenCalled()
+  })
+
+  it('cancelar cierra la confirmación sin generar nada', async () => {
+    render(<Evaluaciones token="token-rh" />)
+    await esperarListado()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(
+      screen.queryByText('¿Generar las evaluaciones del periodo vigente?'),
+    ).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Confirmar generación' })).toBeNull()
+    expect(generarEvaluaciones).not.toHaveBeenCalled()
+    // La acción principal vuelve a estar disponible, sin haber generado.
+    expect(
+      screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
+    ).toBeInTheDocument()
+  })
+
+  it('confirmar llama a la API UNA sola vez con el token', async () => {
+    vi.mocked(generarEvaluaciones).mockResolvedValue({
+      periodo: '2026-Q3',
+      total_generadas: 12,
+      items: [],
+    })
+    render(<Evaluaciones token="token-rh" />)
+    await esperarListado()
+
+    abrirYConfirmar()
+
+    expect(await screen.findByText('Evaluaciones generadas')).toBeInTheDocument()
+    expect(generarEvaluaciones).toHaveBeenCalledTimes(1)
+    expect(generarEvaluaciones).toHaveBeenCalledWith('token-rh')
+  })
+
+  it('durante la generación no se disparan peticiones duplicadas', async () => {
+    let finalizar = () => {}
+    vi.mocked(generarEvaluaciones).mockReturnValue(
+      new Promise((resolver) => {
+        finalizar = () =>
+          resolver({ periodo: '2026-Q3', total_generadas: 1, items: [] })
+      }),
+    )
+    render(<Evaluaciones token="token-rh" />)
+    await esperarListado()
+
+    abrirYConfirmar()
+
+    // Estado de carga: el botón queda ocupado y la confirmación desaparece.
+    const enCurso = screen.getByRole('button', { name: 'Generando evaluaciones…' })
+    expect(enCurso).toBeDisabled()
+    expect(enCurso).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByRole('button', { name: 'Confirmar generación' })).toBeNull()
+
+    fireEvent.click(enCurso)
+    expect(generarEvaluaciones).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      finalizar()
+    })
+    expect(await screen.findByText('Evaluaciones generadas')).toBeInTheDocument()
+    expect(generarEvaluaciones).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -456,9 +563,7 @@ describe('Evaluaciones — 401 delega en alSesionExpirada (§31/§32)', () => {
     render(<Evaluaciones token="token-rh" alSesionExpirada={alSesionExpirada} />)
     await esperarListado()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Generar evaluaciones del periodo vigente' }),
-    )
+    abrirYConfirmar()
 
     await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('No pudimos generar las evaluaciones')).toBeNull()

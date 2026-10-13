@@ -9,7 +9,12 @@
 //   America/Mexico_City (ET §22, DECISIONES §31). Aquí no se calcula el
 //   trimestre en React ni se envía ningún periodo al generar: la respuesta de
 //   `POST /rh/evaluations/generate` trae el `periodo` oficial y se presenta.
-// - Generación: única acción de la vista. 201/200 con `total_generadas`
+// - Generación: única acción de la vista, SIEMPRE precedida de una
+//   confirmación EN LÍNEA (Style Guide §26): el primer clic NO llama a la
+//   API; solo «Confirmar generación» dispara el POST y «Cancelar» cierra
+//   sin generar nada. La confirmación explica que la fotografía será
+//   histórica e inmutable y que no podrá editarse ni eliminarse.
+//   201/200 con `total_generadas`
 //   (0 = sin empleados activos, no se inventa nada); 409 = periodo ya
 //   generado (DECISIONES §34). Tras un éxito se recarga el historial.
 // - Fotografía histórica / Historial: `GET /rh/evaluations` paginado con el
@@ -34,7 +39,7 @@
 // (ET §31/§32, patrón de las demás vistas RH). El frontend no decide
 // permisos: `require_rh` lo aplica el backend en cada petición.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   PATRON_PERIODO,
   POR_PAGINA_DEFECTO,
@@ -146,12 +151,16 @@ export default function Evaluaciones({ token, alSesionExpirada }) {
   const [periodoAplicado, setPeriodoAplicado] = useState(null)
   const [periodoInvalido, setPeriodoInvalido] = useState(false)
   const [consulta, setConsulta] = useState(consultaInicial)
-  // Generación: 'inactiva' | 'generando' | 'resultado' | 'conflicto' | 'error'.
+  // Generación: 'inactiva' | 'confirmacion' | 'generando' | 'resultado' |
+  // 'conflicto' | 'error'. 'confirmacion' es la pausa EN LÍNEA (SG §26)
+  // previa a cualquier petición: sin ella no se toca el backend.
   const [generacion, setGeneracion] = useState({
     fase: 'inactiva',
     datos: null,
     error: null,
   })
+  // Guardia de unicidad: SOLO un POST en vuelo, aunque se pulse dos veces.
+  const generandoRef = useRef(false)
 
   const cargar = useCallback(() => {
     setConsulta(consultaInicial())
@@ -178,10 +187,32 @@ export default function Evaluaciones({ token, alSesionExpirada }) {
   }, [cargar])
 
   /**
-   * Genera el periodo vigente. El backend resuelve y devuelve el periodo:
-   * aquí solo se presenta la respuesta oficial del DTO.
+   * Primer paso (SG §26): SOLO abre la confirmación en línea. Aquí NO se
+   * ejecuta ninguna petición de generación; el POST ocurre únicamente si RH
+   * pulsa «Confirmar generación» (ver `generar`).
+   */
+  const solicitarGeneracion = useCallback(() => {
+    setGeneracion((actual) =>
+      actual.fase === 'generando'
+        ? actual
+        : { fase: 'confirmacion', datos: null, error: null },
+    )
+  }, [])
+
+  /** Cierra la confirmación en línea sin generar nada. */
+  const cancelarGeneracion = useCallback(() => {
+    setGeneracion({ fase: 'inactiva', datos: null, error: null })
+  }, [])
+
+  /**
+   * Genera el periodo vigente. ÚNICO punto que dispara el POST y solo desde
+   * «Confirmar generación». El backend resuelve y devuelve el periodo: aquí
+   * solo se presenta la respuesta oficial del DTO. La guardia de `generandoRef`
+   * evita solicitudes duplicadas mientras la petición está en curso.
    */
   const generar = useCallback(() => {
+    if (generandoRef.current) return
+    generandoRef.current = true
     setGeneracion({ fase: 'generando', datos: null, error: null })
     generarEvaluaciones(token)
       .then((datos) => {
@@ -200,6 +231,9 @@ export default function Evaluaciones({ token, alSesionExpirada }) {
           return
         }
         setGeneracion({ fase: 'error', datos: null, error })
+      })
+      .finally(() => {
+        generandoRef.current = false
       })
   }, [token, cargar, alSesionExpirada])
 
@@ -250,15 +284,38 @@ export default function Evaluaciones({ token, alSesionExpirada }) {
           activos. Cada fotografía queda guardada y no vuelve a calcularse.
         </p>
 
-        <Button
-          onClick={generar}
-          loading={generacion.fase === 'generando'}
-          disabled={generacion.fase === 'generando'}
-        >
-          {generacion.fase === 'generando'
-            ? 'Generando evaluaciones…'
-            : 'Generar evaluaciones del periodo vigente'}
-        </Button>
+        {/* Confirmación EN LÍNEA antes de generar (SG §26): sin modal. Explica
+            que la fotografía será histórica e inmutable y solo entonces —con
+            «Confirmar generación»— se dispara la petición. «Cancelar» cierra
+            sin generar nada. */}
+        {generacion.fase === 'confirmacion' ? (
+          <Alert
+            tone="info"
+            title="¿Generar las evaluaciones del periodo vigente?"
+          >
+            <p className="evaluaciones-confirmacion__texto">
+              Se creará una fotografía histórica e inmutable de todos los
+              empleados activos del periodo vigente. Una vez generada, la
+              fotografía no podrá editarse ni eliminarse.
+            </p>
+            <div className="evaluaciones-confirmacion__acciones">
+              <Button onClick={generar}>Confirmar generación</Button>
+              <Button variant="secondary" onClick={cancelarGeneracion}>
+                Cancelar
+              </Button>
+            </div>
+          </Alert>
+        ) : (
+          <Button
+            onClick={solicitarGeneracion}
+            loading={generacion.fase === 'generando'}
+            disabled={generacion.fase === 'generando'}
+          >
+            {generacion.fase === 'generando'
+              ? 'Generando evaluaciones…'
+              : 'Generar evaluaciones del periodo vigente'}
+          </Button>
+        )}
 
         {generacion.fase === 'resultado' && (
           <Alert tone="success" title="Evaluaciones generadas">
