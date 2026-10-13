@@ -1,5 +1,6 @@
 // Perfil individual RH: información básica + resultado actual + última
-// evaluación + historial (PRD §20.2; Style Guide §6, §7, §10, §26).
+// evaluación + evolución + historial (PRD §20.2; Style Guide §6, §7, §10,
+// §19 Timeline/Evolución, §26).
 //
 // Subvista interna de la sección Empleados, con el mismo patrón listado ↕
 // alta: sin ruta nueva ni router. Usa EXCLUSIVAMENTE endpoints existentes:
@@ -16,12 +17,17 @@
 // (snapshot) para distinguirlos visualmente (PRD §9; ET §42). Las
 // competencias y el 9-Box de "Última evaluación" y del historial son los del
 // SNAPSHOT histórico (EvaluacionOut): nunca se recalculan en el frontend ni
-// se sustituyen por el resultado actual. "Fortalezas y oportunidades"
-// (bloque 2A) vive tras el Historial según el orden del PRD §20.2 y presenta
-// SOLO las listas fortalezas/oportunidades del ResultadoActualDTO (reglas
-// §17.4 aplicadas por el backend): aquí no se clasifica nada, no se incluyen
-// niveles ni evidencia y la experiencia nunca participa. Las "Acciones de
-// desarrollo" (IA) quedan diferidas por decisión de producto.
+// se sustituyen por el resultado actual. "Evolución" (SG §19/§26) vive justo
+// tras "Última evaluación" y antes del Historial: reutiliza la página YA
+// cargada del historial (sin consultas nuevas) y presenta UNA competencia a
+// la vez con selector — cada periodo muestra el nivel histórico del snapshot
+// tal cual, sin cálculos, tendencias ni métricas. "Fortalezas y
+// oportunidades" (bloque 2A) vive tras el Historial según el orden del
+// PRD §20.2 y presenta SOLO las listas fortalezas/oportunidades del
+// ResultadoActualDTO (reglas §17.4 aplicadas por el backend): aquí no se
+// clasifica nada, no se incluyen niveles ni evidencia y la experiencia nunca
+// participa. Las "Acciones de desarrollo" (IA) quedan diferidas por decisión
+// de producto.
 
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { obtenerEmpleado, obtenerNineBox, obtenerResultadoActual } from '../api/empleados.js'
@@ -183,6 +189,9 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
   const [evaluacion, setEvaluacion] = useState(consultaInicial)
   const [historial, setHistorial] = useState(consultaInicial)
   const [paginaHistorial, setPaginaHistorial] = useState(1)
+  // Competencia activa en el bloque "Evolución" (UNA a la vez, SG §19).
+  // `null` = primera competencia que traiga el snapshot histórico.
+  const [competenciaEvolucion, setCompetenciaEvolucion] = useState(null)
 
   const cargar = useCallback(() => {
     setConsulta(consultaInicial())
@@ -296,6 +305,20 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
   const { fase, datos, error } = consulta
   const ultima = evaluacion.datos?.items?.[0] ?? null
   const nineBox = ultima?.nine_box ?? null
+
+  // Evolución (PRD §20.2; SG §19): reutiliza la página YA cargada del
+  // historial —misma consulta del bloque siguiente, sin ninguna petición
+  // nueva— y respeta el orden de periodos que decide el backend (DESC). Las
+  // claves de competencia salen del primer snapshot (las cinco del contrato)
+  // y cada fila leerá el nivel de ESE snapshot: aquí no se calcula, no se
+  // reordena ni se deriva nada.
+  const itemsEvolucion =
+    historial.fase === 'listo' ? historial.datos?.items ?? [] : []
+  const clavesEvolucion =
+    itemsEvolucion[0]?.competencias?.map((competencia) => competencia.clave) ?? []
+  const competenciaActiva = clavesEvolucion.includes(competenciaEvolucion)
+    ? competenciaEvolucion
+    : clavesEvolucion[0] ?? null
 
   return (
     <div className="perfil-empleado">
@@ -702,6 +725,76 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
               </>
             )}
           </section>
+
+          {/* Evolución (PRD §20.2 orden: Última evaluación → Evolución →
+              Fortalezas; SG §19 "una competencia a la vez" y Timeline de
+              líneas sutiles, SG §26): selector sobre los snapshots YA
+              cargados del historial —sin consultas nuevas— y UNA fila por
+              periodo con el nivel histórico TAL CUAL del snapshot (o Datos
+              insuficientes). Sin cálculos, sin tendencias, sin porcentajes,
+              sin ejes ni 9-Box. Comparte la consulta del Historial: mientras
+              esa carga o falla, sus estados viven en la tarjeta "Historial de
+              evaluaciones" de abajo. */}
+          {historial.fase === 'listo' && (
+            <section
+              className="perfil-empleado__evolucion"
+              aria-labelledby="perfil-evolucion-titulo"
+            >
+              <h2 id="perfil-evolucion-titulo">Evolución</h2>
+              <p className="perfil-empleado__nota">
+                Nivel de una competencia en cada evaluación oficial, tal como
+                quedó registrado en su periodo: sin recalcular.
+              </p>
+
+              {clavesEvolucion.length === 0 ? (
+                <EstadoVacio
+                  titulo="Todavía no hay evolución que mostrar."
+                  descripcion="Cuando se genere la primera evaluación oficial de este empleado, su evolución por competencia aparecerá aquí."
+                />
+              ) : (
+                <>
+                  <div
+                    className="perfil-evolucion__selector"
+                    role="group"
+                    aria-label="Elegir competencia"
+                  >
+                    {clavesEvolucion.map((clave) => (
+                      <Button
+                        key={clave}
+                        size="small"
+                        variant={
+                          clave === competenciaActiva ? 'primary' : 'secondary'
+                        }
+                        aria-pressed={clave === competenciaActiva}
+                        onClick={() => setCompetenciaEvolucion(clave)}
+                      >
+                        {NOMBRES_COMPETENCIAS[clave] || clave}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <ol className="perfil-evolucion__lista">
+                    {itemsEvolucion.map((entrada) => {
+                      const competencia =
+                        entrada.competencias?.find(
+                          (item) => item.clave === competenciaActiva,
+                        ) ?? { status: DATOS_INSUFICIENTES, nivel: null }
+                      return (
+                        <li key={entrada.id} className="perfil-evolucion__entrada">
+                          <p className="perfil-evolucion__periodo">
+                            {entrada.periodo || SIN_DATO}
+                          </p>
+                          <p className="perfil-evolucion__nivel">
+                            {lecturaCompetencia(competencia)}
+                          </p>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                </>
+              )}
+            </section>
+          )}
 
           {/* Historial de evaluaciones (Style Guide §19 Timeline: líneas y
               elementos sutiles). Presenta los snapshots TAL CUAL llegan; no

@@ -73,6 +73,7 @@
 .perfil-empleado__experiencia,
 .perfil-empleado__ninebox,
 .perfil-empleado__evaluacion,
+.perfil-empleado__evolucion,
 .perfil-empleado__historial,
 .perfil-empleado__categorias { padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
 
@@ -84,6 +85,7 @@
 .perfil-empleado__experiencia > h2,
 .perfil-empleado__ninebox > h2,
 .perfil-empleado__evaluacion > h2,
+.perfil-empleado__evolucion > h2,
 .perfil-empleado__historial > h2,
 .perfil-empleado__categorias > h2 { margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 
@@ -187,6 +189,25 @@
 .perfil-historial__ninebox { margin: 12px 0 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
 .perfil-empleado__historial .paginacion { margin-top: 20px; }
 
+/* Evolución (PRD §20.2; SG §19 "una competencia a la vez" y Timeline): la
+   tarjeta sigue el patrón del perfil; el selector son botones con aria-pressed
+   (misma primitiva ui-button del resto) y la línea de tiempo es UNA fila por
+   periodo con el nivel textual del snapshot. Sin gráficas, sin ejes, sin 9-Box
+   y sin métricas derivadas: punto y línea son decorativos (§19) —el dato real
+   es el texto— y "Datos insuficientes" se distingue por su propio texto (§14). */
+.perfil-empleado__evolucion .estado-vacio { margin: 4px 0; }
+.perfil-evolucion__selector { display: flex; flex-wrap: wrap; gap: 8px; }
+.perfil-evolucion__lista { display: flex; flex-direction: column; gap: 0; margin: 6px 0 0; padding: 0; list-style: none; }
+.perfil-evolucion__entrada { position: relative; display: flex; align-items: baseline; gap: 14px; padding: 12px 0 12px 24px; }
+/* Línea vertical sutil que une los periodos (SG §19 Timeline). */
+.perfil-evolucion__entrada::before { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 1px; background: var(--line-soft); }
+.perfil-evolucion__entrada:first-child::before { top: 50%; }
+.perfil-evolucion__entrada:last-child::before { bottom: 50%; }
+/* Punto del periodo: pequeño y discreto, nunca una barra de valor. */
+.perfil-evolucion__entrada::after { content: ''; position: absolute; left: 0; top: 18px; width: 9px; height: 9px; background: #fff; border: 2px solid var(--color-primary); border-radius: 50%; }
+.perfil-evolucion__periodo { margin: 0; min-width: 88px; color: var(--color-text-primary); font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+.perfil-evolucion__nivel { margin: 0; color: var(--color-text-primary); font-size: 14px; }
+
 /* Fortalezas y oportunidades (PRD §20.2 tras la Evolución; reglas §17.4):
    las listas llegan YA clasificadas por el backend dentro del Resultado
    actual — niveles 4–5 → fortalezas, 1–2 → oportunidades, nivel 3 sin
@@ -228,6 +249,7 @@
   .perfil-competencias > .perfil-competencia:first-child { padding-top: 4px; border-top: 0; }
   .perfil-empleado__lista dd { font-size: 14px; }
   .perfil-empleado__nota { margin-top: 0; }
+  .perfil-evolucion__entrada { flex-direction: column; gap: 2px; }
   .perfil-historial { gap: 14px; }
   .perfil-historial__entrada { padding-left: 20px; }
 }

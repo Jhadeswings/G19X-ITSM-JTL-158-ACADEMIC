@@ -9,6 +9,9 @@
 //   9-Box histórico, DI neutral, sin generado_por_cuenta_id;
 // - historial paginado: timeline con snapshots tal cual, sin deduplicar la
 //   más reciente, paginación del contrato, error/reintento propio;
+// - evolución (PRD §20.2; SG §19/§26): selector de UNA competencia a la vez
+//   sobre el historial ya cargado, niveles históricos tal cual, DI como texto
+//   y estado vacío cuando no hay evaluaciones;
 // - fortalezas y oportunidades (bloque 2A): SOLO las listas del
 //   ResultadoActualDTO tras el Historial, sin derivar nada en el frontend,
 //   respetando Datos insuficientes y la exclusión de la experiencia;
@@ -334,13 +337,14 @@ describe('PerfilEmpleado — información básica', () => {
 
     await screen.findByText('Información básica')
 
-    // Resultado actual, el 9-Box vigente (sección "9-Box") y las categorías
-    // del resultado (sección propia "Fortalezas y oportunidades") son bloques
-    // aprobados; lo que sigue prohibido es adelantar evolución o
-    // recomendación IA (diferidas por decisión de producto). El título del
-    // bloque es "9-Box" (PRD §20.2), nunca "9-Box actual".
+    // Resultado actual, el 9-Box vigente (sección "9-Box"), las categorías
+    // del resultado (sección propia "Fortalezas y oportunidades") y la
+    // Evolución (PRD §20.2; SG §19, ya implementada) son bloques aprobados;
+    // lo que sigue prohibido es adelantar la recomendación IA (diferida por
+    // decisión de producto). El título del bloque es "9-Box" (PRD §20.2),
+    // nunca "9-Box actual".
     await screen.findByText('Fortalezas y oportunidades')
-    expect(screen.queryByText(/evoluci/i)).not.toBeInTheDocument()
+    expect(await screen.findByText('Evolución')).toBeInTheDocument()
     expect(screen.queryByText(/recomendaci/i)).not.toBeInTheDocument()
     expect(screen.queryByText('9-Box actual')).not.toBeInTheDocument()
   })
@@ -623,7 +627,8 @@ describe('PerfilEmpleado — historial de evaluaciones', () => {
       <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
     )
 
-    await screen.findByText('2026-Q2')
+    // El periodo ya aparece en Evolución Y en Historial: se espera por lista.
+    await screen.findAllByText('2026-Q2')
 
     expect(llamadasDe(POR_PAGINA_EVALUACIONES)).toHaveLength(1)
     expect(llamadasDe(POR_PAGINA_EVALUACIONES)[0]).toEqual([
@@ -687,7 +692,8 @@ describe('PerfilEmpleado — historial de evaluaciones', () => {
 
     await screen.findByText('Historial de evaluaciones')
 
-    expect(screen.getAllByText('2026-Q3')).toHaveLength(2)
+    // Tres apariciones por diseño: Última evaluación, Evolución y Historial.
+    expect(screen.getAllByText('2026-Q3')).toHaveLength(3)
   })
 
   it('no muestra generado_por_cuenta_id en las entradas', async () => {
@@ -742,7 +748,7 @@ describe('PerfilEmpleado — historial de evaluaciones', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
 
-    expect(await screen.findByText('2026-Q2')).toBeInTheDocument()
+    expect((await screen.findAllByText('2026-Q2')).length).toBeGreaterThan(0)
     expect(llamadasDe(POR_PAGINA_EVALUACIONES)).toHaveLength(2)
     // El reintento pide la MISMA página actual, no vuelve arbitrariamente a 1.
     expect(llamadasDe(POR_PAGINA_EVALUACIONES)[1][2]).toEqual({
@@ -1823,5 +1829,118 @@ describe('PerfilEmpleado — Fortalezas y oportunidades (bloque 2A, PRD §20.2/�
       await screen.findByText('No pudimos cargar el resultado actual'),
     ).toBeInTheDocument()
     expect(screen.queryByText('Fortalezas y oportunidades')).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Evolución (PRD §20.2: Última evaluación → Evolución → Fortalezas; SG §19
+// "una competencia a la vez" + Timeline, SG §26): selector sobre los
+// snapshots YA cargados del historial. Sin consultas nuevas, sin cálculos y
+// sin métricas derivadas.
+// ---------------------------------------------------------------------------
+describe('PerfilEmpleado — Evolución (PRD §20.2; SG §19/§26)', () => {
+  it('coloca Evolución tras Última evaluación y antes de Fortalezas y oportunidades', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    await esperarTarjeta('Evolución')
+    await screen.findByText('Fortalezas y oportunidades')
+
+    const encabezados = screen.getAllByRole('heading').map((h) => h.textContent)
+    const ultima = encabezados.indexOf('Última evaluación')
+    const evolucion = encabezados.indexOf('Evolución')
+    const historial = encabezados.indexOf('Historial de evaluaciones')
+    const categorias = encabezados.indexOf('Fortalezas y oportunidades')
+
+    expect(evolucion).toBeGreaterThan(ultima)
+    expect(historial).toBeGreaterThan(evolucion)
+    expect(categorias).toBeGreaterThan(historial)
+  })
+
+  it('ofrece el selector con las cinco competencias y UNA activa por defecto', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    const evolucion = await esperarTarjeta('Evolución')
+
+    const selector = evolucion.getByRole('group', { name: 'Elegir competencia' })
+    const botones = within(selector).getAllByRole('button')
+    expect(botones.map((boton) => boton.textContent)).toEqual([
+      'Desempeño técnico',
+      'Liderazgo',
+      'Trabajo en equipo',
+      'Comunicación',
+      'Capacidad de aprendizaje',
+    ])
+    // Solo la primera competencia del snapshot está activa: la vista inicial
+    // NUNCA muestra las cinco a la vez (SG §19 "una competencia por defecto").
+    expect(botones[0]).toHaveAttribute('aria-pressed', 'true')
+    for (const boton of botones.slice(1)) {
+      expect(boton).toHaveAttribute('aria-pressed', 'false')
+    }
+    expect(evolucion.getAllByRole('button', { pressed: true })).toHaveLength(1)
+  })
+
+  it('muestra el nivel histórico de UNA competencia por periodo, sin métricas', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    await esperarTarjeta('Evolución')
+    const seccion = document.querySelector('.perfil-empleado__evolucion')
+
+    // Desempeño técnico (por defecto): una fila por periodo, en el orden
+    // period DESC que decide el backend, con el nivel TAL CUAL del snapshot.
+    const periodos = [...seccion.querySelectorAll('.perfil-evolucion__periodo')].map(
+      (nodo) => nodo.textContent,
+    )
+    const niveles = [...seccion.querySelectorAll('.perfil-evolucion__nivel')].map(
+      (nodo) => nodo.textContent,
+    )
+    expect(periodos).toEqual(['2026-Q2', '2025-Q4'])
+    expect(niveles).toEqual(['Nivel 2', 'Nivel 2'])
+    expect(seccion.querySelectorAll('li')).toHaveLength(2)
+
+    // Sin derivar nada: ni 9-Box ni ejes, ni deltas, tendencias, promedios,
+    // variaciones, porcentajes ni niveles inventados (PRD §5/§14, SG §19).
+    expect(seccion.textContent).not.toMatch(/9-Box/i)
+    expect(seccion.textContent).not.toMatch(
+      /delta|tendencia|promedio|variaci|puntaje|score|ranking|\d+\s*%/i,
+    )
+    expect(seccion.textContent).not.toMatch(/Nivel 0/)
+  })
+
+  it('cambiar de competencia actualiza la línea de tiempo y el estado activo', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    const evolucion = await esperarTarjeta('Evolución')
+
+    fireEvent.click(evolucion.getByRole('button', { name: 'Liderazgo' }))
+
+    // Liderazgo: DI en 2026-Q2 (texto oficial, nunca nivel 0) y Nivel 1 en
+    // 2025-Q4. Los niveles de Desempeño técnico dejan de mostrarse.
+    const seccion = document.querySelector('.perfil-empleado__evolucion')
+    const niveles = [...seccion.querySelectorAll('.perfil-evolucion__nivel')].map(
+      (nodo) => nodo.textContent,
+    )
+    expect(niveles).toEqual(['— Datos insuficientes', 'Nivel 1'])
+    expect(seccion.textContent).not.toMatch(/Nivel 0/)
+    expect(
+      evolucion.getByRole('button', { name: 'Liderazgo' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      evolucion.getByRole('button', { name: 'Desempeño técnico' }),
+    ).toHaveAttribute('aria-pressed', 'false')
+    expect(evolucion.getAllByRole('button', { pressed: true })).toHaveLength(1)
+  })
+
+  it('sin evaluaciones ofrece un estado vacío y no muestra selector ni datos', async () => {
+    respuestaHistorial = () => Promise.resolve(paginaHistorial([], 0))
+
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    const evolucion = await esperarTarjeta('Evolución')
+
+    expect(
+      evolucion.getByText('Todavía no hay evolución que mostrar.'),
+    ).toBeInTheDocument()
+    expect(
+      evolucion.getByText(
+        'Cuando se genere la primera evaluación oficial de este empleado, su evolución por competencia aparecerá aquí.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Elegir competencia' })).toBeNull()
+    expect(evolucion.queryAllByRole('listitem')).toHaveLength(0)
   })
 })
