@@ -15,13 +15,17 @@
 // - fortalezas y oportunidades (bloque 2A): SOLO las listas del
 //   ResultadoActualDTO tras el Historial, sin derivar nada en el frontend,
 //   respetando Datos insuficientes y la exclusión de la experiencia;
+// - acciones de desarrollo (PRD v1.4 §20.2.1; SG v1.2 §26): último bloque,
+//   en reposo y SIN consultas al abrir, consulta única al pulsar «Consultar
+//   sugerencia», estados sugerencia/no disponible/error con reintento y
+//   aislamiento por empleado (una respuesta tardía no cruza al perfil nuevo);
 // - estados vacío/error/401 propios de cada sección, sin romper la básica;
 // - apertura desde una fila sin recargar el catálogo;
 // - volver al listado sin consultas extra.
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listarEmpleados, obtenerEmpleado, obtenerNineBox, obtenerResultadoActual, POR_PAGINA_DEFECTO } from '../../api/empleados.js'
+import { listarEmpleados, obtenerEmpleado, obtenerNineBox, obtenerRecomendacionDesarrollo, obtenerResultadoActual, POR_PAGINA_DEFECTO } from '../../api/empleados.js'
 import {
   listarEvaluacionesEmpleado,
   POR_PAGINA_DEFECTO as POR_PAGINA_EVALUACIONES,
@@ -37,6 +41,7 @@ vi.mock('../../api/empleados.js', async () => {
     crearEmpleado: vi.fn(),
     obtenerEmpleado: vi.fn(),
     obtenerNineBox: vi.fn(),
+    obtenerRecomendacionDesarrollo: vi.fn(),
     obtenerResultadoActual: vi.fn(),
   }
 })
@@ -280,6 +285,28 @@ function nineBoxVigenteDi() {
 
 let respuestaNineBox = () => Promise.resolve(NINE_BOX_VIGENTE)
 
+// Recomendación de desarrollo (RecomendacionIAOut, ET v1.6 §31.1). El bloque
+// presenta SOLO `recomendacion_ia`; `resultado_actual` viaja en la misma
+// respuesta por contrato, pero el perfil ya tiene su propia tarjeta y no debe
+// reemplazarla ni duplicarla.
+const RECOMENDACION_IA = {
+  origen: 'IA',
+  proveedor: 'groq',
+  recommendation:
+    'Practicar la comunicación con públicos distintos puede ayudar a ampliar tu experiencia.',
+  actions: [
+    'Explicar un tema técnico a un público distinto en tu próximo proyecto.',
+    'Pedir retroalimentación sobre una presentación reciente.',
+  ],
+}
+
+/** RecomendacionIAOut fiel al contrato: bloque A intacto + bloque B de IA. */
+function respuestaRecomendacionIA(recomendacion_ia = RECOMENDACION_IA) {
+  return { resultado_actual: RESULTADO_ACTUAL, recomendacion_ia }
+}
+
+let respuestaRecomendacion = () => Promise.resolve(respuestaRecomendacionIA())
+
 beforeEach(() => {
   respuestaUltima = () => Promise.resolve(paginaEvaluacion())
   respuestaHistorial = () => Promise.resolve(paginaHistorial())
@@ -291,6 +318,11 @@ beforeEach(() => {
   vi.mocked(obtenerNineBox).mockImplementation(() => respuestaNineBox())
   vi.mocked(obtenerResultadoActual).mockReset()
   vi.mocked(obtenerResultadoActual).mockImplementation(() => respuestaResultado())
+  respuestaRecomendacion = () => Promise.resolve(respuestaRecomendacionIA())
+  vi.mocked(obtenerRecomendacionDesarrollo).mockReset()
+  vi.mocked(obtenerRecomendacionDesarrollo).mockImplementation(
+    () => respuestaRecomendacion(),
+  )
   vi.mocked(listarEvaluacionesEmpleado).mockReset()
   vi.mocked(listarEvaluacionesEmpleado).mockImplementation((_token, _id, opciones = {}) =>
     opciones?.porPagina === 1 ? respuestaUltima() : respuestaHistorial(),
@@ -1942,5 +1974,198 @@ describe('PerfilEmpleado — Evolución (PRD §20.2; SG §19/§26)', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Elegir competencia' })).toBeNull()
     expect(evolucion.queryAllByRole('listitem')).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// «Acciones de desarrollo» (PRD v1.4 §20.2.1; ET v1.6 §31.1; SG v1.2 §26):
+// ÚLTIMO bloque del perfil, sugerencia IA secundaria con DISPARO EXPLÍCITO.
+// Se verifica el reposo sin consultas al abrir, la consulta única al pulsar,
+// los estados (sugerencia con procedencia/descargo, null neutral con
+// reintento, error con reintento, 401) y que una respuesta tardía de un
+// empleado anterior no cruce al perfil nuevo.
+// ---------------------------------------------------------------------------
+describe('PerfilEmpleado — Acciones de desarrollo (PRD v1.4 §20.2.1; SG §26)', () => {
+  function botonConsultar() {
+    return screen.getByRole('button', { name: 'Consultar sugerencia' })
+  }
+
+  it('es el último bloque (tras Fortalezas y oportunidades) y NO consulta al abrir el perfil', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    const acciones = await esperarTarjeta('Acciones de desarrollo')
+
+    // Reposo (PRD v1.4 §20.2.1): NADA se consulta hasta la acción de RH.
+    expect(botonConsultar()).toBeInTheDocument()
+    expect(obtenerRecomendacionDesarrollo).not.toHaveBeenCalled()
+
+    // Último bloque: tras «Fortalezas / oportunidades» (SG v1.2 §26).
+    const categorias = document.querySelector('.perfil-empleado__categorias')
+    expect(categorias).not.toBeNull()
+    expect(
+      categorias.compareDocumentPosition(
+        acciones.getByRole('heading', { name: 'Acciones de desarrollo' })
+          .closest('section'),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+
+    // Estados anunciables por TEXTO (SG §26): explicación de reposo visible.
+    expect(acciones.getByText(/se genera en el momento/i)).toBeInTheDocument()
+  })
+
+  it('al pulsar consulta UNA vez y la carga es local: el resto del perfil sigue visible', async () => {
+    let resolver
+    respuestaRecomendacion = () => new Promise((resuelve) => { resolver = resuelve })
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    await esperarTarjeta('Acciones de desarrollo')
+
+    fireEvent.click(botonConsultar())
+
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenCalledTimes(1)
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenCalledWith('token-rh', 1)
+
+    // Carga LOCAL del bloque (SG §26): «Resultado actual» sigue en pantalla.
+    expect(await screen.findByText('Consultando la sugerencia…')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Resultado actual' })).toBeInTheDocument()
+
+    resolver(respuestaRecomendacionIA())
+    expect(
+      await screen.findByText(RECOMENDACION_IA.recommendation),
+    ).toBeInTheDocument()
+  })
+
+  it('durante la carga no queda botón de consulta: no pueden duplicarse solicitudes', async () => {
+    respuestaRecomendacion = () => new Promise(() => {})
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    await esperarTarjeta('Acciones de desarrollo')
+
+    // Un doble clic no emite una segunda consulta: la primera desmonta el
+    // botón y el guard interno ignora pulsaciones mientras viaja la petición.
+    const boton = botonConsultar()
+    fireEvent.click(boton)
+    fireEvent.click(boton)
+
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Consultar sugerencia' })).toBeNull()
+  })
+
+  it('muestra la sugerencia y las acciones tal cual llegan, con procedencia y descargo', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    const acciones = await esperarTarjeta('Acciones de desarrollo')
+    fireEvent.click(botonConsultar())
+
+    // Texto y acciones TAL CUAL los generó el backend (PRD §20.2.1).
+    expect(
+      await acciones.findByText(RECOMENDACION_IA.recommendation),
+    ).toBeInTheDocument()
+    for (const accion of RECOMENDACION_IA.actions) {
+      expect(acciones.getByText(accion)).toBeInTheDocument()
+    }
+
+    // Procedencia visible con el proveedor real de la respuesta (SG §26).
+    expect(
+      acciones.getByText(
+        'Sugerencia de apoyo · Generada con IA (groq) a partir de los indicadores del sistema',
+      ),
+    ).toBeInTheDocument()
+    // Descargo: jamás se presenta como resultado oficial (ET §42).
+    expect(
+      acciones.getByText('No determina niveles ni modifica el resultado oficial.'),
+    ).toBeInTheDocument()
+
+    // Efímera: cada nueva pulsación es una consulta nueva (PRD §20.2.1).
+    fireEvent.click(acciones.getByRole('button', { name: 'Volver a consultar' }))
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenCalledTimes(2)
+  })
+
+  it('recomendacion_ia null: estado neutral, sin texto inventado y con «Volver a consultar»', async () => {
+    respuestaRecomendacion = () => Promise.resolve(respuestaRecomendacionIA(null))
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    const acciones = await esperarTarjeta('Acciones de desarrollo')
+    fireEvent.click(botonConsultar())
+
+    expect(
+      await acciones.findByText(/no está disponible en este momento/i),
+    ).toBeInTheDocument()
+    // El resultado oficial no depende de la IA (ET §38: degradación, no error).
+    expect(acciones.getByText(/no depende de ella/i)).toBeInTheDocument()
+    // Nada de una sugerencia real aparece inventado (ET §44).
+    expect(acciones.queryByText(RECOMENDACION_IA.recommendation)).toBeNull()
+
+    fireEvent.click(acciones.getByRole('button', { name: 'Volver a consultar' }))
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenCalledTimes(2)
+  })
+
+  it('error de consulta: tarjeta propia con reintento, sin tocar el resto del perfil', async () => {
+    respuestaRecomendacion = () =>
+      Promise.reject(Object.assign(new Error('fallo del servidor'), { estado: 500 }))
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    const acciones = await esperarTarjeta('Acciones de desarrollo')
+    fireEvent.click(botonConsultar())
+
+    expect(
+      await acciones.findByText('No pudimos consultar la sugerencia'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Resultado actual' })).toBeInTheDocument()
+
+    // Reintento: la siguiente consulta puede volver a tener éxito.
+    respuestaRecomendacion = () => Promise.resolve(respuestaRecomendacionIA())
+    fireEvent.click(acciones.getByRole('button', { name: 'Intentar de nuevo' }))
+    expect(
+      await acciones.findByText(RECOMENDACION_IA.recommendation),
+    ).toBeInTheDocument()
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenCalledTimes(2)
+  })
+
+  it('al cambiar de empleado vuelve a reposo y una respuesta tardía del anterior no aparece', async () => {
+    let resolverAnterior
+    respuestaRecomendacion = () =>
+      new Promise((resuelve) => { resolverAnterior = resuelve })
+    const { rerender } = render(
+      <PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />,
+    )
+    await esperarTarjeta('Acciones de desarrollo')
+    fireEvent.click(botonConsultar())
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenCalledTimes(1)
+
+    // Cambia el empleado del perfil (misma instancia, como en Empleados.jsx).
+    rerender(<PerfilEmpleado token="token-rh" empleadoId={2} alVolver={() => {}} />)
+
+    // Reposo del empleado nuevo: botón visible y SIN consulta automática.
+    expect(
+      await screen.findByRole('button', { name: 'Consultar sugerencia' }),
+    ).toBeInTheDocument()
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenCalledTimes(1)
+
+    // La respuesta del empleado 1 llega TARDE: se descarta por obsoleta.
+    resolverAnterior(respuestaRecomendacionIA())
+    await waitFor(() => {
+      expect(screen.queryByText(RECOMENDACION_IA.recommendation)).toBeNull()
+    })
+    expect(
+      screen.getByRole('button', { name: 'Consultar sugerencia' }),
+    ).toBeInTheDocument()
+
+    // La consulta del empleado nuevo usa SU identificador.
+    fireEvent.click(botonConsultar())
+    expect(obtenerRecomendacionDesarrollo).toHaveBeenLastCalledWith('token-rh', 2)
+  })
+
+  it('un 401 delega la sesión expirada y no muestra estado de error', async () => {
+    const alSesionExpirada = vi.fn()
+    respuestaRecomendacion = () =>
+      Promise.reject(Object.assign(new Error('Credenciales inválidas.'), { estado: 401 }))
+    render(
+      <PerfilEmpleado
+        token="token-rh"
+        empleadoId={1}
+        alVolver={() => {}}
+        alSesionExpirada={alSesionExpirada}
+      />,
+    )
+    await esperarTarjeta('Acciones de desarrollo')
+    fireEvent.click(botonConsultar())
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('No pudimos consultar la sugerencia')).toBeNull()
   })
 })

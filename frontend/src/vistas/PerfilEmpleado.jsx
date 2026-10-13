@@ -26,15 +26,27 @@
 // PRD §20.2 y presenta SOLO las listas fortalezas/oportunidades del
 // ResultadoActualDTO (reglas §17.4 aplicadas por el backend): aquí no se
 // clasifica nada, no se incluyen niveles ni evidencia y la experiencia nunca
-// participa. Las "Acciones de desarrollo" (IA) quedan diferidas por decisión
-// de producto.
+// participa. "Acciones de desarrollo" (PRD v1.4 §20.2.1; ET v1.6 §31.1;
+// SG v1.2 §26) cierra el perfil como ÚLTIMO bloque: una sugerencia IA bajo
+// demanda explícita que SOLO se consulta al pulsar «Consultar sugerencia» —
+// el perfil nunca la genera al abrirse. Es vigente y efímera (cero
+// persistencia): su texto y sus acciones llegan del backend tal cual y aquí
+// no se reescriben ni se calculan competencias; `recomendacion_ia: null` es
+// un estado neutral con opción de volver a consultar, nunca un error ni
+// texto inventado (ET §38).
 
-import { Fragment, useCallback, useEffect, useState } from 'react'
-import { obtenerEmpleado, obtenerNineBox, obtenerResultadoActual } from '../api/empleados.js'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  obtenerEmpleado,
+  obtenerNineBox,
+  obtenerRecomendacionDesarrollo,
+  obtenerResultadoActual,
+} from '../api/empleados.js'
 import {
   listarEvaluacionesEmpleado,
   POR_PAGINA_DEFECTO,
 } from '../api/evaluaciones.js'
+import { Sparkles } from 'lucide-react'
 import { NOMBRES_COMPETENCIAS, ETIQUETAS_EVIDENCIA } from '../textos.js'
 import { entradasOrdenadas } from '../componentes/evidenciaCompetencias.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
@@ -192,6 +204,20 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
   // Competencia activa en el bloque "Evolución" (UNA a la vez, SG §19).
   // `null` = primera competencia que traiga el snapshot histórico.
   const [competenciaEvolucion, setCompetenciaEvolucion] = useState(null)
+  // «Acciones de desarrollo» (PRD v1.4 §20.2.1; ET v1.6 §31.1; SG v1.2 §26):
+  // sugerencia IA bajo DEMANDA EXPLÍCITA de RH. `reposo` es el estado inicial
+  // de cada empleado: nada se consulta hasta pulsar «Consultar sugerencia».
+  const [recomendacion, setRecomendacion] = useState({
+    fase: 'reposo',
+    datos: null,
+    error: null,
+  })
+  // Identificador de la consulta de sugerencia vigente: descarta respuestas
+  // tardías (de un empleado anterior o de una consulta ya sustituida).
+  const idConsultaSugerencia = useRef(0)
+  // True mientras viaja una consulta: bloquea pulsaciones duplicadas sin
+  // depender del calendario de renders de React.
+  const sugerenciaEnVuelo = useRef(false)
 
   const cargar = useCallback(() => {
     setConsulta(consultaInicial())
@@ -301,6 +327,53 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
   useEffect(() => {
     cargarNineBox()
   }, [cargarNineBox])
+
+  // Al cambiar de empleado la sugerencia vuelve a REPOSO y cualquier consulta
+  // en vuelo queda obsoleta: la respuesta del empleado anterior JAMÁS aparece
+  // en el perfil nuevo (la sugerencia es vigente y efímera, PRD v1.4 §20.2.1).
+  useEffect(() => {
+    idConsultaSugerencia.current += 1
+    sugerenciaEnVuelo.current = false
+    setRecomendacion({ fase: 'reposo', datos: null, error: null })
+  }, [empleadoId])
+
+  // Consulta de la sugerencia SOLO bajo demanda de RH (SG v1.2 §26): la
+  // dispara el clic en «Consultar sugerencia»/«Volver a consultar», nunca la
+  // apertura del perfil. Del RecomendacionIAOut solo se presenta
+  // `recomendacion_ia`: `resultado_actual` viaja en la misma respuesta por
+  // contrato del backend, pero este perfil ya tiene su propia tarjeta de
+  // Resultado actual — no se sustituye ni se duplica. `null` es el estado
+  // controlado "IA no disponible" (ET §38), no un error.
+  const consultarSugerencia = useCallback(() => {
+    // Sin duplicados: si ya viaja una consulta, esta pulsación no hace nada.
+    if (sugerenciaEnVuelo.current) return
+    sugerenciaEnVuelo.current = true
+    const id = ++idConsultaSugerencia.current
+    setRecomendacion({ fase: 'cargando', datos: null, error: null })
+    obtenerRecomendacionDesarrollo(token, empleadoId)
+      .then((respuesta) => {
+        if (id !== idConsultaSugerencia.current) return
+        setRecomendacion({
+          fase: 'listo',
+          datos: respuesta?.recomendacion_ia ?? null,
+          error: null,
+        })
+      })
+      .catch((error) => {
+        if (id !== idConsultaSugerencia.current) return
+        // 401: el backend ya decidió que la sesión no sirve (ET §32).
+        if (error?.estado === 401) {
+          alSesionExpirada?.()
+          return
+        }
+        setRecomendacion({ fase: 'error', datos: null, error })
+      })
+      .finally(() => {
+        if (id === idConsultaSugerencia.current) {
+          sugerenciaEnVuelo.current = false
+        }
+      })
+  }, [token, empleadoId, alSesionExpirada])
 
   const { fase, datos, error } = consulta
   const ultima = evaluacion.datos?.items?.[0] ?? null
@@ -940,6 +1013,92 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
               </div>
             </section>
           )}
+          {/* Acciones de desarrollo (PRD v1.4 §20.2.1; ET v1.6 §31.1;
+              SG v1.2 §26): ÚLTIMO bloque del perfil, tras «Fortalezas y
+              oportunidades». Sugerencia IA SECUNDARIA con disparo explícito
+              (ET §42): el perfil NUNCA la consulta al abrirse, solo al
+              pulsar. Estados: reposo / cargando LOCAL (el resto del perfil
+              no se bloquea) / sugerencia / no disponible (neutro, con
+              reintento) / error (con reintento). Texto y acciones TAL CUAL
+              los generó el backend —nada se reescribe ni se calcula aquí—
+              con procedencia y descargo visibles: no es resultado oficial
+              ni modifica niveles, categorías, 9-Box ni evaluaciones. */}
+          <section
+            className="perfil-empleado__acciones"
+            aria-labelledby="perfil-acciones-titulo"
+          >
+            <h2 id="perfil-acciones-titulo">Acciones de desarrollo</h2>
+            <p className="perfil-empleado__nota">
+              Sugerencia de apoyo generada con IA a partir del resultado
+              actual del empleado. Es una idea para su desarrollo: no
+              determina niveles ni modifica el resultado oficial.
+            </p>
+
+            {recomendacion.fase === 'reposo' && (
+              <div className="perfil-acciones__cuerpo">
+                <p className="perfil-acciones__reposo">
+                  Consulta una sugerencia de desarrollo cuando la necesites:
+                  se genera en el momento a partir de los datos actuales del
+                  empleado.
+                </p>
+                <Button onClick={consultarSugerencia}>
+                  Consultar sugerencia
+                </Button>
+              </div>
+            )}
+
+            {recomendacion.fase === 'cargando' && (
+              <EstadoCarga texto="Consultando la sugerencia…" />
+            )}
+
+            {recomendacion.fase === 'listo' && recomendacion.datos && (
+              <div className="perfil-acciones__cuerpo">
+                <div className="perfil-acciones__sugerencia">
+                  <p className="perfil-acciones__label">
+                    <Sparkles aria-hidden="true" />
+                    {`Sugerencia de apoyo · Generada con IA (${recomendacion.datos.proveedor}) a partir de los indicadores del sistema`}
+                  </p>
+                  <p className="perfil-acciones__texto">
+                    {recomendacion.datos.recommendation}
+                  </p>
+                  {(recomendacion.datos.actions ?? []).length > 0 && (
+                    <ul className="perfil-acciones__lista">
+                      {recomendacion.datos.actions.map((accion) => (
+                        <li key={accion}>{accion}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="perfil-acciones__descargo">
+                    No determina niveles ni modifica el resultado oficial.
+                  </p>
+                </div>
+                <Button variant="secondary" onClick={consultarSugerencia}>
+                  Volver a consultar
+                </Button>
+              </div>
+            )}
+
+            {recomendacion.fase === 'listo' && !recomendacion.datos && (
+              <div className="perfil-acciones__cuerpo">
+                <p className="perfil-acciones__no-disponible">
+                  La sugerencia con IA no está disponible en este momento. El
+                  resultado oficial del empleado no depende de ella y se
+                  muestra con normalidad.
+                </p>
+                <Button variant="secondary" onClick={consultarSugerencia}>
+                  Volver a consultar
+                </Button>
+              </div>
+            )}
+
+            {recomendacion.fase === 'error' && (
+              <EstadoError
+                titulo="No pudimos consultar la sugerencia"
+                mensaje="Ocurrió un problema al generar la sugerencia de desarrollo. El resultado oficial del empleado no se ha perdido."
+                onReintentar={consultarSugerencia}
+              />
+            )}
+          </section>
         </>
       )}
     </div>

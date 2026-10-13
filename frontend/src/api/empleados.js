@@ -98,6 +98,32 @@ export async function obtenerNineBox(token, empleadoId) {
   )
 }
 
+// Recomendación de desarrollo de un empleado (PRD v1.4 §20.2.1; ET v1.6 §31.1).
+//
+// Usa EXCLUSIVAMENTE el endpoint existente
+// GET /api/v1/rh/employees/{id}/recommendation: ruta SEPARADA de
+// /me/progress/recommendation (exclusiva del empleado). Devuelve
+// `{ resultado_actual, recomendacion_ia }` sin transformar: `recomendacion_ia`
+// trae `{ origen, proveedor, recommendation, actions }` o es `null` cuando la
+// IA no está disponible — un estado CONTROLADO del backend (ET §38), no un
+// error de esta capa. Solo transporte: aquí no se genera, reescribe ni
+// interpreta texto de IA, y la vista decide cuándo consultar (demanda
+// explícita de RH). Sin ramas por estado del empleado: mismo comportamiento
+// que `/result`, solo 404 si el empleado no existe.
+
+/**
+ * Consulta la sugerencia de desarrollo con IA de un empleado (RH).
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} empleadoId identificador del empleado (`empleado.id`).
+ * @returns {Promise<object>} RecomendacionIAOut del backend, sin transformar.
+ */
+export async function obtenerRecomendacionDesarrollo(token, empleadoId) {
+  return solicitar(
+    `/api/v1/rh/employees/${encodeURIComponent(empleadoId)}/recommendation`,
+    { token },
+  )
+}
+
 // Listado administrativo de empleados (PRD §20.1; ET §31, §40).
 //
 // Usa EXCLUSIVAMENTE los parámetros que el backend acepta: `pagina`,

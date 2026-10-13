@@ -8,6 +8,7 @@ import {
   listarEmpleados,
   obtenerEmpleado,
   obtenerNineBox,
+  obtenerRecomendacionDesarrollo,
   obtenerResultadoActual,
   POR_PAGINA_DEFECTO,
 } from '../empleados.js'
@@ -414,5 +415,88 @@ describe('empleados — 9-Box vigente por RH', () => {
     vi.mocked(solicitar).mockRejectedValue(error)
 
     await expect(obtenerNineBox('token-rh', 7)).rejects.toBe(error)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Recomendación de desarrollo (PRD v1.4 §20.2.1; ET v1.6 §31.1):
+// GET /rh/employees/{id}/recommendation, ruta SEPARADA de
+// /me/progress/recommendation (exclusiva del empleado). Solo transporte:
+// { resultado_actual, recomendacion_ia } sin transformar. `recomendacion_ia:
+// null` es un estado controlado del backend (ET §38), no un error de la capa.
+// ---------------------------------------------------------------------------
+describe('empleados — recomendación de desarrollo por RH', () => {
+  const RECOMENDACION = {
+    origen: 'IA',
+    proveedor: 'groq',
+    recommendation: 'Una idea para el desarrollo de este empleado.',
+    actions: ['Una acción concreta para el próximo proyecto.'],
+  }
+
+  const RESPUESTA = {
+    resultado_actual: {
+      empleado_id: 7,
+      competencias: [],
+      experiencia: {
+        fecha_ingreso: '2024-03-01',
+        anios_antiguedad: '2.55',
+        proyectos_unicos: 3,
+      },
+      fortalezas: [],
+      oportunidades: [],
+    },
+    recomendacion_ia: RECOMENDACION,
+  }
+
+  it('llama a GET /api/v1/rh/employees/{id}/recommendation con el token de la sesión', async () => {
+    vi.mocked(solicitar).mockResolvedValue(RESPUESTA)
+
+    await obtenerRecomendacionDesarrollo('token-rh', 7)
+
+    expect(solicitar).toHaveBeenCalledTimes(1)
+    expect(solicitar).toHaveBeenCalledWith('/api/v1/rh/employees/7/recommendation', {
+      token: 'token-rh',
+    })
+  })
+
+  it('construye la URL con el empleadoId codificado y sin parámetros extra', async () => {
+    vi.mocked(solicitar).mockResolvedValue(RESPUESTA)
+
+    await obtenerRecomendacionDesarrollo('token-rh', 'empleado/9?result')
+
+    const [ruta, opciones] = vi.mocked(solicitar).mock.calls[0]
+    expect(ruta).toBe(
+      `/api/v1/rh/employees/${encodeURIComponent('empleado/9?result')}/recommendation`,
+    )
+    expect(ruta).not.toContain('?')
+    expect(opciones).toEqual({ token: 'token-rh' })
+    expect(opciones.metodo).toBeUndefined()
+  })
+
+  it('devuelve la respuesta del backend sin transformarla', async () => {
+    vi.mocked(solicitar).mockResolvedValue(RESPUESTA)
+
+    await expect(obtenerRecomendacionDesarrollo('token-rh', 7)).resolves.toEqual(RESPUESTA)
+  })
+
+  it('conserva recomendacion_ia null sin convertirlo en error', async () => {
+    const sinIa = { resultado_actual: RESPUESTA.resultado_actual, recomendacion_ia: null }
+    vi.mocked(solicitar).mockResolvedValue(sinIa)
+
+    await expect(obtenerRecomendacionDesarrollo('token-rh', 7)).resolves.toEqual(sinIa)
+  })
+
+  it('propaga los errores de la capa existente con su estado HTTP', async () => {
+    const error = Object.assign(new Error('empleado no encontrado'), { estado: 404 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(obtenerRecomendacionDesarrollo('token-rh', 999)).rejects.toBe(error)
+  })
+
+  it('propaga un 401 sin transformarlo (la vista decide la sesión expirada)', async () => {
+    const error = Object.assign(new Error('Credenciales inválidas.'), { estado: 401 })
+    vi.mocked(solicitar).mockRejectedValue(error)
+
+    await expect(obtenerRecomendacionDesarrollo('token-rh', 7)).rejects.toBe(error)
   })
 })
