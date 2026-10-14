@@ -5,7 +5,14 @@
 
 /* --- Filtros (§14.4: solo filtros relevantes, activos y "Limpiar") ------ */
 .empleados { display: flex; flex-direction: column; gap: 22px; }
-.empleados-filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 22px; padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+/* Dos grupos estructurales dentro de la misma tarjeta (SG §26): filtros
+   generales y subgrupo «Filtros de competencia y resultado» con separación
+   sutil (borde 1 px del token --color-border y 24 px de la escala §6). En
+   anchos estrechos cada grupo envuelve internamente: nunca hay un tercer
+   grupo estructural. */
+.empleados-filtros { display: flex; flex-direction: column; gap: 16px; padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+.empleados-filtros__catalogo { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 22px; }
+.empleados-filtros__resultado { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 22px; padding-left: 24px; border-left: 1px solid var(--color-border); }
 .empleados-filtros__grupo { display: flex; flex-wrap: wrap; gap: 8px; }
 .empleados-filtros__area { display: flex; flex-direction: column; gap: 8px; min-width: 210px; }
 .empleados-filtros__area .ui-input { min-height: 36px; }
@@ -60,6 +67,9 @@
   .empleados-filtros__busqueda { width: 100%; min-width: 0; flex-basis: 100%; }
   .empleados-filtros__grupo { width: 100%; }
   .empleados-filtros__grupo .ui-button { flex: 1 1 auto; }
+  /* El subgrupo de resultado apila a ancho completo: la separación sutil
+     desaparece porque ya no hay columnas que delimitar (§7). */
+  .empleados-filtros__resultado { padding-left: 0; border-left: none; }
 }
 
 /* --- Perfil individual RH (PRD §20.2; Style Guide §24 densidad media) -----

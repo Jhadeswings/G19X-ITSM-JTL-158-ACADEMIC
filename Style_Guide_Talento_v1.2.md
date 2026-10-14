@@ -929,6 +929,8 @@ La interfaz debe describir **datos, evidencia y acciones posibles**, no etiqueta
 - búsqueda y filtros limitados;
 - competencias fuera de la tabla principal;
 - selección múltiple solo cuando se necesite comparar.
+- La barra de filtros se organiza en dos grupos estructurales dentro de la misma tarjeta: filtros generales (búsqueda, estado, área) con «Limpiar filtros» al final, y subgrupo «Filtros de competencia y resultado» (competencia, criterio, nivel) delimitado con separación sutil (borde 1 px `--color-border`, 24 px de la escala de espaciado). En anchos estrechos cada grupo puede envolver internamente, sin crear grupos adicionales. Solo componentes y tokens existentes.
+- Ayuda del subgrupo: con una competencia seleccionada y sin criterio elegido se muestra «Seleccionar solo una competencia no filtra la lista. Elige un criterio: Nivel mínimo o Datos insuficientes.» (comportamiento: DECISIONES_TECNICAS §54, regla 1).
 
 ## Perfil individual RH
 
@@ -1349,6 +1351,13 @@ GLM no debe:
 Este Style Guide v1.2 consolida todo lo de v1.1, más:
 
 - bloque «Acciones de desarrollo» en el Perfil individual RH (§26).
+
+Resultado de la revisión frente a implementación de la Lista de
+empleados (filtros por competencia y nivel, DECISIONES_TECNICAS §54):
+
+- D1 — §26: dos grupos estructurales en la barra de filtros con
+  separación sutil del subgrupo «Filtros de competencia y resultado».
+- D2 — §26: ayuda visible cuando hay competencia elegida y sin criterio.
 
 **ESTADO: EN REVISIÓN FRENTE A IMPLEMENTACIÓN.**
 

@@ -252,6 +252,11 @@ export default function Empleados({ token, alSesionExpirada }) {
     busqueda.trim().length > 0 ||
     Boolean(competencia && criterio !== 'ninguno')
 
+  // Ayuda del criterio (D2; DECISIONES §54, regla 1): con una competencia
+  // elegida y SIN criterio, la lista no se filtra. La ayuda solo se renderiza
+  // —y solo se referencia con aria-describedby— cuando está visible.
+  const ayudaCriterioVisible = Boolean(competencia) && criterio === 'ninguno'
+
   return (
     <div className="empleados">
       <SectionHeader
@@ -269,137 +274,163 @@ export default function Empleados({ token, alSesionExpirada }) {
           La búsqueda (q) es parcial por nombre/puesto y la resuelve el
           backend; el Área sigue siendo coincidencia EXACTA (PRD §20.1). */}
       <section className="empleados-filtros" aria-label="Filtros de empleados">
-        <div className="empleados-filtros__busqueda">
-          <label className="form-field__label" htmlFor="empleados-busqueda">
-            Búsqueda
-          </label>
-          <input
-            id="empleados-busqueda"
-            className="ui-input"
-            type="search"
-            value={busqueda}
-            placeholder="Nombre o puesto"
-            onChange={(evento) => {
-              setBusqueda(evento.target.value)
-              setPagina(1)
-            }}
-          />
-        </div>
-        <div className="empleados-filtros__grupo" role="group" aria-label="Filtrar por estado">
-          {OPCIONES_ESTADO.map((opcion) => (
-            <Button
-              key={opcion.id}
-              size="small"
-              variant={estado === opcion.id ? 'primary' : 'secondary'}
-              aria-pressed={estado === opcion.id}
-              onClick={() => cambiarEstado(opcion.id)}
-            >
-              {opcion.label}
+        {/* Grupo estructural 1 — filtros generales (SG §26). «Limpiar filtros»
+            cierra este grupo porque limpia TODOS los filtros, también los de
+            competencia y resultado. */}
+        <div className="empleados-filtros__catalogo">
+          <div className="empleados-filtros__busqueda">
+            <label className="form-field__label" htmlFor="empleados-busqueda">
+              Búsqueda
+            </label>
+            <input
+              id="empleados-busqueda"
+              className="ui-input"
+              type="search"
+              value={busqueda}
+              placeholder="Nombre o puesto"
+              onChange={(evento) => {
+                setBusqueda(evento.target.value)
+                setPagina(1)
+              }}
+            />
+          </div>
+          <div className="empleados-filtros__grupo" role="group" aria-label="Filtrar por estado">
+            {OPCIONES_ESTADO.map((opcion) => (
+              <Button
+                key={opcion.id}
+                size="small"
+                variant={estado === opcion.id ? 'primary' : 'secondary'}
+                aria-pressed={estado === opcion.id}
+                onClick={() => cambiarEstado(opcion.id)}
+              >
+                {opcion.label}
+              </Button>
+            ))}
+          </div>
+
+          {/* Área: coincidencia EXACTA normalizada en backend, no búsqueda. */}
+          <div className="empleados-filtros__area">
+            <label className="form-field__label" htmlFor="empleados-filtro-area">
+              Área
+            </label>
+            <input
+              id="empleados-filtro-area"
+              className="ui-input"
+              type="text"
+              value={area}
+              placeholder="Área exacta"
+              onChange={(evento) => {
+                setArea(evento.target.value)
+                setPagina(1)
+              }}
+            />
+          </div>
+
+          {hayFiltros && (
+            <Button variant="ghost" size="small" onClick={limpiarFiltros}>
+              Limpiar filtros
             </Button>
-          ))}
+          )}
         </div>
 
-        {/* Área: coincidencia EXACTA normalizada en backend, no búsqueda. */}
-        <div className="empleados-filtros__area">
-          <label className="form-field__label" htmlFor="empleados-filtro-area">
-            Área
-          </label>
-          <input
-            id="empleados-filtro-area"
-            className="ui-input"
-            type="text"
-            value={area}
-            placeholder="Área exacta"
-            onChange={(evento) => {
-              setArea(evento.target.value)
-              setPagina(1)
-            }}
-          />
-        </div>
-
-        {/* Competencia y criterio de resultado (DECISIONES §54; PRD §20.1).
-            La competencia SOLA no filtra: el criterio (nivel mínimo
-            inclusivo o DI) es quien activa el filtro, y ambos dependen de
-            ella. Las competencias siguen FUERA de la tabla (SG §26). */}
-        <div className="empleados-filtros__competencia">
-          <label
-            className="form-field__label"
-            htmlFor="empleados-filtro-competencia"
-          >
-            Competencia
-          </label>
-          <select
-            id="empleados-filtro-competencia"
-            className="ui-input"
-            value={competencia}
-            onChange={(evento) => cambiarCompetencia(evento.target.value)}
-          >
-            <option value="">Sin competencia seleccionada</option>
-            {OPCIONES_COMPETENCIA.map((opcion) => (
-              <option key={opcion.id} value={opcion.id}>
-                {opcion.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="empleados-filtros__criterio">
-          <label
-            className="form-field__label"
-            htmlFor="empleados-filtro-criterio"
-          >
-            Resultado
-          </label>
-          <select
-            id="empleados-filtro-criterio"
-            className="ui-input"
-            value={criterio}
-            disabled={!competencia}
-            onChange={(evento) => cambiarCriterio(evento.target.value)}
-          >
-            {OPCIONES_CRITERIO.map((opcion) => (
-              <option key={opcion.id} value={opcion.id}>
-                {opcion.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {competencia && criterio === 'nivel' && (
-          <div className="empleados-filtros__nivel">
+        {/* Grupo estructural 2 — filtros de competencia y resultado (DECISIONES
+            §54; PRD §20.1). La competencia SOLA no filtra: el criterio (nivel
+            mínimo inclusivo o DI) es quien activa el filtro, y ambos dependen
+            de ella. Las competencias siguen FUERA de la tabla (SG §26). */}
+        <div
+          className="empleados-filtros__resultado"
+          role="group"
+          aria-label="Filtros de competencia y resultado"
+        >
+          <div className="empleados-filtros__competencia">
             <label
               className="form-field__label"
-              htmlFor="empleados-filtro-nivel"
+              htmlFor="empleados-filtro-competencia"
             >
-              Nivel mínimo
+              Competencia
             </label>
             <select
-              id="empleados-filtro-nivel"
+              id="empleados-filtro-competencia"
               className="ui-input"
-              value={nivelMin}
-              aria-describedby="empleados-filtro-nivel-ayuda"
-              onChange={(evento) => cambiarNivel(evento.target.value)}
+              value={competencia}
+              onChange={(evento) => cambiarCompetencia(evento.target.value)}
             >
-              {NIVELES.map((nivel) => (
-                <option key={nivel} value={String(nivel)}>
-                  {nivel}
+              <option value="">Sin competencia seleccionada</option>
+              {OPCIONES_COMPETENCIA.map((opcion) => (
+                <option key={opcion.id} value={opcion.id}>
+                  {opcion.label}
                 </option>
               ))}
             </select>
-            <p
-              className="form-field__hint"
-              id="empleados-filtro-nivel-ayuda"
-            >
-              El mínimo es inclusivo: 3 incluye los niveles 3, 4 y 5.
-            </p>
           </div>
-        )}
 
-        {hayFiltros && (
-          <Button variant="ghost" size="small" onClick={limpiarFiltros}>
-            Limpiar filtros
-          </Button>
-        )}
+          <div className="empleados-filtros__criterio">
+            <label
+              className="form-field__label"
+              htmlFor="empleados-filtro-criterio"
+            >
+              Resultado
+            </label>
+            <select
+              id="empleados-filtro-criterio"
+              className="ui-input"
+              value={criterio}
+              disabled={!competencia}
+              aria-describedby={
+                ayudaCriterioVisible ? 'empleados-filtro-criterio-ayuda' : undefined
+              }
+              onChange={(evento) => cambiarCriterio(evento.target.value)}
+            >
+              {OPCIONES_CRITERIO.map((opcion) => (
+                <option key={opcion.id} value={opcion.id}>
+                  {opcion.label}
+                </option>
+              ))}
+            </select>
+            {/* Ayuda D2 (SG §26; DECISIONES §54, regla 1): la competencia sola
+                no filtra. Texto explicativo que NO cambia el comportamiento ni
+                el payload. Solo se renderiza —y solo se referencia con
+                aria-describedby— cuando existe. */}
+            {ayudaCriterioVisible && (
+              <p
+                className="form-field__hint"
+                id="empleados-filtro-criterio-ayuda"
+              >
+                Seleccionar solo una competencia no filtra la lista. Elige un criterio: Nivel mínimo o Datos insuficientes.
+              </p>
+            )}
+          </div>
+
+          {competencia && criterio === 'nivel' && (
+            <div className="empleados-filtros__nivel">
+              <label
+                className="form-field__label"
+                htmlFor="empleados-filtro-nivel"
+              >
+                Nivel mínimo
+              </label>
+              <select
+                id="empleados-filtro-nivel"
+                className="ui-input"
+                value={nivelMin}
+                aria-describedby="empleados-filtro-nivel-ayuda"
+                onChange={(evento) => cambiarNivel(evento.target.value)}
+              >
+                {NIVELES.map((nivel) => (
+                  <option key={nivel} value={String(nivel)}>
+                    {nivel}
+                  </option>
+                ))}
+              </select>
+              <p
+                className="form-field__hint"
+                id="empleados-filtro-nivel-ayuda"
+              >
+                El mínimo es inclusivo: 3 incluye los niveles 3, 4 y 5.
+              </p>
+            </div>
+          )}
+        </div>
       </section>
 
       {hayFiltros && (

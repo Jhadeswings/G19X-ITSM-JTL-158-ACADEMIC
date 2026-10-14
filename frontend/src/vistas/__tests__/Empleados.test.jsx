@@ -699,3 +699,152 @@ describe('Empleados — alta integrada en la sección', () => {
     await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
   })
 })
+
+// D1 + D2 (SG v1.2 §26; DECISIONES §54): grupo estructural de filtros de
+// competencia y resultado, y ayuda del criterio que explica —sin cambiarlo—
+// que la competencia sola no filtra. Pruebas ESTRICTAMENTE aditivas.
+describe('Empleados — grupo de resultado y ayuda del criterio (D1/D2)', () => {
+  const AYUDA_CRITERIO =
+    'Seleccionar solo una competencia no filtra la lista. Elige un criterio: Nivel mínimo o Datos insuficientes.'
+
+  it('no muestra la ayuda ni la referencia sin competencia seleccionada', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    expect(screen.queryByText(AYUDA_CRITERIO)).not.toBeInTheDocument()
+    // Sin ayuda visible, el selector no referencia ningún id inexistente.
+    expect(screen.getByLabelText('Resultado')).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('muestra la ayuda exacta con competencia elegida y sin criterio, vinculada al selector', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+
+    const ayuda = screen.getByText(AYUDA_CRITERIO)
+    const selector = screen.getByLabelText('Resultado')
+    expect(ayuda).toHaveAttribute('id', 'empleados-filtro-criterio-ayuda')
+    expect(selector).toHaveAttribute(
+      'aria-describedby',
+      'empleados-filtro-criterio-ayuda',
+    )
+    // La ayuda vive junto al selector: la relación descrita existe al enfocarlo.
+    expect(selector.parentElement.contains(ayuda)).toBe(true)
+  })
+
+  it('retira la ayuda al elegir «Nivel mínimo» y aparece el selector de nivel', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    fireEvent.change(screen.getByLabelText('Resultado'), {
+      target: { value: 'nivel' },
+    })
+
+    expect(screen.queryByText(AYUDA_CRITERIO)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Nivel mínimo')).toBeInTheDocument()
+    expect(screen.getByLabelText('Resultado')).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('retira la ayuda al elegir «Datos insuficientes» y no hay selector de nivel', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    fireEvent.change(screen.getByLabelText('Resultado'), {
+      target: { value: 'di' },
+    })
+
+    expect(screen.queryByText(AYUDA_CRITERIO)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Nivel mínimo')).not.toBeInTheDocument()
+  })
+
+  it('retira la ayuda al restablecer la competencia a ninguna', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    expect(screen.getByText(AYUDA_CRITERIO)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: '' },
+    })
+
+    expect(screen.queryByText(AYUDA_CRITERIO)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Resultado')).toBeDisabled()
+  })
+
+  it('la ayuda visible no altera los parámetros enviados a la API (regla 1 de §54)', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+
+    // La ayuda está visible y aun así el payload no lleva ningún criterio.
+    expect(screen.getByText(AYUDA_CRITERIO)).toBeInTheDocument()
+    await waitFor(() => {
+      const filtros = ultimaConsulta()[1]
+      expect(filtros.competencia).toBeUndefined()
+      expect(filtros.nivelMin).toBeUndefined()
+      expect(filtros.soloDi).toBeUndefined()
+    })
+  })
+
+  it('«Limpiar filtros» limpia todo y elimina la ayuda', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.change(screen.getByLabelText('Búsqueda'), { target: { value: 'Ana' } })
+    fireEvent.change(screen.getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    expect(screen.getByText(AYUDA_CRITERIO)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }))
+
+    expect(screen.queryByText(AYUDA_CRITERIO)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Filtros activos/)).not.toBeInTheDocument()
+    await waitFor(() => {
+      const filtros = ultimaConsulta()[1]
+      expect(filtros.q).toBe('')
+      expect(filtros.area).toBe('')
+      expect(filtros.activo).toBeUndefined()
+      expect(filtros.competencia).toBeUndefined()
+    })
+  })
+
+  it('expone el grupo «Filtros de competencia y resultado» con sus tres controles y sin «Limpiar filtros»', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    const grupo = screen.getByRole('group', { name: 'Filtros de competencia y resultado' })
+    within(grupo).getByLabelText('Competencia')
+    within(grupo).getByLabelText('Resultado')
+
+    // El nivel es dependiente: solo entra al grupo con el criterio elegido.
+    fireEvent.change(within(grupo).getByLabelText('Competencia'), {
+      target: { value: 'liderazgo' },
+    })
+    fireEvent.change(within(grupo).getByLabelText('Resultado'), {
+      target: { value: 'nivel' },
+    })
+    within(grupo).getByLabelText('Nivel mínimo')
+
+    // «Limpiar filtros» sigue localizable por rol y nombre tras su reubicación
+    // y vive en el grupo de filtros generales, no dentro del subgrupo H3.
+    fireEvent.change(screen.getByLabelText('Búsqueda'), { target: { value: 'Ana' } })
+    const boton = screen.getByRole('button', { name: 'Limpiar filtros' })
+    expect(grupo.contains(boton)).toBe(false)
+  })
+})
