@@ -11,7 +11,9 @@
 //      acceso» y «Restablecer contraseña» (token copiado del correo, H1);
 //   2. credencial temporal → CambioContrasena (PRD §3.3: el backend bloquea
 //      el resto de endpoints mientras must_change_password = true), sin shell;
-//   3. rol RH → shell con las ocho secciones del Style Guide §10; "Empleados"
+//   3. rol RH → shell con las secciones del Style Guide §10 más
+//      «Auditoría» (Tarea C, PRD §22: consulta de solo lectura de las
+//      correcciones registradas); "Empleados"
 //      es un catálogo con el alta integrada como subvista interna
 //      (listado ↕ alta, PRD §20.1 + §3.3), "Evaluaciones" (§20.8) aplica el
 //      flujo periodo vigente → generación → historial con los endpoints
@@ -54,6 +56,7 @@ import Brechas from './vistas/Brechas.jsx'
 import Comparar from './vistas/Comparar.jsx'
 import Mentoria from './vistas/Mentoria.jsx'
 import Busqueda from './vistas/Busqueda.jsx'
+import Auditorias from './vistas/Auditorias.jsx'
 import Inicio from './vistas/Inicio.jsx'
 import MiCuenta from './vistas/MiCuenta.jsx'
 import MiHistorial from './vistas/MiHistorial.jsx'
@@ -296,6 +299,8 @@ function Aplicacion() {
           <Busqueda token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : activaRh.id === 'evaluaciones' ? (
           <Evaluaciones token={sesion.token} alSesionExpirada={cerrarSesion} />
+        ) : activaRh.id === 'auditoria' ? (
+          <Auditorias token={sesion.token} alSesionExpirada={cerrarSesion} />
         ) : (
           <SeccionTemporal titulo={activaRh.titulo} />
         )}

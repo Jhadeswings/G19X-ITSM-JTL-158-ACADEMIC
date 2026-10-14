@@ -11,6 +11,7 @@ import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequer
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
 import { listarProyectosRh } from '../api/proyectos.js'
+import { listarAuditorias } from '../api/auditorias.js'
 import {
   generarEvaluaciones,
   listarEvaluaciones,
@@ -58,6 +59,13 @@ vi.mock('../api/proyectos.js', async () => {
   return { ...original, listarProyectosRh: vi.fn() }
 })
 
+// Tarea C: la vista de Auditoría consulta GET /rh/audits; se mockea para
+// que el shell no dependa de red (mismo patrón que el resto de APIs RH).
+vi.mock('../api/auditorias.js', async () => {
+  const original = await vi.importActual('../api/auditorias.js')
+  return { ...original, listarAuditorias: vi.fn() }
+})
+
 const EMPLEADO = { token: 'token-empleado', rol: 'EMPLEADO', mustChangePassword: false }
 const EMPLEADO_TEMPORAL = { token: 'token-temporal', rol: 'EMPLEADO', mustChangePassword: true }
 const RH = { token: 'token-rh', rol: 'RH', mustChangePassword: false }
@@ -102,6 +110,13 @@ vi.mocked(obtenerResultadoActual).mockReset()
   })
   vi.mocked(listarProyectosRh).mockReset()
   vi.mocked(listarProyectosRh).mockResolvedValue({
+    total: 0,
+    pagina: 1,
+    por_pagina: 20,
+    items: [],
+  })
+  vi.mocked(listarAuditorias).mockReset()
+  vi.mocked(listarAuditorias).mockResolvedValue({
     total: 0,
     pagina: 1,
     por_pagina: 20,
@@ -438,6 +453,7 @@ describe('Shell de Empleado — sesión y roles', () => {
     ).toBeInTheDocument()
     expect(limpiarSesion).toHaveBeenCalled()
   })
+})
 
 describe('Shell de RH — navegación', () => {
   it('muestra las ocho secciones del Style Guide §10 en orden', async () => {
@@ -459,6 +475,9 @@ describe('Shell de RH — navegación', () => {
       'Mentoría',
       'Brechas',
       'Evaluaciones',
+      // Tarea C: la consulta de auditoría (PRD §22) se añade al final,
+      // conservando el orden documentado §10 de las ocho anteriores.
+      'Auditoría',
     ])
   })
 
@@ -649,6 +668,33 @@ describe('Shell de RH — navegación', () => {
     expect(screen.queryByRole('button', { name: 'Crear empleado' })).not.toBeInTheDocument()
   })
 
+  it('Auditoría abre su vista real (§22), no el estado temporal', async () => {
+    vi.mocked(obtenerSesion).mockReturnValue(RH)
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Empleados activos' })
+
+    abrir('Auditoría')
+
+    // El `h1` del SectionHeader de la vista montada (igual que en Empleados).
+    expect(
+      (await screen.findAllByRole('heading', { name: 'Auditoría', level: 1 }))
+        .length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.queryByText('«Auditoría» todavía no está disponible'),
+    ).not.toBeInTheDocument()
+    // Sección activa en la navegación lateral.
+    expect(
+      within(navegacion()).getByRole('button', { name: 'Auditoría' }),
+    ).toHaveAttribute('aria-current', 'page')
+    // Consulta los registros con el token de la sesión RH.
+    await waitFor(() => expect(listarAuditorias).toHaveBeenCalledTimes(1))
+    expect(listarAuditorias).toHaveBeenCalledWith(
+      'token-rh',
+      expect.objectContaining({ pagina: 1 }),
+    )
+  })
+
   it('el cierre de sesión sigue funcionando desde el shell de RH', async () => {
     vi.mocked(obtenerSesion).mockReturnValue(RH)
     render(<App />)
@@ -661,6 +707,4 @@ describe('Shell de RH — navegación', () => {
     ).toBeInTheDocument()
     expect(limpiarSesion).toHaveBeenCalled()
   })
-})
-
 })

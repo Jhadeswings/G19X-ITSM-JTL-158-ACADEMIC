@@ -197,8 +197,9 @@ describe('RH-02.3 — App: rutas reales de Proyectos (/proyectos, /proyectos/:id
 
     await waitFor(() => expect(window.location.pathname).toBe('/proyectos'))
     expect(screen.queryByRole('heading', { name: 'Detalle del proyecto' })).toBeNull()
-    // El sidebar conserva UNA sola entrada «Proyectos» (sin «Detalle»).
-    expect(within(navegacion()).getAllByRole('button')).toHaveLength(8)
+    // El sidebar conserva UNA sola entrada «Proyectos» (sin «Detalle»):
+    // las nueve entradas del shell RH (ocho §10 + Auditoría, Tarea C).
+    expect(within(navegacion()).getAllByRole('button')).toHaveLength(9)
     expect(
       within(navegacion()).getByRole('button', { name: 'Proyectos' }),
     ).toHaveAttribute('aria-current', 'page')

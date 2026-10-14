@@ -1,0 +1,38 @@
+/* --- Tarea C: consulta de auditoría para RH (solo lectura, PRD §22).
+   Reutiliza los tokens y primitivas existentes (tabla §14.1 y paginación
+   §14.2 viven en empleados.css); aquí solo la composición de la tarjeta.
+   Sin paleta nueva, sin componentes nuevos. --------------------------------- */
+
+.auditoria-rh { display: flex; flex-direction: column; gap: 22px; }
+
+.auditoria-rh__registro {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+.auditoria-rh__registro h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.auditoria-rh__valores { margin: 0; padding: 0; list-style: none; }
+.auditoria-rh__valores li { font-size: 13px; line-height: 1.6; }
+.auditoria-rh__campo { color: var(--color-text-secondary); font-weight: 650; }
+
+.auditoria-rh__ayuda {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+/* Anchos estrechos (§7): la tabla ya colapsa a tarjetas con data-label;
+   el valor JSONB puede ser largo, así que envuelve sin desbordar. */
+@media (max-width: 760px) {
+  .auditoria-rh__registro { padding: 16px; }
+}

@@ -19,9 +19,12 @@ export const SECCION_INICIAL = 'mi-progreso'
 // "Empleados" es un catálogo paginado con el alta integrada como subvista
 // interna (listado ↕ alta; PRD §20.1 y §3.3), "Evaluaciones" aplica el
 // flujo §20.8 (periodo vigente → generación → historial) y "Proyectos"
-// consulta y edita el catálogo existente (§20.3, sin creación). Cada una es
-// UNA sola sección de navegación, sin entradas adicionales. El resto
-// reutiliza SeccionTemporal hasta su implementación.
+// consulta y edita el catálogo existente (§20.3, sin creación).
+//
+// "Auditoría" (Tarea C; PRD §22, ET §25) es la consulta de SOLO LECTURA de
+// las correcciones administrativas registradas: se añade AL FINAL para
+// conservar intacto el orden documentado §10 de las ocho secciones
+// anteriores.
 export const SECCIONES_RH = [
   { id: 'inicio', titulo: 'Inicio' },
   { id: 'empleados', titulo: 'Empleados' },
@@ -31,6 +34,7 @@ export const SECCIONES_RH = [
   { id: 'mentoria', titulo: 'Mentoría' },
   { id: 'brechas', titulo: 'Brechas' },
   { id: 'evaluaciones', titulo: 'Evaluaciones' },
+  { id: 'auditoria', titulo: 'Auditoría' },
 ]
 
 // Sección inicial de RH: el dashboard operativo.
