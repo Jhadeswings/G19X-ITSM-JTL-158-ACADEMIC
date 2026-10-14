@@ -1515,3 +1515,214 @@ describe('MisProyectos — proyecto recibido desde Inicio', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Tarea B: consulta de proyectos registrados (GET /me/participations con
+// `proyecto` incluido en cada item). Pruebas ESTRICTAMENTE aditivas: la
+// sección carga BAJO DEMANDA, así que ninguna prueba anterior observa
+// llamadas nuevas y ningún flujo existente cambia.
+// ---------------------------------------------------------------------------
+describe('MisProyectos — consulta de proyectos registrados (Tarea B)', () => {
+  const OLMO = {
+    id: 5,
+    nombre: 'Proyecto Olmo',
+    nombre_normalizado: 'proyecto olmo',
+    area: null,
+    cliente: 'Cliente externo',
+    estado: 'COMPLETADO',
+    created_at: '2026-01-05T08:00:00',
+    updated_at: '2026-07-20T12:00:00',
+  }
+
+  const REGISTRADA_OLMO = {
+    ...PARTICIPACION,
+    id: 23,
+    proyecto_id: 5,
+    rol: 'QA',
+    entregables: 'Plan de pruebas',
+    en_equipo: false,
+    coordino_tareas: false,
+    explico_a_publico_distinto: true,
+    resolvio_problema: false,
+    horas: 40,
+    fecha_registro: '2026-08-15',
+    proyecto: OLMO,
+    created_at: '2026-08-15T10:00:00',
+    updated_at: '2026-09-01T11:00:00',
+  }
+
+  const CON_ARBOL = { ...PARTICIPACION, proyecto: EXACTA }
+
+  function abrirConsulta() {
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Consultar mis proyectos registrados' }),
+    )
+  }
+
+  it('la sección es visible pero no consulta la API hasta abrirse', () => {
+    montar()
+
+    expect(
+      screen.getByRole('heading', { name: 'Proyectos registrados' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Consultar mis proyectos registrados' }),
+    ).toBeInTheDocument()
+    expect(listarParticipaciones).not.toHaveBeenCalled()
+  })
+
+  it('lista los proyectos con participación guardada y sus campos reales', async () => {
+    respuestaParticipaciones = () =>
+      Promise.resolve({
+        total: 2,
+        pagina: 1,
+        por_pagina: 100,
+        items: [CON_ARBOL, REGISTRADA_OLMO],
+      })
+    montar()
+
+    abrirConsulta()
+
+    const filaArbol = await screen.findByRole('button', { name: /Proyecto ÁRBOL/ })
+    expect(within(filaArbol).getByText('Área: Operaciones')).toBeInTheDocument()
+    expect(within(filaArbol).getByText('Cliente: Cliente interno')).toBeInTheDocument()
+    expect(within(filaArbol).getByText('En proceso')).toBeInTheDocument()
+    expect(within(filaArbol).getByText('Registrado: 2026-09-30')).toBeInTheDocument()
+
+    const filaOlmo = screen.getByRole('button', { name: /Proyecto Olmo/ })
+    expect(within(filaOlmo).getByText('Área: —')).toBeInTheDocument()
+    expect(within(filaOlmo).getByText('Cliente: Cliente externo')).toBeInTheDocument()
+    expect(within(filaOlmo).getByText('Completado')).toBeInTheDocument()
+    expect(within(filaOlmo).getByText('Registrado: 2026-08-15')).toBeInTheDocument()
+
+    expect(listarParticipaciones).toHaveBeenCalledTimes(1)
+    expect(listarParticipaciones).toHaveBeenCalledWith('token-empleado', {
+      pagina: 1,
+      por_pagina: 100,
+    })
+  })
+
+  it('muestra el estado vacío cuando no hay participaciones guardadas', async () => {
+    montar()
+
+    abrirConsulta()
+
+    expect(
+      await screen.findByText('Todavía no hay proyectos registrados'),
+    ).toBeInTheDocument()
+  })
+
+  it('seleccionar un proyecto muestra todos los campos reales de proyecto y participación', async () => {
+    respuestaParticipaciones = () =>
+      Promise.resolve({
+        total: 1,
+        pagina: 1,
+        por_pagina: 100,
+        items: [CON_ARBOL],
+      })
+    montar()
+
+    abrirConsulta()
+    fireEvent.click(await screen.findByRole('button', { name: /Proyecto ÁRBOL/ }))
+
+    const detalle = await screen.findByRole('group', {
+      name: 'Detalle de Proyecto ÁRBOL',
+    })
+
+    // Proyecto: los campos reales de ProyectoOut (área/cliente nulos → «—»).
+    within(detalle).getByText('Nombre')
+    within(detalle).getByText('Área')
+    within(detalle).getByText('Cliente')
+    within(detalle).getByText('Estado')
+    within(detalle).getByText('Creado')
+    within(detalle).getByText('Actualizado')
+    ;['Proyecto ÁRBOL', 'Operaciones', 'Cliente interno', 'En proceso', '2026-06-01'].forEach(
+      (valor) => expect(within(detalle).getAllByText(valor).length).toBeGreaterThan(0),
+    )
+
+    // Participación: los campos reales de ParticipacionOut, incluidos los
+    // cuatro indicadores, las horas y la fecha de registro.
+    within(detalle).getByText('Rol')
+    within(detalle).getByText('Entregables')
+    within(detalle).getByText('Horas')
+    within(detalle).getByText('Fecha de registro')
+    within(detalle).getByText('Trabajo en equipo')
+    within(detalle).getByText('Coordinación')
+    within(detalle).getByText('Explicación a públicos distintos')
+    within(detalle).getByText('Situación/problema')
+    within(detalle).getByText('Registrada')
+    within(detalle).getByText('Última actualización')
+    ;['Desarrollador', '120', '2026-09-30', 'Sí', 'No'].forEach((valor) =>
+      expect(within(detalle).getAllByText(valor).length).toBeGreaterThan(0),
+    )
+  })
+
+  it('consultar un proyecto registrado no registra ni modifica la participación', async () => {
+    respuestaParticipaciones = () =>
+      Promise.resolve({
+        total: 1,
+        pagina: 1,
+        por_pagina: 100,
+        items: [CON_ARBOL],
+      })
+    montar()
+
+    abrirConsulta()
+    fireEvent.click(await screen.findByRole('button', { name: /Proyecto ÁRBOL/ }))
+
+    expect(
+      await screen.findByRole('group', { name: 'Detalle de Proyecto ÁRBOL' }),
+    ).toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+    expect(actualizarParticipacion).not.toHaveBeenCalled()
+    // Solo la consulta de la sección: ni detección ni formulario del asistente.
+    expect(listarParticipaciones).toHaveBeenCalledTimes(1)
+  })
+
+  it('editar desde la consulta abre el asistente sin registrar nada', async () => {
+    respuestaParticipaciones = () =>
+      Promise.resolve({
+        total: 1,
+        pagina: 1,
+        por_pagina: 100,
+        items: [CON_ARBOL],
+      })
+    montar()
+
+    abrirConsulta()
+    fireEvent.click(await screen.findByRole('button', { name: /Proyecto ÁRBOL/ }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Editar esta participación' }),
+    )
+
+    // El asistente retoma el proyecto con el bloque informativo del flujo
+    // real (MB-5B-3A): nunca un formulario de alta, nunca un POST.
+    expect(
+      await screen.findByText('Ya registraste una participación en este proyecto.'),
+    ).toBeInTheDocument()
+    expect(crearParticipacion).not.toHaveBeenCalled()
+    expect(actualizarParticipacion).not.toHaveBeenCalled()
+    // Consulta de la sección + detección del asistente: exactamente dos.
+    expect(listarParticipaciones).toHaveBeenCalledTimes(2)
+  })
+
+  it('un fallo de la consulta muestra error y el reintento funciona', async () => {
+    vi.mocked(listarParticipaciones).mockRejectedValueOnce(
+      errorDe(500, 'fallo del servidor'),
+    )
+    montar()
+
+    abrirConsulta()
+
+    expect(
+      await screen.findByText('No pudimos cargar tus proyectos registrados'),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intentar de nuevo' }))
+
+    expect(
+      await screen.findByText('Todavía no hay proyectos registrados'),
+    ).toBeInTheDocument()
+    expect(listarParticipaciones).toHaveBeenCalledTimes(2)
+  })
+})

@@ -75,6 +75,12 @@ const SIN_DATO = '—'
 /** Máximo de sugerencias aproximadas que el producto permite mostrar (§11.3/§8). */
 const SUGERENCIAS_MAXIMAS = 5
 
+/** Fecha corta para consultas: la parte de fecha del valor tal cual llega del
+ *  backend (ISO); sin valor → dato ausente. No se inventa ni se reformatea. */
+function fechaCorta(valor) {
+  return valor ? String(valor).slice(0, 10) : SIN_DATO
+}
+
 /** Etiquetas de presentación de los estados oficiales del proyecto (§6). */
 const ETIQUETAS_ESTADO = {
   EN_PROCESO: 'En proceso',
@@ -200,6 +206,17 @@ export default function MisProyectos({
   const [edicion, setEdicion] = useState(edicionInicial)
   const [formEdicion, setFormEdicion] = useState({ rol: '', entregables: '', horas: '' })
   const [avisosEdicion, setAvisosEdicion] = useState(avisosIniciales)
+  // Consulta de proyectos registrados (Tarea B): listado de proyectos con
+  // participación GUARDADA y su detalle completo, resuelto SOLO con el
+  // endpoint real GET /me/participations (ParticipacionOut ya incluye
+  // `proyecto`). Se carga BAJO DEMANDA al abrir la sección: el asistente
+  // 01–03 no cambia y ninguna llamada nueva ocurre al montar la vista.
+  const [registrados, setRegistrados] = useState({
+    fase: 'cerrada',
+    datos: null,
+    error: null,
+  })
+  const [detalleRegistrado, setDetalleRegistrado] = useState(null)
 
   // --- Entrada desde Inicio (MB-7-2E) -------------------------------------
   // Al llegar desde «Inicio» con el `proyectoId` de una fila pulsada, esta vista
@@ -330,6 +347,48 @@ export default function MisProyectos({
     setAvisosParticipacion(avisosIniciales())
     setRegistro({ fase: 'inactiva', datos: null, error: null })
     detectarParticipacion(proyecto)
+  }
+
+  /**
+   * Tarea B: consulta de proyectos registrados. UNA llamada paginada a
+   * GET /me/participations (propio, anti-IDOR por el backend) basta: cada
+   * item trae la participación completa y su `proyecto`. No hay endpoint
+   * nuevo, no se cruzan datos de otros empleados y un proyecto sin
+   * participación guardada no puede aparecer (la lista ES la de
+   * participaciones).
+   */
+  async function abrirRegistrados() {
+    setRegistrados({ fase: 'cargando', datos: null, error: null })
+    setDetalleRegistrado(null)
+    try {
+      const respuesta = await listarParticipaciones(token, {
+        pagina: 1,
+        por_pagina: 100,
+      })
+      setRegistrados({ fase: 'listo', datos: respuesta, error: null })
+    } catch (error) {
+      if (error?.estado === 401) {
+        alSesionExpirada?.()
+        return
+      }
+      setRegistrados({ fase: 'error', datos: null, error })
+    }
+  }
+
+  /** Detalle del registro pulsado: usa el item YA descargado (sin más llamadas). */
+  function alternarDetalleRegistrado(item) {
+    setDetalleRegistrado((actual) => (actual?.id === item.id ? null : item))
+  }
+
+  /**
+   * Puente de solo lectura hacia el asistente: reutiliza el flujo real
+   * (`seleccionarProyecto` → detección MB-5B-3A), que para un proyecto ya
+   * registrado muestra el bloque informativo con edición controlada: NUNCA
+   * un formulario de alta, por lo que no puede duplicarse la participación.
+   */
+  function editarRegistrado(item) {
+    setDetalleRegistrado(null)
+    seleccionarProyecto(item.proyecto)
   }
 
   /**
@@ -518,6 +577,9 @@ export default function MisProyectos({
   // entidad (coinciden por proyecto_id), se apoya en el proyecto seleccionado.
   const participacionExistente = deteccion.participacion
   const proyectoExistente = participacionExistente?.proyecto ?? proyectoSeleccionado
+  // Tarea B: items de la consulta abierta (cada uno = participación + proyecto).
+  const registradosItems = registrados.datos?.items ?? []
+  const registradosTotal = Number(registrados.datos?.total ?? 0)
   return (
     <div className="mis-proyectos">
       <SectionHeader
@@ -525,6 +587,216 @@ export default function MisProyectos({
         title="Mis proyectos"
         description="Busca un proyecto del catálogo compartido y, si todavía no existe, regístralo."
       />
+
+      {/* Consulta de proyectos registrados (Tarea B): proyectos con
+          participación guardada, cargados bajo demanda con GET
+          /me/participations (el DTO incluye `proyecto`). El asistente de los
+          pasos 01–03 se conserva íntegro debajo. */}
+      <section
+        className="proyectos-registrados"
+        aria-labelledby="proyectos-registrados-titulo"
+      >
+        <div className="proyectos-registrados__cabecera">
+          <div>
+            <h2
+              className="proyectos-registrados__titulo"
+              id="proyectos-registrados-titulo"
+            >
+              Proyectos registrados
+            </h2>
+            <p className="proyectos-registrados__descripcion">
+              Proyectos en los que ya guardaste tu participación.
+            </p>
+          </div>
+          {registrados.fase === 'cerrada' ? (
+            <Button type="button" variant="secondary" onClick={abrirRegistrados}>
+              <FolderKanban aria-hidden="true" /> Consultar mis proyectos
+              registrados
+            </Button>
+          ) : (
+            registrados.fase !== 'cargando' && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="small"
+                onClick={abrirRegistrados}
+              >
+                <Repeat2 aria-hidden="true" /> Actualizar
+              </Button>
+            )
+          )}
+        </div>
+
+        {registrados.fase === 'cargando' && (
+          <EstadoCarga texto="Consultando tus proyectos…" />
+        )}
+
+        {registrados.fase === 'error' && (
+          <EstadoError
+            titulo="No pudimos cargar tus proyectos registrados"
+            mensaje="La información no está disponible en este momento."
+            onReintentar={abrirRegistrados}
+          />
+        )}
+
+        {registrados.fase === 'listo' && registradosItems.length === 0 && (
+          <EstadoVacio
+            titulo="Todavía no hay proyectos registrados"
+            descripcion="Registra tu primera participación para comenzar a construir tu historial."
+          />
+        )}
+
+        {registrados.fase === 'listo' && registradosItems.length > 0 && (
+          <>
+            <ul className="proyectos-registrados__lista">
+              {registradosItems.map((item) => {
+                const abierto = detalleRegistrado?.id === item.id
+                const proyecto = item.proyecto
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="proyectos-registrados__item"
+                      aria-pressed={abierto}
+                      onClick={() => alternarDetalleRegistrado(item)}
+                    >
+                      <span className="proyectos-registrados__nombre">
+                        {proyecto?.nombre ?? `Proyecto ${item.proyecto_id}`}
+                      </span>
+                      <span className="proyectos-registrados__meta">
+                        <span>Área: {proyecto?.area ?? SIN_DATO}</span>
+                        <span>Cliente: {proyecto?.cliente ?? SIN_DATO}</span>
+                        {proyecto?.estado ? (
+                          <Badge tone={tonoEstado(proyecto.estado)}>
+                            {etiquetaEstado(proyecto.estado)}
+                          </Badge>
+                        ) : (
+                          <span>Estado: {SIN_DATO}</span>
+                        )}
+                        <span>Registrado: {fechaCorta(item.fecha_registro)}</span>
+                      </span>
+                    </button>
+
+                    {abierto && (
+                      <div
+                        className="proyectos-registrados__detalle"
+                        role="group"
+                        aria-label={`Detalle de ${
+                          proyecto?.nombre ?? `Proyecto ${item.proyecto_id}`
+                        }`}
+                      >
+                        <h3 className="proyectos-registrados__subtitulo">
+                          Proyecto
+                        </h3>
+                        <dl className="proyectos-datos">
+                          <div>
+                            <dt>Nombre</dt>
+                            <dd>{proyecto?.nombre ?? SIN_DATO}</dd>
+                          </div>
+                          <div>
+                            <dt>Área</dt>
+                            <dd>{proyecto?.area ?? SIN_DATO}</dd>
+                          </div>
+                          <div>
+                            <dt>Cliente</dt>
+                            <dd>{proyecto?.cliente ?? SIN_DATO}</dd>
+                          </div>
+                          <div>
+                            <dt>Estado</dt>
+                            <dd>
+                              {proyecto?.estado ? (
+                                <Badge tone={tonoEstado(proyecto.estado)}>
+                                  {etiquetaEstado(proyecto.estado)}
+                                </Badge>
+                              ) : (
+                                SIN_DATO
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Creado</dt>
+                            <dd>{fechaCorta(proyecto?.created_at)}</dd>
+                          </div>
+                          <div>
+                            <dt>Actualizado</dt>
+                            <dd>{fechaCorta(proyecto?.updated_at)}</dd>
+                          </div>
+                        </dl>
+
+                        <h3 className="proyectos-registrados__subtitulo">
+                          Mi participación
+                        </h3>
+                        <dl className="proyectos-datos">
+                          <div>
+                            <dt>Rol</dt>
+                            <dd>{item.rol}</dd>
+                          </div>
+                          <div>
+                            <dt>Entregables</dt>
+                            <dd>{item.entregables ?? SIN_DATO}</dd>
+                          </div>
+                          <div>
+                            <dt>Horas</dt>
+                            <dd>{item.horas}</dd>
+                          </div>
+                          <div>
+                            <dt>Fecha de registro</dt>
+                            <dd>{fechaCorta(item.fecha_registro)}</dd>
+                          </div>
+                          <div>
+                            <dt>Trabajo en equipo</dt>
+                            <dd>{etiquetaSiNo(item.en_equipo)}</dd>
+                          </div>
+                          <div>
+                            <dt>Coordinación</dt>
+                            <dd>{etiquetaSiNo(item.coordino_tareas)}</dd>
+                          </div>
+                          <div>
+                            <dt>Explicación a públicos distintos</dt>
+                            <dd>
+                              {etiquetaSiNo(item.explico_a_publico_distinto)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Situación/problema</dt>
+                            <dd>{etiquetaSiNo(item.resolvio_problema)}</dd>
+                          </div>
+                          <div>
+                            <dt>Registrada</dt>
+                            <dd>{fechaCorta(item.created_at)}</dd>
+                          </div>
+                          <div>
+                            <dt>Última actualización</dt>
+                            <dd>{fechaCorta(item.updated_at)}</dd>
+                          </div>
+                        </dl>
+
+                        {proyecto && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => editarRegistrado(item)}
+                          >
+                            <Pencil aria-hidden="true" /> Editar esta
+                            participación
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+            {registradosTotal > registradosItems.length && (
+              <p className="proyectos-registrados__nota">
+                Mostrando {registradosItems.length} de {registradosTotal}{' '}
+                registros. Usa «Actualizar» después de registrar más
+                participaciones.
+              </p>
+            )}
+          </>
+        )}
+      </section>
 
       {/* Confirmación de creación (MB-5A): SOLO con el ProyectoOut del POST.
           En MB-5B-1 deja de ser terminal: el proyecto creado queda seleccionado
