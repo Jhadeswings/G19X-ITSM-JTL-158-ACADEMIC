@@ -34,6 +34,11 @@
 // no se reescriben ni se calculan competencias; `recomendacion_ia: null` es
 // un estado neutral con opción de volver a consultar, nunca un error ni
 // texto inventado (ET §38).
+//
+// «Guardar como PDF» (Tarea D) exporta el perfil con la impresión del
+// navegador (window.print() + estilos @media print): sin dependencias ni
+// endpoints nuevos, imprime EXACTAMENTE lo que la interfaz ya muestra
+// (ET §43) y no crea ni modifica ningún resultado.
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -393,12 +398,30 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
     ? competenciaEvolucion
     : clavesEvolucion[0] ?? null
 
+  // Exportar a PDF (Tarea D; ET §43): la exportación del perfil es la HOJA
+  // DE IMPRESIÓN del navegador («Guardar como PDF» del diálogo). window.print()
+  // no consulta, no crea ni modifica nada: se imprime EXACTAMENTE lo que la
+  // interfaz ya muestra con los permisos ya aplicados por el backend —ni un
+  // dato más (ET §43: no se exporta información que la interfaz no muestra).
+  // La hoja imprimible (sin navegación ni controles) la preparan las reglas
+  // @media print de empleados.css.
+  function imprimirPerfil() {
+    window.print()
+  }
+
   return (
     <div className="perfil-empleado">
-      <div className="empleados__volver">
+      <div className="empleados__volver perfil-empleado__barra">
         <Button variant="ghost" onClick={alVolver}>
           Volver al listado
         </Button>
+        {/* Solo se exporta un perfil que existe y ya está en pantalla: sin
+            información básica (carga o error) no hay hoja que imprimir. */}
+        {fase === 'listo' && datos && (
+          <Button variant="secondary" onClick={imprimirPerfil}>
+            Guardar como PDF
+          </Button>
+        )}
       </div>
 
       {fase === 'cargando' && <EstadoCarga texto="Cargando información del empleado…" />}

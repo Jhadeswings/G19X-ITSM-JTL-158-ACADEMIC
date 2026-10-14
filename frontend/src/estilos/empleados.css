@@ -282,3 +282,64 @@
   .perfil-historial { gap: 14px; }
   .perfil-historial__entrada { padding-left: 20px; }
 }
+
+/* --- Exportar a PDF del perfil (Tarea D del MVP; ET §43) -------------------
+   La exportación del perfil RH es la HOJA DE IMPRESIÓN del navegador
+   («Guardar como PDF» del diálogo): window.print() + estas reglas, sin
+   dependencias nuevas ni endpoints. Solo se ajusta el PAPEL —la pantalla
+   queda intacta— y las reglas de navegación solo actúan cuando hay un
+   perfil en pantalla (:has), de modo que imprimir otras secciones del
+   sistema no cambia. ET §43: se imprime EXACTAMENTE lo que la interfaz ya
+   muestra (mismos permisos, ni un dato más) y la exportación no crea ni
+   modifica resultados. */
+
+/* Barra superior del perfil: «Volver al listado» a la izquierda y
+   «Guardar como PDF» a la derecha (la barra completa se oculta al imprimir). */
+.perfil-empleado__barra { justify-content: space-between; }
+
+@media print {
+  /* Márgenes propios de la hoja: el contenido respira sin depender del
+     padding de pantalla de .app-content. */
+  @page { margin: 14mm; }
+
+  /* Navegación global fuera de la hoja SOLO al imprimir un perfil: sidebar,
+     cabecera y menú móvil desaparecen y el contenido ocupa el ancho útil. */
+  .app-shell:has(.perfil-empleado) { display: block; }
+  .app-shell:has(.perfil-empleado) .product-sidebar,
+  .app-shell:has(.perfil-empleado) .app-header,
+  .app-shell:has(.perfil-empleado) .shell-drawer { display: none !important; }
+  .app-shell:has(.perfil-empleado) .app-content { width: auto; margin: 0; padding: 0; }
+
+  /* Controles del perfil fuera de la hoja: la barra («Volver al listado» y
+     «Guardar como PDF»), el selector de Evolución, la paginación del
+     Historial y cualquier botón interno (sugerencia IA, reintentos). El
+     CONTENIDO de las tarjetas se queda. */
+  .perfil-empleado > .empleados__volver,
+  .perfil-empleado .perfil-evolucion__selector,
+  .perfil-empleado .paginacion,
+  .perfil-empleado button { display: none !important; }
+
+  /* Decoración fuera (SG §19: puntos y líneas del timeline son adorno; el
+     texto es el dato) y tarjetas planas sobre blanco, sin fondos que
+     dificulten la lectura. */
+  .perfil-empleado section { background: #fff; }
+  .perfil-historial__entrada { padding-left: 0; border-left: 0; }
+  .perfil-historial__entrada::before { content: none; }
+  .perfil-evolucion__entrada { padding-left: 0; }
+  .perfil-evolucion__entrada::before,
+  .perfil-evolucion__entrada::after { content: none; }
+
+  /* Evitar cortes: los bloques de datos no se parten cuando caben y los
+     títulos no quedan huérfanos al pie de página. */
+  .perfil-empleado__lista > div,
+  .perfil-competencia,
+  .perfil-ninebox,
+  .perfil-historial__entrada,
+  .perfil-evolucion__entrada { break-inside: avoid; }
+  .perfil-empleado h2,
+  .perfil-empleado h3,
+  .perfil-empleado .section-header { break-after: avoid; }
+  .perfil-empleado dt, .perfil-empleado dd,
+  .perfil-empleado p, .perfil-empleado li { orphans: 3; widows: 3; }
+  .perfil-empleado { gap: 14px; }
+}

@@ -24,12 +24,13 @@
 // - volver al listado sin consultas extra.
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listarEmpleados, obtenerEmpleado, obtenerNineBox, obtenerRecomendacionDesarrollo, obtenerResultadoActual, POR_PAGINA_DEFECTO } from '../../api/empleados.js'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { crearEmpleado, listarEmpleados, obtenerEmpleado, obtenerNineBox, obtenerRecomendacionDesarrollo, obtenerResultadoActual, POR_PAGINA_DEFECTO } from '../../api/empleados.js'
 import {
   listarEvaluacionesEmpleado,
   POR_PAGINA_DEFECTO as POR_PAGINA_EVALUACIONES,
 } from '../../api/evaluaciones.js'
+import { readFileSync } from 'node:fs'
 import Empleados from '../Empleados.jsx'
 import PerfilEmpleado from '../PerfilEmpleado.jsx'
 
@@ -2167,5 +2168,172 @@ describe('PerfilEmpleado — Acciones de desarrollo (PRD v1.4 §20.2.1; SG §26)
 
     await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('No pudimos consultar la sugerencia')).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Exportar a PDF (Tarea D; ET §43): «Guardar como PDF» imprime el perfil TAL
+// CUAL —mismos datos que la interfaz muestra, mismos permisos— sin consultas
+// nuevas ni escrituras. La hoja de impresión la preparan los estilos
+// @media print (verificados al final, sobre su fuente).
+// ---------------------------------------------------------------------------
+
+describe('PerfilEmpleado — exportar a PDF', () => {
+  let imprimir
+
+  beforeEach(() => {
+    // window.print existe en jsdom pero «no está implementado»: se sustituye
+    // por un mock para poder afirmar que la exportación la invoca.
+    imprimir = vi.spyOn(window, 'print').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    imprimir.mockRestore()
+  })
+
+  it('muestra «Guardar como PDF» cuando el perfil está listo', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+
+    expect(
+      await screen.findByRole('button', { name: 'Guardar como PDF' }),
+    ).toBeInTheDocument()
+  })
+
+  it('aparece en el perfil RH abierto desde el listado de Empleados', async () => {
+    render(<Empleados token="token-rh" />)
+    await screen.findByText('Ana López')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ana López' }))
+    await screen.findByText('Información básica')
+
+    expect(
+      screen.getByRole('button', { name: 'Guardar como PDF' }),
+    ).toBeInTheDocument()
+  })
+
+  it('no ofrece la exportación mientras la información básica carga', () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+
+    expect(
+      screen.getByText('Cargando información del empleado…'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Guardar como PDF' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('no ofrece la exportación ante un 404: no hay perfil que imprimir', async () => {
+    vi.mocked(obtenerEmpleado).mockRejectedValueOnce(
+      Object.assign(new Error('no encontrado'), { estado: 404 }),
+    )
+    render(<PerfilEmpleado token="token-rh" empleadoId={999} alVolver={() => {}} />)
+
+    expect(
+      await screen.findByText('Este empleado no está disponible.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Guardar como PDF' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('al pulsarlo invoca la impresión del navegador una sola vez', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Guardar como PDF' }),
+    )
+
+    expect(imprimir).toHaveBeenCalledTimes(1)
+  })
+
+  it('exportar no ejecuta llamadas nuevas: ni lecturas extra ni escrituras', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    await screen.findByText('Información básica')
+    await waitFor(() => expect(listarEvaluacionesEmpleado).toHaveBeenCalledTimes(2))
+
+    const [
+      llamadasEmpleado,
+      llamadasResultado,
+      llamadasNineBox,
+      llamadasEvaluaciones,
+      llamadasListado,
+    ] = [
+      obtenerEmpleado,
+      obtenerResultadoActual,
+      obtenerNineBox,
+      listarEvaluacionesEmpleado,
+      listarEmpleados,
+    ].map((mock) => mock.mock.calls.length)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar como PDF' }))
+    expect(imprimir).toHaveBeenCalledTimes(1)
+
+    // Las lecturas del perfil no se repiten por exportar.
+    expect(obtenerEmpleado.mock.calls.length).toBe(llamadasEmpleado)
+    expect(obtenerResultadoActual.mock.calls.length).toBe(llamadasResultado)
+    expect(obtenerNineBox.mock.calls.length).toBe(llamadasNineBox)
+    expect(listarEvaluacionesEmpleado.mock.calls.length).toBe(llamadasEvaluaciones)
+    expect(listarEmpleados.mock.calls.length).toBe(llamadasListado)
+    // Jamás se crea nada y la sugerencia IA sigue en reposo (ET §43: la
+    // exportación no crea ni modifica resultados).
+    expect(crearEmpleado).not.toHaveBeenCalled()
+    expect(obtenerRecomendacionDesarrollo).not.toHaveBeenCalled()
+  })
+
+  it('el perfil sigue mostrando los datos correctos tras exportar', async () => {
+    render(<PerfilEmpleado token="token-rh" empleadoId={1} alVolver={() => {}} />)
+    await screen.findByText('Información básica')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar como PDF' }))
+    expect(imprimir).toHaveBeenCalledTimes(1)
+
+    // El nombre vive en el título del perfil Y en «Nombre» de la información
+    // básica: ambos siguen ahí tras exportar.
+    expect(screen.getAllByText('Ana López').length).toBeGreaterThan(1)
+    expect(screen.getByText('ana@empresa.dev')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Resultado actual' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '9-Box' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Historial de evaluaciones' }),
+    ).toBeInTheDocument()
+    // La interfaz normal queda intacta: el listado sigue a un clic.
+    expect(
+      screen.getByRole('button', { name: 'Volver al listado' }),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('PerfilEmpleado — hoja de impresión (@media print)', () => {
+  // jsdom no aplica CSS y Vitest con `css: false` vacía incluso los imports
+  // `?raw` de hojas de estilo: el bloque de impresión se lee con node:fs y
+  // se verifica sobre su fuente (ruta relativa al cwd de `npm test`, que es
+  // el directorio `frontend/`). Es la ÚLTIMA sección de empleados.css
+  // (antes solo hay @media de ancho), de modo que el corte desde
+  // '@media print' hasta el final es el bloque completo de la exportación.
+  const cssPerfil = readFileSync('src/estilos/empleados.css', 'utf8')
+  const desdeImpresion = cssPerfil.indexOf('@media print')
+  const bloqueImpresion =
+    desdeImpresion === -1 ? '' : cssPerfil.slice(desdeImpresion)
+
+  it('existe un bloque @media print dedicado a la exportación', () => {
+    expect(desdeImpresion).toBeGreaterThan(-1)
+  })
+
+  it('la navegación global se oculta solo cuando se imprime un perfil', () => {
+    // El alcance con :has evita cambiar la impresión de otras secciones.
+    expect(bloqueImpresion).toContain('.app-shell:has(.perfil-empleado)')
+    expect(bloqueImpresion).toMatch(/\.product-sidebar[^{]*\{[^}]*display:\s*none/)
+    expect(bloqueImpresion).toMatch(/\.app-header[^{]*\{[^}]*display:\s*none/)
+  })
+
+  it('oculta los controles del perfil al imprimir y conserva el contenido', () => {
+    expect(bloqueImpresion).toMatch(/\.empleados__volver[^{]*\{[^}]*display:\s*none/)
+    expect(bloqueImpresion).toMatch(/\.perfil-evolucion__selector[^{]*\{[^}]*display:\s*none/)
+    expect(bloqueImpresion).toMatch(/\.paginacion[^{]*\{[^}]*display:\s*none/)
+    expect(bloqueImpresion).toMatch(/\.perfil-empleado button[^{]*\{[^}]*display:\s*none/)
+    // El contenido del perfil NUNCA se oculta en la hoja.
+    expect(bloqueImpresion).not.toMatch(/\.perfil-empleado\s*\{[^}]*display:\s*none/)
   })
 })
