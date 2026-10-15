@@ -34,6 +34,8 @@ const PAGINA = {
       valores_nuevos: { horas: 150 },
       motivo: 'Corrección de horas',
       fecha: '2026-10-01T12:00:00+00:00',
+      empleado_nombre: 'Vanesa Gutiérrez Zamora',
+      proyecto_nombre: 'Prueba 1',
     },
   ],
 }

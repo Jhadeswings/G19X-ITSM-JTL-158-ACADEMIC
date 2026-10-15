@@ -18,10 +18,14 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.auditoria_modificacion import AuditoriaModificacion
 from app.models.cuenta_acceso import CuentaAcceso
+from app.models.participacion import Participacion
 from app.schemas.auditoria import AuditoriaOut
 
 # Operaciones canónicas.
 OPERACION_CORRECCION = "CORRECCION"
+
+# Entidad con contexto empleado/proyecto resoluble.
+ENTIDAD_PARTICIPACION = "participacion"
 
 
 def registrar(
@@ -75,17 +79,58 @@ def listar_auditorias(
         .offset((pagina - 1) * por_pagina)
         .limit(por_pagina)
     ).all()
+    _precargar_contexto_participaciones(db, registros)
     return list(registros), int(total or 0)
 
 
-def a_auditoria_out(registro: AuditoriaModificacion) -> AuditoriaOut:
-    """``AuditoriaOut`` con la identificación de presentación del actor.
+def _precargar_contexto_participaciones(
+    db: Session, registros: list[AuditoriaModificacion]
+) -> None:
+    """Precarga empleado/proyecto de las participaciones auditadas (una query).
 
-    El correo proviene de la relación ``actor_cuenta`` (contrato backend,
-    mismo patrón que ``a_participacion_out_con_empleado``): presentación
-    pura, sin cálculos y sin credenciales.
+    Sin N+1: una sola consulta con ``joinedload`` para TODA la página, en
+    vez de una por fila. El resultado se guarda en atributos efímeros
+    (``_participacion``) sobre cada registro, sin tocar la BD ni el
+    historial: solo lectura para presentación.
+    """
+    ids = {
+        r.entidad_id
+        for r in registros
+        if r.entidad == ENTIDAD_PARTICIPACION and r.entidad_id is not None
+    }
+    if not ids:
+        return
+    participaciones = db.scalars(
+        select(Participacion)
+        .options(
+            joinedload(Participacion.empleado),
+            joinedload(Participacion.proyecto),
+        )
+        .where(Participacion.id.in_(ids))
+    ).all()
+    por_id = {p.id: p for p in participaciones}
+    for registro in registros:
+        if registro.entidad == ENTIDAD_PARTICIPACION:
+            registro._participacion = por_id.get(registro.entidad_id)
+
+
+def a_auditoria_out(registro: AuditoriaModificacion) -> AuditoriaOut:
+    """``AuditoriaOut`` con identificaciones de presentación.
+
+    El correo proviene de la relación ``actor_cuenta`` y los nombres del
+    registro auditado de la participación precargada (mismo patrón que
+    ``a_participacion_out_con_empleado``): presentación pura, sin
+    cálculos y sin credenciales. Si la participación ya no existe o la
+    entidad no es una participación, ambos nombres quedan en ``None``.
     """
     salida = AuditoriaOut.model_validate(registro)
     cuenta = registro.actor_cuenta
     salida.actor_email = cuenta.email if cuenta is not None else None
+    # Solo el contexto precargado en lote (``listar_auditorias``): fuera de
+    # ahí no se resuelve nada perezoso para no generar N+1 accidentales.
+    participacion = getattr(registro, "_participacion", None)
+    empleado = getattr(participacion, "empleado", None)
+    proyecto = getattr(participacion, "proyecto", None)
+    salida.empleado_nombre = getattr(empleado, "nombre", None)
+    salida.proyecto_nombre = getattr(proyecto, "nombre", None)
     return salida

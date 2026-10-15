@@ -13,7 +13,9 @@
 // - Cada item es AuditoriaOut: id, actor_cuenta_id, entidad, entidad_id,
 //   operacion, valores_anteriores/nuevos (JSONB nullable), motivo
 //   (nullable) y fecha, más actor_email como identificación de
-//   presentación del actor (PRD §22 «quién modificó»).
+//   presentación del actor (PRD §22 «quién modificó») y empleado_nombre /
+//   proyecto_nombre como identificación del registro auditado (solo
+//   participaciones; None = «No disponible», nunca se inventan).
 //
 // El orden (fecha DESC, id DESC) y la paginación los decide el backend:
 // aquí no se reordena ni se filtra en el cliente. Un 401 delega en
@@ -35,11 +37,16 @@ const COLUMNAS = [
   { key: 'quien', label: 'Quién modificó' },
   { key: 'operacion', label: 'Operación' },
   { key: 'registro', label: 'Registro' },
+  { key: 'empleado', label: 'Empleado' },
+  { key: 'proyecto', label: 'Proyecto' },
   { key: 'motivo', label: 'Motivo' },
   { key: 'valores', label: 'Valores' },
 ]
 
 const SIN_DATO = '—'
+
+/** Sin relación o dato ausente: nunca se inventa un nombre. */
+const NO_DISPONIBLE = 'No disponible'
 
 /** Estado inicial de la consulta (patrón de las demás vistas RH). */
 function consultaInicial() {
@@ -186,6 +193,12 @@ export default function Auditorias({ token, alSesionExpirada }) {
                     </td>
                     <td data-label="Registro">
                       {registro.entidad} #{registro.entidad_id}
+                    </td>
+                    <td data-label="Empleado">
+                      {registro.empleado_nombre || NO_DISPONIBLE}
+                    </td>
+                    <td data-label="Proyecto">
+                      {registro.proyecto_nombre || NO_DISPONIBLE}
                     </td>
                     <td data-label="Motivo">{registro.motivo || SIN_DATO}</td>
                     <td data-label="Valores">

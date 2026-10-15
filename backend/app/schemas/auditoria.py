@@ -11,6 +11,14 @@ cual se persistió.
 ``empleado_puesto`` de ``ParticipacionOut`` (RH-02.1): el frontend nunca
 resuelve la identidad por su cuenta. Nunca se expone ``password_hash`` ni
 ningún otro dato de credencial.
+
+``empleado_nombre`` / ``proyecto_nombre`` son identificaciones de
+presentación del registro auditado: cuando ``entidad == "participacion"``,
+el nombre del empleado y del proyecto de esa participación, resueltos por
+el backend con sus relaciones (sin N+1: una sola consulta por página).
+Si la participación ya no existe o la entidad no es una participación,
+llegan en ``None`` y el frontend muestra «No disponible»: nunca se
+inventan nombres ni se asocian registros incorrectos.
 """
 
 from datetime import datetime
@@ -32,6 +40,10 @@ class AuditoriaOut(BaseModel):
     fecha: datetime
     # Identificación de presentación del actor; NO forma parte de §25.
     actor_email: str | None = None
+    # Identificación de presentación del registro auditado (solo
+    # participaciones); NO forma parte de §25. None = no disponible.
+    empleado_nombre: str | None = None
+    proyecto_nombre: str | None = None
 
 
 class AuditoriaPageOut(BaseModel):

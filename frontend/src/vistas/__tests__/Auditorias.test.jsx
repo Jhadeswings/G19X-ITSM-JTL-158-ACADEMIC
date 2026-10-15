@@ -32,6 +32,8 @@ function registro(id, sobre = {}) {
     valores_nuevos: { horas: 150 },
     motivo: 'Corrección de horas',
     fecha: '2026-10-01T12:00:00+00:00',
+    empleado_nombre: 'Vanesa Gutiérrez Zamora',
+    proyecto_nombre: 'Prueba 1',
     ...sobre,
   }
 }
@@ -88,6 +90,21 @@ describe('Auditorías RH — consulta y contrato', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByText('Corrección de horas')).toHaveLength(2)
     expect(screen.getAllByText('horas:').length).toBeGreaterThan(0)
+    // Contexto del registro auditado: empleado y proyecto sin buscar el ID.
+    expect(screen.getAllByText('Vanesa Gutiérrez Zamora')).toHaveLength(2)
+    expect(screen.getAllByText('Prueba 1')).toHaveLength(2)
+  })
+
+  it('sin contexto muestra «No disponible», sin inventar nombres', async () => {
+    vi.mocked(listarAuditorias).mockResolvedValue(
+      pagina([
+        registro(5, { empleado_nombre: null, proyecto_nombre: null }),
+      ]),
+    )
+    render(<Auditorias token="token-rh" />)
+
+    await screen.findByRole('table')
+    expect(screen.getAllByText('No disponible')).toHaveLength(2)
   })
 
   it('sin actor_email muestra la cuenta técnica, sin inventar identidad', async () => {

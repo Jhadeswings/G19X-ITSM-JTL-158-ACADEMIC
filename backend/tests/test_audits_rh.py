@@ -86,8 +86,12 @@ class TestContrato:
         )
         datos = client.get(URL_RH_AUDITS, headers=cabecera(token_rh)).json()
         assert len(datos["items"]) == 1
-        # Los campos son los de AuditoriaOut (§25 + identificación), ni uno más.
+        # Los campos son los de AuditoriaOut (§25 + identificaciones de
+        # presentación), ni uno más.
         assert set(datos["items"][0]) == set(AuditoriaOut.model_fields)
+        # Sin participación existente: contexto en None, nunca inventado.
+        assert datos["items"][0]["empleado_nombre"] is None
+        assert datos["items"][0]["proyecto_nombre"] is None
 
     def test_no_expone_credenciales(self, client, token_rh, cuenta_rh, db):
         """Nunca password_hash ni otros datos de credencial (§25/§4)."""
@@ -295,3 +299,94 @@ class TestVisibilidadDeCorreccionReal:
         assert item["valores_nuevos"] == {"horas": 175}
         assert item["motivo"] == "Corrección de horas"
         assert item["actor_email"] == "rh@empresa.dev"
+        # Contexto del registro auditado, resuelto por el backend.
+        assert item["empleado_nombre"] == "Empleado Prueba"
+        assert item["proyecto_nombre"] == "Proyecto Consulta"
+
+
+class TestContextoDelRegistro:
+    """El endpoint identifica empleado/proyecto sin N+1 ni datos inventados."""
+
+    def _participacion(
+        self, db, cuenta_empleado, *, nombre_empleado, nombre_proyecto
+    ):
+        from app.core.fechas import fecha_negocio_hoy
+        from app.core.normalizacion import normalizar_nombre
+        from app.models.participacion import Participacion
+        from app.models.proyecto import Proyecto
+
+        cuenta_empleado.empleado.nombre = nombre_empleado
+        proyecto = Proyecto(
+            nombre=nombre_proyecto,
+            nombre_normalizado=normalizar_nombre(nombre_proyecto),
+        )
+        db.add(proyecto)
+        db.flush()
+        registro = Participacion(
+            empleado_id=cuenta_empleado.empleado_id,
+            proyecto_id=proyecto.id,
+            rol="Dev",
+            horas=100,
+            fecha_registro=fecha_negocio_hoy(),
+        )
+        db.add(registro)
+        db.commit()
+        db.refresh(registro)
+        return registro
+
+    def test_correccion_real_expone_empleado_y_proyecto(
+        self, client, token_rh, db, cuenta_empleado
+    ):
+        registro = self._participacion(
+            db,
+            cuenta_empleado,
+            nombre_empleado="Ana Ejemplo",
+            nombre_proyecto="Proyecto Contexto",
+        )
+        respuesta = client.patch(
+            f"{URL_RH_PARTICIPACIONES}/{registro.id}",
+            json={"horas": 120, "motivo": "Ajuste"},
+            headers=cabecera(token_rh),
+        )
+        assert respuesta.status_code == 200
+
+        item = client.get(URL_RH_AUDITS, headers=cabecera(token_rh)).json()[
+            "items"
+        ][0]
+        assert item["empleado_nombre"] == "Ana Ejemplo"
+        assert item["proyecto_nombre"] == "Proyecto Contexto"
+
+    def test_participacion_inexistente_deja_nombres_en_none(
+        self, client, token_rh, cuenta_rh, db
+    ):
+        sembrar_auditoria(
+            db,
+            cuenta_rh,
+            entidad_id=999999,
+            fecha=datetime(2026, 10, 3, 10, 0, tzinfo=timezone.utc),
+            valores_anteriores={"horas": 1},
+            valores_nuevos={"horas": 2},
+        )
+        item = client.get(URL_RH_AUDITS, headers=cabecera(token_rh)).json()[
+            "items"
+        ][0]
+        assert item["empleado_nombre"] is None
+        assert item["proyecto_nombre"] is None
+
+    def test_entidad_no_participacion_deja_nombres_en_none(
+        self, client, token_rh, cuenta_rh, db
+    ):
+        registro = AuditoriaModificacion(
+            actor_cuenta_id=cuenta_rh.id,
+            entidad="empleado",
+            entidad_id=1,
+            operacion="CORRECCION",
+            fecha=datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+        )
+        db.add(registro)
+        db.commit()
+        item = client.get(URL_RH_AUDITS, headers=cabecera(token_rh)).json()[
+            "items"
+        ][0]
+        assert item["empleado_nombre"] is None
+        assert item["proyecto_nombre"] is None
