@@ -179,21 +179,56 @@ def a_participacion_out_con_empleado(participacion: Participacion) -> Participac
 
 
 def actualizar_participacion_empleado(
-    db: Session, participacion: Participacion, datos: ParticipacionEmpleadoUpdateIn
+    db: Session,
+    participacion: Participacion,
+    datos: ParticipacionEmpleadoUpdateIn,
+    cuenta: CuentaAcceso,
 ) -> Participacion:
     """Edición del Empleado: SOLO rol/entregables/horas (PRD §12.1).
 
-    No genera auditoría: la auditoría es obligatoria para correcciones RH
-    (§9.1, §25), no para los cambios del propio empleado.
+    Toda modificación REAL genera una ``AuditoriaModificacion`` con la
+    operación ``MODIFICACION_EMPLEADO`` —distinta de la ``CORRECCION`` de RH—
+    DENTRO de la misma transacción que el cambio (§25, ampliado para auditar
+    también las modificaciones del empleado). El actor es la cuenta del propio
+    Empleado. Si el cuerpo no cambia ningún campo respecto al valor actual, no
+    hay cambio real: se rechaza con 422 y NO se genera auditoría.
+
+    ``motivo`` no aplica al Empleado (§25 lo reserva al formulario
+    administrativo de RH): queda en ``None``.
     """
     cambios = datos.model_dump(exclude_unset=True)
-    if not cambios:
+    # Solo los campos cuyo valor realmente difiere: nunca se audita un
+    # no-cambio (valores anteriores/nuevos idénticos).
+    cambios_reales = {
+        campo: valor
+        for campo, valor in cambios.items()
+        if getattr(participacion, campo) != valor
+    }
+    if not cambios_reales:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Debe proporcionar al menos un campo a actualizar.",
         )
-    for campo, valor in cambios.items():
+
+    # Snapshot previo de los campos realmente modificados (auditoría §25).
+    valores_anteriores = {
+        campo: getattr(participacion, campo) for campo in cambios_reales
+    }
+    for campo, valor in cambios_reales.items():
         setattr(participacion, campo, valor)
+    valores_nuevos = dict(cambios_reales)
+
+    # Auditoría DENTRO de la misma transacción: mismo flush/commit (§25), con
+    # el actor = cuenta del Empleado autenticado.
+    auditoria_service.registrar(
+        db,
+        cuenta_actor=cuenta,
+        entidad="participacion",
+        entidad_id=participacion.id,
+        operacion=auditoria_service.OPERACION_MODIFICACION_EMPLEADO,
+        valores_anteriores=valores_anteriores,
+        valores_nuevos=valores_nuevos,
+    )
     db.commit()
     db.refresh(participacion)
     return participacion

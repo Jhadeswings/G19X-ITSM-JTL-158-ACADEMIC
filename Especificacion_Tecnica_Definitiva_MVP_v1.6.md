@@ -3,7 +3,8 @@
 **Empresa:** PluriOne S.A. de C.V. (Develop Talent & Technology)  
 **Versión:** 1.6 — Recomendación RH bajo demanda  
 **Estado:** CERRADA PARA IMPLEMENTACIÓN  
-**Fecha:** Octubre 2026
+**Fecha:** Octubre 2026  
+**Revisión:** Octubre 2026 — Auditoría ampliada a las modificaciones del Empleado sobre su propia participación (§9.1, §25), diferenciadas de las correcciones de RH por la operación `MODIFICACION_EMPLEADO` vs `CORRECCION`.
 
 ---
 
@@ -240,11 +241,13 @@ Después del registro inicial solo puede actualizar:
 - `entregables`
 - `horas`
 
+Cada modificación real del Empleado queda registrada en `AuditoriaModificacion` con la operación `MODIFICACION_EMPLEADO`, dentro de la misma transacción que el cambio. Si ningún campo cambia de valor, no se genera auditoría. El `motivo` no aplica al Empleado.
+
 ### RH
 
 Puede corregir cualquier campo administrativo permitido por el modelo.
 
-Toda corrección RH debe crear un registro en `AuditoriaModificacion`.
+Toda corrección RH debe crear un registro en `AuditoriaModificacion` con la operación `CORRECCION`.
 
 ---
 
@@ -639,7 +642,7 @@ Entidad mínima:
 
 Puede existir `motivo` si está definido por el formulario administrativo.
 
-La auditoría es obligatoria para correcciones RH sobre datos operativos relevantes, especialmente `Participacion`.
+La auditoría es obligatoria para las correcciones RH (operación `CORRECCION`) y para las modificaciones que el Empleado aplique a su propia participación (operación `MODIFICACION_EMPLEADO`) sobre datos operativos relevantes, especialmente `Participacion`. Una actualización que no produce ningún cambio real no genera auditoría.
 
 No crear auditoría para resultados calculados dinámicamente que no se modifican.
 

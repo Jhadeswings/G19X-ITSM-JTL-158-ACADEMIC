@@ -3,7 +3,8 @@
 **Empresa:** PluriOne S.A. de C.V. (Develop Talent & Technology)  
 **Versión:** 1.4 — Acciones de desarrollo en Perfil RH  
 **Estado:** CERRADO PARA IMPLEMENTACIÓN  
-**Fecha:** Octubre 2026
+**Fecha:** Octubre 2026  
+**Revisión:** Octubre 2026 — Auditoría de las modificaciones del Empleado sobre su participación (§12.1, §22).
 
 ---
 
@@ -443,6 +444,8 @@ Solo puede editar:
 - horas.
 
 Los indicadores objetivos registrados al crear la participación quedan bloqueados para el Empleado.
+
+Cada edición real del Empleado queda auditada (`MODIFICACION_EMPLEADO`), distinta de la corrección administrativa de RH.
 
 ## 12.2 Edición administrativa RH
 
@@ -924,7 +927,7 @@ RBAC se aplica en backend, no solo en frontend.
 
 El backend debe validar propiedad y alcance de cada recurso para prevenir IDOR.
 
-Toda corrección administrativa relevante debe registrar auditoría.
+Toda corrección administrativa relevante debe registrar auditoría. También se auditan las modificaciones que el Empleado realiza sobre su propia participación, diferenciadas por operación.
 
 La auditoría debe permitir conocer al menos:
 

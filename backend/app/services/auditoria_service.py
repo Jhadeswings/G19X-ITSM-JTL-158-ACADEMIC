@@ -23,6 +23,9 @@ from app.schemas.auditoria import AuditoriaOut
 
 # Operaciones canónicas.
 OPERACION_CORRECCION = "CORRECCION"
+# Modificación de la propia participación por el Empleado (ET §9.1/§25,
+# ampliado): se diferencia de la corrección de RH por esta operación.
+OPERACION_MODIFICACION_EMPLEADO = "MODIFICACION_EMPLEADO"
 
 # Entidad con contexto empleado/proyecto resoluble.
 ENTIDAD_PARTICIPACION = "participacion"
@@ -112,6 +115,67 @@ def _precargar_contexto_participaciones(
     for registro in registros:
         if registro.entidad == ENTIDAD_PARTICIPACION:
             registro._participacion = por_id.get(registro.entidad_id)
+
+
+def listar_auditorias_de_participaciones(
+    db: Session,
+    *,
+    empleado_id: int,
+    pagina: int = 1,
+    por_pagina: int = 20,
+) -> tuple[list[AuditoriaModificacion], int]:
+    """Historial de correcciones de las participaciones PROPIAS (Empleado).
+
+    Equivalente del Empleado de ``listar_auditorias`` (RH): la MISMA consulta
+    de solo lectura, acotada por ownership (ET §32) con un JOIN a
+    ``Participacion`` filtrado por ``empleado_id``. El ``empleado_id`` llega
+    SIEMPRE del endpoint, que lo deriva de la cuenta autenticada; nunca del
+    cliente.
+
+    Aislamiento entre personas: solo se devuelven auditorías cuya
+    ``entidad == "participacion"`` Y cuya participación pertenezca a
+    ``empleado_id``. Las correcciones de RH sobre participaciones de OTROS
+    empleados quedan fuera por construcción (el filtro vive en el JOIN, no en
+    el cliente). Reutiliza ``_precargar_contexto_participaciones`` (una sola
+    consulta de contexto por página, sin N+1) y ``a_auditoria_out`` (la misma
+    presentación que RH: nunca expone credenciales).
+
+    Participación inexistente — comportamiento DOCUMENTADO a propósito:
+    ``AuditoriaModificacion`` guarda ``entidad_id`` pero NO ``empleado_id``; la
+    pertenencia se resuelve UNIENDO con ``Participacion``. Si una participación
+    auditada dejara de existir, no habría forma de demostrar a qué empleado
+    pertenecía, por lo que la auditoría NO aparece en este historial. No se
+    oculta en silencio: esos mismos registros siguen siendo visibles para RH en
+    ``/rh/audits`` (con ``empleado_nombre``/``proyecto_nombre`` en ``None`` →
+    «No disponible»). En la práctica actual las participaciones no se borran
+    (no existe endpoint de borrado y las FKs usan ``ondelete=RESTRICT``).
+
+    Solo lectura: no crea ni altera registros y no amplía qué operaciones
+    generan auditoría (§25). Orden determinista: ``fecha`` DESC con ``id`` DESC
+    como desempate —igual que RH—.
+    """
+    filtro = (
+        AuditoriaModificacion.entidad == ENTIDAD_PARTICIPACION,
+        Participacion.empleado_id == empleado_id,
+    )
+    total = db.scalar(
+        select(func.count())
+        .select_from(AuditoriaModificacion)
+        .join(Participacion, AuditoriaModificacion.entidad_id == Participacion.id)
+        .where(*filtro)
+    )
+    registros = db.scalars(
+        select(AuditoriaModificacion)
+        .join(Participacion, AuditoriaModificacion.entidad_id == Participacion.id)
+        .where(*filtro)
+        .order_by(
+            AuditoriaModificacion.fecha.desc(), AuditoriaModificacion.id.desc()
+        )
+        .offset((pagina - 1) * por_pagina)
+        .limit(por_pagina)
+    ).all()
+    _precargar_contexto_participaciones(db, registros)
+    return list(registros), int(total or 0)
 
 
 def a_auditoria_out(registro: AuditoriaModificacion) -> AuditoriaOut:

@@ -55,3 +55,25 @@
   .historial-periodo { padding: 16px; }
   .historial-periodo__competencias { grid-template-columns: 1fr; }
 }
+
+/* --- Apartado interno: Correcciones de mis participaciones (Opción A) ---
+   Bloque de solo lectura dentro de «Mi historial». Reutiliza los tokens y
+   primitivas existentes (tabla §14.1, paginación §14.2, aviso discreto §13);
+   aquí solo la composición del apartado, sin paleta ni componentes nuevos. */
+.historial-apartado { display: flex; flex-direction: column; gap: 14px; }
+.historial-correcciones { display: flex; flex-direction: column; gap: 16px; }
+.historial-correcciones__aviso {
+  margin: 0;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .historial-correcciones__aviso { padding: 12px; }
+}

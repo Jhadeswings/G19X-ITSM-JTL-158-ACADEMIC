@@ -39,6 +39,7 @@ import {
   POR_PAGINA_DEFECTO,
   listarEvaluacionesPropias,
 } from '../api/evaluaciones.js'
+import CorreccionesParticipaciones from '../componentes/CorreccionesParticipaciones.jsx'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
@@ -143,7 +144,7 @@ export default function MiHistorial({ token, alSesionExpirada }) {
       <SectionHeader
         eyebrow="Tu desarrollo"
         title="Mi historial"
-        description="Tus evaluaciones oficiales históricas. Cada periodo es una fotografía de tus competencias en ese momento y no cambia con el tiempo."
+        description="Tus evaluaciones oficiales históricas y las correcciones administrativas que RH aplicó sobre tus participaciones. Cada apartado es de solo consulta."
       />
 
       {fase === 'cargando' && <EstadoCarga texto="Cargando tu historial…" />}
@@ -283,6 +284,23 @@ export default function MiHistorial({ token, alSesionExpirada }) {
           </section>
         </>
       )}
+
+      {/* Apartado interno (Opción A): correcciones administrativas de RH y
+          modificaciones propias sobre MIS participaciones. Es un bloque de solo
+          lectura, distinto de «Mis evaluaciones»: se consulta por separado
+          (GET /me/audits) y el backend ya filtra por el empleado autenticado. */}
+      <section
+        className="historial-apartado"
+        aria-labelledby="historial-correcciones-titulo"
+      >
+        <h2 className="historial-periodos__titulo" id="historial-correcciones-titulo">
+          Historial de mis participaciones
+        </h2>
+        <CorreccionesParticipaciones
+          token={token}
+          alSesionExpirada={alSesionExpirada}
+        />
+      </section>
     </div>
   )
 }

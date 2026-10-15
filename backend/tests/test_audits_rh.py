@@ -16,6 +16,7 @@ from sqlalchemy import select
 from app.models.auditoria_modificacion import AuditoriaModificacion
 from app.schemas.auditoria import AuditoriaOut
 from tests.helpers import (
+    URL_ME_PARTICIPACIONES,
     URL_RH_AUDITS,
     URL_RH_PARTICIPACIONES,
     cabecera,
@@ -390,3 +391,48 @@ class TestContextoDelRegistro:
         ][0]
         assert item["empleado_nombre"] is None
         assert item["proyecto_nombre"] is None
+
+
+class TestModificacionEmpleadoVisibleParaRh:
+    """RH ve las MODIFICACION_EMPLEADO junto a las correcciones (§25)."""
+
+    def test_rh_ve_modificacion_del_empleado(
+        self, client, token_rh, db, cuenta_empleado
+    ):
+        from app.core.fechas import fecha_negocio_hoy
+        from app.core.normalizacion import normalizar_nombre
+        from app.models.participacion import Participacion
+        from app.models.proyecto import Proyecto
+
+        proyecto = Proyecto(
+            nombre="Proyecto Vista RH Mod",
+            nombre_normalizado=normalizar_nombre("Proyecto Vista RH Mod"),
+        )
+        db.add(proyecto)
+        db.flush()
+        registro = Participacion(
+            empleado_id=cuenta_empleado.empleado_id,
+            proyecto_id=proyecto.id,
+            rol="Dev",
+            horas=100,
+            fecha_registro=fecha_negocio_hoy(),
+        )
+        db.add(registro)
+        db.commit()
+        db.refresh(registro)
+
+        token_empleado = login_y_token(client, "empleado@empresa.dev")
+        respuesta = client.patch(
+            f"{URL_ME_PARTICIPACIONES}/{registro.id}",
+            json={"horas": 160},
+            headers=cabecera(token_empleado),
+        )
+        assert respuesta.status_code == 200
+
+        datos = client.get(URL_RH_AUDITS, headers=cabecera(token_rh)).json()
+        assert datos["total"] == 1
+        item = datos["items"][0]
+        assert item["operacion"] == "MODIFICACION_EMPLEADO"
+        assert item["actor_email"] == "empleado@empresa.dev"
+        assert item["empleado_nombre"] == cuenta_empleado.empleado.nombre
+        assert item["proyecto_nombre"] == "Proyecto Vista RH Mod"

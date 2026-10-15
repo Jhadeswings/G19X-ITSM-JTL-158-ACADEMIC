@@ -15,11 +15,19 @@ import {
   POR_PAGINA_DEFECTO,
   listarEvaluacionesPropias,
 } from '../../api/evaluaciones.js'
+import { listarMisAuditorias } from '../../api/misAuditorias.js'
 import MiHistorial from '../MiHistorial.jsx'
 
 vi.mock('../../api/evaluaciones.js', async () => {
   const original = await vi.importActual('../../api/evaluaciones.js')
   return { ...original, listarEvaluacionesPropias: vi.fn() }
+})
+
+// El apartado «Historial de mis participaciones» consulta su propio
+// endpoint; se mockea igual que las evaluaciones (sin red).
+vi.mock('../../api/misAuditorias.js', async () => {
+  const original = await vi.importActual('../../api/misAuditorias.js')
+  return { ...original, listarMisAuditorias: vi.fn() }
 })
 
 /** Las cinco competencias del snapshot, en el orden del contrato. */
@@ -49,6 +57,33 @@ function pagina(items, { total = items.length, pagina = 1, porPagina = POR_PAGIN
   return { total, pagina, por_pagina: porPagina, items }
 }
 
+/** Corrección fiel a `AuditoriaOut` (contrato de /me/audits y /rh/audits). */
+function correccion(id, sobre = {}) {
+  return {
+    id,
+    actor_cuenta_id: 4,
+    actor_email: 'rh@empresa.dev',
+    entidad: 'participacion',
+    entidad_id: 7,
+    operacion: 'CORRECCION',
+    valores_anteriores: { horas: 100 },
+    valores_nuevos: { horas: 150 },
+    motivo: 'Corrección de horas',
+    fecha: '2026-10-01T12:00:00+00:00',
+    empleado_nombre: 'Ana López',
+    proyecto_nombre: 'Prueba 1',
+    ...sobre,
+  }
+}
+
+/** Página fiel a `AuditoriaPageOut`. */
+function paginaCorrecciones(
+  items,
+  { total = items.length, pagina = 1, porPagina = POR_PAGINA_DEFECTO } = {},
+) {
+  return { total, pagina, por_pagina: porPagina, items }
+}
+
 const HISTORIAL = [
   evaluacion(11, '2026-Q3', 4),
   evaluacion(10, '2026-Q2', 3),
@@ -58,6 +93,10 @@ const HISTORIAL = [
 beforeEach(() => {
   vi.mocked(listarEvaluacionesPropias).mockReset()
   vi.mocked(listarEvaluacionesPropias).mockResolvedValue(pagina(HISTORIAL))
+  // Por defecto el apartado de correcciones llega vacío: los tests de
+  // evaluaciones no deben depender de él.
+  vi.mocked(listarMisAuditorias).mockReset()
+  vi.mocked(listarMisAuditorias).mockResolvedValue(paginaCorrecciones([]))
 })
 
 /**
@@ -412,16 +451,16 @@ describe('MiHistorial — lo que la vista NO muestra', () => {
     render(<MiHistorial token="token-empleado" />)
     await esperarHistorial()
 
-    const botones = [...document.querySelectorAll('button')].map((b) => b.textContent.trim())
-    const permitidos = [
-      'Desempeño técnico',
-      'Liderazgo',
-      'Trabajo en equipo',
-      'Capacidad de aprendizaje',
-      'Comunicación',
-    ]
+    // La vista es de SOLO LECTURA: ningún botón debe ser una acción de
+    // escritura (editar/eliminar/regenerar/corregir/guardar). No se exige una
+    // lista cerrada de botones permitidos porque ahora existen controles de
+    // solo lectura legítimos (selector de competencia y paginación).
+    const botones = [...document.querySelectorAll('button')].map((b) =>
+      b.textContent.trim(),
+    )
+    const deEscritura = /editar|eliminar|borrar|regenerar|corregir|actualizar|guardar/i
     for (const boton of botones) {
-      expect(permitidos).toContain(boton)
+      expect(boton).not.toMatch(deEscritura)
     }
     expect(screen.queryByRole('button', { name: /Editar/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /Eliminar|Borrar/i })).toBeNull()
@@ -438,4 +477,165 @@ describe('MiHistorial — lo que la vista NO muestra', () => {
 })
 
 
+describe('MiHistorial — Historial de mis participaciones (apartado interno)', () => {
+  /** Espera a que el apartado del historial esté resuelto. */
+  async function esperarCorrecciones() {
+    await screen.findByRole('heading', {
+      name: 'Historial de mis participaciones',
+      level: 2,
+    })
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Cargando tus correcciones…') ||
+          screen.queryByText('No pudimos cargar tus correcciones') ||
+          screen.queryByText(
+            'Todavía no hay correcciones sobre tus participaciones.',
+          ) ||
+          document.querySelector('.historial-correcciones table'),
+      ).toBeTruthy(),
+    )
+  }
+
+  it('consulta su historial con el token y la paginación del contrato', async () => {
+    render(<MiHistorial token="token-empleado" />)
+
+    await waitFor(() => expect(listarMisAuditorias).toHaveBeenCalledTimes(1))
+    const [token, opciones] = vi.mocked(listarMisAuditorias).mock.calls[0]
+    expect(token).toBe('token-empleado')
+    expect(opciones.pagina).toBe(1)
+    expect(opciones.porPagina).toBe(POR_PAGINA_DEFECTO)
+  })
+
+  it('aclara que incluye correcciones de RH y modificaciones propias', async () => {
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    expect(
+      screen.getByText(/correcciones administrativas que RH realizó/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/las modificaciones que tú mismo hiciste/i),
+    ).toBeInTheDocument()
+  })
+
+  it('lista fecha, proyecto, registro, campo, valores, motivo y autor', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    // Proyecto y registro afectado.
+    expect(screen.getByText('Prueba 1')).toBeInTheDocument()
+    expect(screen.getByText('participacion #7')).toBeInTheDocument()
+    // Campo modificado con valores anterior → nuevo.
+    expect(screen.getAllByText('horas:').length).toBeGreaterThan(0)
+    expect(screen.getByText(/100.*→.*150/)).toBeInTheDocument()
+    // Motivo y autor.
+    expect(screen.getByText('Corrección de horas')).toBeInTheDocument()
+    expect(screen.getByText('rh@empresa.dev')).toBeInTheDocument()
+  })
+
+  it('distingue «Corrección de RH» de «Mi modificación» por la etiqueta Tipo', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([
+        correccion(5, { operacion: 'CORRECCION' }),
+        correccion(6, { operacion: 'MODIFICACION_EMPLEADO', motivo: null }),
+      ]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    expect(screen.getByText('Corrección de RH')).toBeInTheDocument()
+    expect(screen.getByText('Mi modificación')).toBeInTheDocument()
+  })
+
+  it('muestra el estado vacío cuando no hay correcciones', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([], { total: 0 }),
+    )
+    render(<MiHistorial token="token-empleado" />)
+
+    expect(
+      await screen.findByText(
+        'Todavía no hay correcciones sobre tus participaciones.',
+      ),
+    ).toBeInTheDocument()
+    // El aviso vacío explica AMBOS tipos de evento, no solo RH (§25).
+    expect(
+      screen.getByText(/Cuando RH corrija una participación tuya/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/cuando tú mismo modifiques una/i),
+    ).toBeInTheDocument()
+  })
+
+  it('una página vacía con total > 0 no muestra un falso estado vacío', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([], { total: 25, pagina: 2, porPagina: 20 }),
+    )
+    render(<MiHistorial token="token-empleado" />)
+
+    expect(
+      await screen.findByRole('navigation', { name: 'Paginación de correcciones' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Todavía no hay correcciones sobre tus participaciones.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('muestra error de carga con reintento, sin excepción técnica', async () => {
+    vi.mocked(listarMisAuditorias).mockRejectedValue(
+      Object.assign(new Error('connection refused 10.0.0.5'), { estado: 500 }),
+    )
+    render(<MiHistorial token="token-empleado" />)
+
+    expect(
+      await screen.findByText('No pudimos cargar tus correcciones'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/connection refused/i)).not.toBeInTheDocument()
+  })
+
+  it('el 401 del apartado delega en alSesionExpirada', async () => {
+    const alSesionExpirada = vi.fn()
+    vi.mocked(listarMisAuditorias).mockRejectedValue(
+      Object.assign(new Error('Sesión inválida'), { estado: 401 }),
+    )
+    render(
+      <MiHistorial token="token-empleado" alSesionExpirada={alSesionExpirada} />,
+    )
+
+    await waitFor(() => expect(alSesionExpirada).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByText('No pudimos cargar tus correcciones'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('la paginación de correcciones vuelve a consultar la página pedida', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5)], { total: 40, pagina: 1, porPagina: 20 }),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    await waitFor(() => expect(listarMisAuditorias).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByLabelText('Página 2'))
+
+    await waitFor(() => expect(listarMisAuditorias).toHaveBeenCalledTimes(2))
+    const [, opciones] = vi.mocked(listarMisAuditorias).mock.calls.at(-1)
+    expect(opciones.pagina).toBe(2)
+  })
+
+  it('no ofrece editar, eliminar ni regenerar correcciones', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    expect(screen.queryByRole('button', { name: /Editar/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Eliminar|Borrar/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Actualizar|Guardar/i })).toBeNull()
+  })
+})
 

@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from app.api import (
     auth,
     me,
+    me_audits,
     me_capacitaciones,
     me_evaluations,
     me_participaciones,
@@ -54,6 +55,7 @@ app.include_router(rh_attention.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rh_audits.router, prefix=settings.API_V1_PREFIX)
 app.include_router(rh_comparison.router, prefix=settings.API_V1_PREFIX)
 app.include_router(me_progress.router, prefix=settings.API_V1_PREFIX)
+app.include_router(me_audits.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health", tags=["infra"])

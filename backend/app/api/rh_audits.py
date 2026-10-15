@@ -1,10 +1,11 @@
-"""Router RH: consulta de la auditoría de correcciones (Tarea C).
+"""Router RH: consulta de la auditoría (Tarea C).
 
 Exclusivo de RH (``require_rh``): lectura paginada de los registros ya
 existentes en ``AuditoriaModificacion`` (ET §25, PRD §22). Este endpoint
-SOLO consulta: no modifica datos y NO genera un registro de auditoría —la
-auditoría sigue siendo exclusiva de las correcciones administrativas y aquí
-no se amplía qué operaciones la generan—.
+SOLO consulta: no modifica datos y NO genera un registro de auditoría. La
+vista global de RH incluye tanto las correcciones administrativas
+(``CORRECCION``) como las modificaciones del Empleado
+(``MODIFICACION_EMPLEADO``); aquí no se amplía qué operaciones la generan.
 """
 
 from fastapi import APIRouter, Depends, Query

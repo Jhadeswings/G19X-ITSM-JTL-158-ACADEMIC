@@ -5,8 +5,8 @@
 // Pantalla de SOLO LECTURA: consulta los registros YA existentes en
 // AuditoriaModificacion con GET /api/v1/rh/audits. Aquí NO se crea, NO se
 // edita y NO se borra ningún registro, y esta consulta tampoco genera
-// auditoría: la pantalla solo presenta lo que las correcciones RH (§9.1)
-// ya persistieron en su misma transacción.
+// auditoría: la pantalla solo presenta lo que las correcciones RH (§9.1) y
+// las modificaciones del Empleado ya persistieron en su misma transacción.
 //
 // Contrato real del backend (nada se inventa):
 // - AuditoriaPageOut { total, pagina, por_pagina, items[] }.
@@ -47,6 +47,21 @@ const SIN_DATO = '—'
 
 /** Sin relación o dato ausente: nunca se inventa un nombre. */
 const NO_DISPONIBLE = 'No disponible'
+
+/**
+ * Etiqueta legible por operación (§25). El backend diferencia la corrección
+ * administrativa de RH (`CORRECCION`) de la modificación del propio empleado
+ * (`MODIFICACION_EMPLEADO`). Una operación desconocida se muestra tal cual:
+ * aquí no se inventan etiquetas.
+ */
+const ETIQUETA_OPERACION = {
+  CORRECCION: 'Corrección de RH',
+  MODIFICACION_EMPLEADO: 'Modificación del empleado',
+}
+
+function etiquetaOperacion(operacion) {
+  return ETIQUETA_OPERACION[operacion] || operacion
+}
 
 /** Estado inicial de la consulta (patrón de las demás vistas RH). */
 function consultaInicial() {
@@ -167,7 +182,7 @@ export default function Auditorias({ token, alSesionExpirada }) {
         {fase === 'listo' && total === 0 && (
           <EstadoVacio
             titulo="Todavía no hay correcciones registradas."
-            descripcion="Cada corrección administrativa que RH aplique a una participación quedará aquí con su autor, fecha y valores anteriores y nuevos."
+            descripcion="Cada corrección de RH y cada modificación del empleado sobre una participación quedará aquí con su tipo, autor, fecha y valores anteriores y nuevos."
           />
         )}
 
@@ -189,7 +204,7 @@ export default function Auditorias({ token, alSesionExpirada }) {
                       {registro.actor_email || `Cuenta #${registro.actor_cuenta_id}`}
                     </td>
                     <td data-label="Operación">
-                      <Badge tone="neutral">{registro.operacion}</Badge>
+                      <Badge tone="neutral">{etiquetaOperacion(registro.operacion)}</Badge>
                     </td>
                     <td data-label="Registro">
                       {registro.entidad} #{registro.entidad_id}

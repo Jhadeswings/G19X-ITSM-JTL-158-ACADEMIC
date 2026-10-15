@@ -138,10 +138,15 @@ class TestTransaccionalidad:
         assert participacion.horas == 100
         assert db.scalars(select(AuditoriaModificacion)).all() == []
 
-    def test_creacion_y_edicion_empleado_no_auditan(
-        self, client, token_empleado, participacion, db
+    def test_creacion_no_audita_y_edicion_empleado_si(
+        self, client, token_empleado, cuenta_empleado, participacion, db
     ):
-        """La auditoría es solo para correcciones RH (§9.1, §25)."""
+        """La creación no audita; la edición del empleado audita (§9.1/§25).
+
+        El fixture crea la participación vía el modelo (equivalente al alta):
+        nunca genera auditoría. En cambio, la edición del empleado SÍ genera un
+        registro ``MODIFICACION_EMPLEADO`` con el actor de su propia cuenta.
+        """
         assert db.scalars(select(AuditoriaModificacion)).all() == []
 
         from app.schemas.participacion import ParticipacionEmpleadoUpdateIn
@@ -151,8 +156,12 @@ class TestTransaccionalidad:
             db,
             participacion,
             ParticipacionEmpleadoUpdateIn.model_validate({"horas": 88}),
+            cuenta_empleado,
         )
-        assert db.scalars(select(AuditoriaModificacion)).all() == []
+        auditorias = db.scalars(select(AuditoriaModificacion)).all()
+        assert len(auditorias) == 1
+        assert auditorias[0].operacion == "MODIFICACION_EMPLEADO"
+        assert auditorias[0].actor_cuenta_id == cuenta_empleado.id
 
     def test_consultas_no_auditan(self, client, token_empleado, participacion, db):
         """Las lecturas y los resultados dinámicos no generan auditoría (§25)."""

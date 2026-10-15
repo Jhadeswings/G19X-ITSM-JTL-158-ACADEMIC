@@ -305,15 +305,58 @@ class TestEdicionEmpleado:
             headers=cabecera(token_empleado_b),
         ).status_code == 404
 
-    def test_edicion_empleado_no_genera_auditoria(
-        self, client, token_empleado, propia, db
+    def test_edicion_empleado_genera_auditoria_modificacion(
+        self, client, token_empleado, cuenta_empleado, propia, db
     ):
-        client.patch(
+        """La modificación del empleado audita con MODIFICACION_EMPLEADO (§25)."""
+        respuesta = client.patch(
             f"{URL_ME_PARTICIPACIONES}/{propia['id']}",
             json={"horas": 55},
             headers=cabecera(token_empleado),
         )
+        assert respuesta.status_code == 200
+        auditorias = db.scalars(select(AuditoriaModificacion)).all()
+        assert len(auditorias) == 1
+        aud = auditorias[0]
+        # Diferenciada de la corrección de RH por la operación.
+        assert aud.operacion == "MODIFICACION_EMPLEADO"
+        assert aud.entidad == "participacion"
+        assert aud.entidad_id == propia["id"]
+        # Actor = la cuenta del propio Empleado autenticado (§32).
+        assert aud.actor_cuenta_id == cuenta_empleado.id
+        # Valores anteriores/nuevos reales (alta con horas=120).
+        assert aud.valores_anteriores == {"horas": 120}
+        assert aud.valores_nuevos == {"horas": 55}
+        # El empleado no define motivo (§25 lo reserva a RH).
+        assert aud.motivo is None
+
+    def test_edicion_sin_cambio_real_no_genera_auditoria(
+        self, client, token_empleado, propia, db
+    ):
+        """Enviar el mismo valor no cambia nada: 422 y sin auditoría (§25)."""
+        respuesta = client.patch(
+            f"{URL_ME_PARTICIPACIONES}/{propia['id']}",
+            json={"horas": 120},
+            headers=cabecera(token_empleado),
+        )
+        assert respuesta.status_code == 422
         assert contar_auditorias(db) == 0
+
+    def test_campos_modificados_y_no_modificados_en_auditoria(
+        self, client, token_empleado, propia, db
+    ):
+        """Solo los campos realmente modificados entran en la auditoría."""
+        respuesta = client.patch(
+            f"{URL_ME_PARTICIPACIONES}/{propia['id']}",
+            # rol sí cambia; horas se envía con el valor actual (no cambia).
+            json={"rol": "Senior Dev", "horas": 120},
+            headers=cabecera(token_empleado),
+        )
+        assert respuesta.status_code == 200
+        aud = db.scalars(select(AuditoriaModificacion)).all()[0]
+        assert aud.valores_anteriores == {"rol": "Desarrollador"}
+        assert aud.valores_nuevos == {"rol": "Senior Dev"}
+        assert "horas" not in aud.valores_anteriores
 
 
 class TestCorreccionRH:

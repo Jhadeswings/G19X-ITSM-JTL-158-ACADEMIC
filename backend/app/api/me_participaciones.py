@@ -86,5 +86,7 @@ def actualizar_participacion(
         db, cuenta=cuenta, participacion_id=participacion_id
     )
     return ParticipacionOut.model_validate(
-        participacion_service.actualizar_participacion_empleado(db, participacion, datos)
+        participacion_service.actualizar_participacion_empleado(
+            db, participacion, datos, cuenta
+        )
     )

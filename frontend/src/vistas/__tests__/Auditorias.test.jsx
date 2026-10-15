@@ -81,7 +81,8 @@ describe('Auditorías RH — consulta y contrato', () => {
 
     expect(await screen.findByRole('table')).toBeInTheDocument()
     expect(screen.getAllByText('rh@empresa.dev')).toHaveLength(2)
-    expect(screen.getAllByText('CORRECCION')).toHaveLength(2)
+    // La operación se presenta con etiqueta legible (§25), no el código crudo.
+    expect(screen.getAllByText('Corrección de RH')).toHaveLength(2)
     expect(
       screen.getByText((_, el) => el?.textContent === 'participacion #1'),
     ).toBeInTheDocument()
@@ -148,6 +149,10 @@ describe('Auditorías RH — estados y paginación', () => {
 
     expect(
       await screen.findByText('Todavía no hay correcciones registradas.'),
+    ).toBeInTheDocument()
+    // El aviso vacío explica AMBOS tipos de evento, no solo RH (§25).
+    expect(
+      screen.getByText(/Cada corrección de RH y cada modificación del empleado/i),
     ).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/Paginación/)).not.toBeInTheDocument()

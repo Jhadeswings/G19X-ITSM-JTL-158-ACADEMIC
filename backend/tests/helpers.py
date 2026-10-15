@@ -79,6 +79,9 @@ URL_RH_EMPLEADO_RECOMENDACION = (
 # Tarea C (consulta de auditoría para RH; PRD §22, ET §25)
 URL_RH_AUDITS = "/api/v1/rh/audits"
 
+# Historial de correcciones de MIS participaciones (Empleado; PRD §22, ET §25/§32)
+URL_ME_AUDITS = "/api/v1/me/audits"
+
 
 def cabecera(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
