@@ -12,8 +12,22 @@
 // Muestra DOS tipos de evento sobre mis participaciones (§25): las correcciones
 // administrativas de RH (`CORRECCION`) y mis propias modificaciones
 // (`MODIFICACION_EMPLEADO`), diferenciadas por la etiqueta «Tipo».
+//
+// Presentación del AUTOR y del MOTIVO por tipo de operación (§25):
+// - `MODIFICACION_EMPLEADO` → autor «Tú»: se decide con la operación Y la
+//   identidad de la cuenta autenticada (`GET /me` vía `obtenerCuenta`, el
+//   mismo contrato que usa Mi cuenta), comparando `cuenta_id` —el email solo
+//   como respaldo—; nunca comparando a ciegas cadenas de correo. Si la
+//   identidad no se pudo corroborar, se muestra el correo real del actor:
+//   no se afirma «Tú» sin evidencia.
+// - `CORRECCION` → el correo del responsable que registró RH; si el registro
+//   no trae correo, «No disponible» (indicador neutro, sin inventar nombres).
+// - Operación desconocida → «No disponible» en el autor.
+// - El motivo NO existe para la operación del Empleado → siempre «—»; el de
+//   RH se conserva tal cual se registró y, si falta, «—». Nada se inventa.
 
 import { useCallback, useEffect, useState } from 'react'
+import { obtenerCuenta } from '../api/cuenta.js'
 import { POR_PAGINA_DEFECTO, listarMisAuditorias } from '../api/misAuditorias.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
@@ -34,18 +48,71 @@ const COLUMNAS = [
 
 const SIN_DATO = '—'
 
+/** Autor sin identidad que mostrar: indicador neutro, nunca un nombre inventado. */
+const NO_DISPONIBLE = 'No disponible'
+
+/** Autor de la modificación realizada por la propia persona autenticada. */
+const TEXTO_AUTOR_PROPIO = 'Tú'
+
+// Operaciones del contrato (§25). Fuera de estas dos, la operación se
+// considera desconocida y su autor no se clasifica.
+const CORRECCION = 'CORRECCION'
+const MODIFICACION_EMPLEADO = 'MODIFICACION_EMPLEADO'
+
 /**
  * Etiqueta «Tipo» del evento, en primera persona para el Empleado (§25):
  * «Corrección de RH» la distingue de «Mi modificación» (su propio cambio).
  * Una operación desconocida se muestra tal cual: nunca se inventa una etiqueta.
  */
 const ETIQUETA_TIPO = {
-  CORRECCION: 'Corrección de RH',
-  MODIFICACION_EMPLEADO: 'Mi modificación',
+  [CORRECCION]: 'Corrección de RH',
+  [MODIFICACION_EMPLEADO]: 'Mi modificación',
 }
 
 function etiquetaTipo(operacion) {
   return ETIQUETA_TIPO[operacion] || operacion
+}
+
+/**
+ * ¿El evento lo realizó la cuenta autenticada? Se decide con la operación
+ * (solo `MODIFICACION_EMPLEADO` es, por contrato §25, cambio propio) Y la
+ * identidad que el backend devuelve en `GET /me`: coincide por `cuenta_id`
+ * (identificador de la cuenta autenticada) y usa el email solo como respaldo
+ * cuando aquel no viene. NO es una comparación ciega de cadenas de correo: si
+ * la identidad no está disponible, nunca se afirma que el actor es uno mismo.
+ */
+function esAutorPropio(registro, identidad) {
+  if (registro.operacion !== MODIFICACION_EMPLEADO || !identidad) return false
+  if (identidad.cuenta_id != null) {
+    return registro.actor_cuenta_id === identidad.cuenta_id
+  }
+  return Boolean(identidad.email) && registro.actor_email === identidad.email
+}
+
+/**
+ * Autor presentable por tipo de operación (§25): «Tú» para la modificación
+ * propia corroborada con la identidad autenticada; el correo real del
+ * responsable para las operaciones reconocidas; «No disponible» cuando no hay
+ * identidad que mostrar o la operación es desconocida. Nunca se inventan
+ * nombres ni cuentas técnicas.
+ */
+function textoAutor(registro, identidad) {
+  if (esAutorPropio(registro, identidad)) return TEXTO_AUTOR_PROPIO
+  if (registro.operacion === CORRECCION || registro.operacion === MODIFICACION_EMPLEADO) {
+    return registro.actor_email || NO_DISPONIBLE
+  }
+  return NO_DISPONIBLE
+}
+
+/**
+ * Motivo presentable por tipo de operación (§25): la operación del Empleado
+ * NO solicita motivo por contrato, así que siempre es «—» (aunque el registro
+ * trajera algo); la corrección de RH conserva su motivo registrado y, si no
+ * lo hay, «—». Nunca se inventa un motivo.
+ */
+function textoMotivo(registro) {
+  if (registro.operacion === MODIFICACION_EMPLEADO) return SIN_DATO
+  return registro.motivo || SIN_DATO
 }
 
 /** Estado inicial de la consulta (patrón de las demás vistas del Empleado). */
@@ -86,6 +153,8 @@ function textoValor(valor) {
 export default function CorreccionesParticipaciones({ token, alSesionExpirada }) {
   const [pagina, setPagina] = useState(1)
   const [consulta, setConsulta] = useState(consultaInicial)
+  // Identidad propia (GET /me) para el autor «Tú»; independiente del listado.
+  const [identidad, setIdentidad] = useState(null)
 
   const cargar = useCallback(() => {
     setConsulta(consultaInicial())
@@ -103,6 +172,27 @@ export default function CorreccionesParticipaciones({ token, alSesionExpirada })
   useEffect(() => {
     cargar()
   }, [cargar])
+
+  // Identidad propia (GET /me) SOLO para presentar el autor «Tú»: es una
+  // consulta de solo lectura más, independiente del listado. Un fallo
+  // distinto de 401 no rompe el apartado: la tabla sigue mostrando el correo
+  // real del actor (§13.6) y no se afirma «Tú» sin corroborar la identidad.
+  useEffect(() => {
+    let cancelado = false
+    obtenerCuenta(token)
+      .then((datos) => {
+        if (!cancelado) setIdentidad(datos ?? null)
+      })
+      .catch((error) => {
+        if (cancelado) return
+        if (error?.estado === 401) {
+          alSesionExpirada?.()
+        }
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [token, alSesionExpirada])
 
   const { fase, datos } = consulta
   const items = fase === 'listo' ? datos?.items || [] : []
@@ -159,7 +249,7 @@ export default function CorreccionesParticipaciones({ token, alSesionExpirada })
                   <td data-label="Registro">
                     {registro.entidad} #{registro.entidad_id}
                   </td>
-                  <td data-label="Motivo">{registro.motivo || SIN_DATO}</td>
+                  <td data-label="Motivo">{textoMotivo(registro)}</td>
                   <td data-label="Valores">
                     {valores === null ? (
                       SIN_DATO
@@ -177,7 +267,7 @@ export default function CorreccionesParticipaciones({ token, alSesionExpirada })
                     )}
                   </td>
                   <td data-label="Autor">
-                    {registro.actor_email || `Cuenta #${registro.actor_cuenta_id}`}
+                    {textoAutor(registro, identidad)}
                   </td>
                 </tr>
               )

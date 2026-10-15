@@ -16,6 +16,7 @@ import {
   listarEvaluacionesPropias,
 } from '../../api/evaluaciones.js'
 import { listarMisAuditorias } from '../../api/misAuditorias.js'
+import { obtenerCuenta } from '../../api/cuenta.js'
 import MiHistorial from '../MiHistorial.jsx'
 
 vi.mock('../../api/evaluaciones.js', async () => {
@@ -28,6 +29,13 @@ vi.mock('../../api/evaluaciones.js', async () => {
 vi.mock('../../api/misAuditorias.js', async () => {
   const original = await vi.importActual('../../api/misAuditorias.js')
   return { ...original, listarMisAuditorias: vi.fn() }
+})
+
+// Identidad propia (GET /me) que el apartado usa para el autor «Tú»:
+// mismo tratamiento, sin red.
+vi.mock('../../api/cuenta.js', async () => {
+  const original = await vi.importActual('../../api/cuenta.js')
+  return { ...original, obtenerCuenta: vi.fn() }
 })
 
 /** Las cinco competencias del snapshot, en el orden del contrato. */
@@ -84,6 +92,22 @@ function paginaCorrecciones(
   return { total, pagina, por_pagina: porPagina, items }
 }
 
+/**
+ * Identidad fiel a `GET /me` para la persona autenticada. El autor «Tú» se
+ * corrobora contra esta identidad (cuenta_id primero), no con heurísticas.
+ */
+const IDENTIDAD = {
+  cuenta_id: 77,
+  email: 'empleado@empresa.dev',
+  rol: 'EMPLEADO',
+  empleado_id: 7,
+  empleado_nombre: 'Ana López',
+  puesto: null,
+  area: null,
+  must_change_password: false,
+  activo: true,
+}
+
 const HISTORIAL = [
   evaluacion(11, '2026-Q3', 4),
   evaluacion(10, '2026-Q2', 3),
@@ -97,6 +121,10 @@ beforeEach(() => {
   // evaluaciones no deben depender de él.
   vi.mocked(listarMisAuditorias).mockReset()
   vi.mocked(listarMisAuditorias).mockResolvedValue(paginaCorrecciones([]))
+  // Identidad propia disponible por defecto; los tests que necesiten lo
+  // contrario la reprograman explícitamente.
+  vi.mocked(obtenerCuenta).mockReset()
+  vi.mocked(obtenerCuenta).mockResolvedValue(IDENTIDAD)
 })
 
 /**
@@ -536,11 +564,32 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     expect(screen.getByText('rh@empresa.dev')).toBeInTheDocument()
   })
 
+  /** Fila <tr> que contiene un texto único (p. ej. la etiqueta Tipo). */
+  function filaDe(texto) {
+    return screen.getByText(texto).closest('tr')
+  }
+
+  /** Texto de la celda de una fila por su `data-label` (columna exacta). */
+  function celda(fila, etiqueta) {
+    return fila.querySelector(`td[data-label='${etiqueta}']`).textContent
+  }
+
+  /** Evento de modificación propia, con el actor = persona autenticada. */
+  function modificacionPropia(id, sobre = {}) {
+    return correccion(id, {
+      operacion: 'MODIFICACION_EMPLEADO',
+      actor_cuenta_id: IDENTIDAD.cuenta_id,
+      actor_email: IDENTIDAD.email,
+      motivo: null,
+      ...sobre,
+    })
+  }
+
   it('distingue «Corrección de RH» de «Mi modificación» por la etiqueta Tipo', async () => {
     vi.mocked(listarMisAuditorias).mockResolvedValue(
       paginaCorrecciones([
         correccion(5, { operacion: 'CORRECCION' }),
-        correccion(6, { operacion: 'MODIFICACION_EMPLEADO', motivo: null }),
+        modificacionPropia(6),
       ]),
     )
     render(<MiHistorial token="token-empleado" />)
@@ -548,6 +597,106 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
 
     expect(screen.getByText('Corrección de RH')).toBeInTheDocument()
     expect(screen.getByText('Mi modificación')).toBeInTheDocument()
+  })
+
+  it('una modificación propia muestra «Tú» como autor, en su columna', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([modificacionPropia(6)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+
+    // «Tú» aparece cuando la identidad propia (GET /me) corroboró al actor.
+    const tu = await screen.findByText('Tú')
+    expect(tu.closest("td[data-label='Autor']")).not.toBeNull()
+    // La fila completa: el autor «Tú» NO es el correo del actor.
+    expect(celda(filaDe('Mi modificación'), 'Autor')).toBe('Tú')
+  })
+
+  it('una corrección de RH mantiene al responsable como autor', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    expect(celda(filaDe('Corrección de RH'), 'Autor')).toBe('rh@empresa.dev')
+  })
+
+  it('el motivo de una modificación propia es siempre «—»', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([
+        // Aunque el registro trajera un motivo, esa operación no lo define:
+        // la regla es por tipo de operación, no por el valor que llegue.
+        modificacionPropia(6, { motivo: 'Sobrante que no debe mostrarse' }),
+      ]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    expect(celda(filaDe('Mi modificación'), 'Motivo')).toBe('—')
+    expect(screen.queryByText(/Sobrante/)).toBeNull()
+  })
+
+  it('el motivo de RH se conserva y el ausente se muestra como «—»', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([
+        correccion(5, { motivo: 'Corrección de horas' }),
+        correccion(7, { motivo: null, proyecto_nombre: 'Prueba 2' }),
+      ]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    expect(celda(filaDe('Prueba 1'), 'Motivo')).toBe('Corrección de horas')
+    expect(celda(filaDe('Prueba 2'), 'Motivo')).toBe('—')
+  })
+
+  it('sin actor_email el autor es «No disponible», sin inventar identidad', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5, { actor_email: null })]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    expect(celda(filaDe('Corrección de RH'), 'Autor')).toBe('No disponible')
+    expect(screen.queryByText(/Cuenta #/)).toBeNull()
+  })
+
+  it('sin identidad corroborada no se afirma «Tú»: se muestra el actor real', async () => {
+    vi.mocked(obtenerCuenta).mockRejectedValue(
+      Object.assign(new Error('identity down'), { estado: 500 }),
+    )
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([modificacionPropia(6)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    expect(celda(filaDe('Mi modificación'), 'Autor')).toBe('empleado@empresa.dev')
+    expect(screen.queryByText('Tú')).toBeNull()
+  })
+
+  it('mantiene las siete columnas de la tabla en su orden actual', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    const encabezados = [
+      ...document.querySelectorAll('.historial-correcciones thead th'),
+    ].map((th) => th.textContent)
+    expect(encabezados).toEqual([
+      'Fecha', 'Tipo', 'Proyecto', 'Registro', 'Motivo', 'Valores', 'Autor',
+    ])
+    // Cada fila conserva una celda por columna, en el mismo orden: así el
+    // autor siempre vive en su columna (también en la vista de tarjetas).
+    const etiquetas = [...filaDe('Corrección de RH').querySelectorAll('td')].map(
+      (td) => td.dataset.label,
+    )
+    expect(etiquetas).toEqual([
+      'Fecha', 'Tipo', 'Proyecto', 'Registro', 'Motivo', 'Valores', 'Autor',
+    ])
   })
 
   it('muestra el estado vacío cuando no hay correcciones', async () => {
