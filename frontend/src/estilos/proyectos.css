@@ -215,6 +215,135 @@
   .proyectos-rh__datos-admin { grid-template-columns: 1fr; }
 }
 
+/* ---- Rediseño PLANO de «Mis proyectos» (fondo claro y continuo, sin
+   banner ni tarjetas): encabezado tipográfico, pestañas con indicador
+   terracota, filas separadas por líneas finas y flujo vertical de pasos
+   sobre un riel fino. Solo clases del dominio proyectos-*; mismos tokens
+   y primitivas del shell. Reemplaza al bloque «Refuerzo visual» y al
+   hero oscuro del rediseño anterior. ---- */
+.mis-proyectos {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Encabezado plano sobre el fondo general: sobretítulo terracota en
+   mayúsculas, título oscuro grande y subtítulo gris debajo. */
+.mis-proyectos__cabecera { display: flex; flex-direction: column; gap: 6px; }
+.mis-proyectos__sobretitulo { margin: 0; color: var(--color-accent); font-size: 12px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+.mis-proyectos__titulo { margin: 0; color: var(--color-text-primary); font-size: clamp(26px, 3vw, 34px); line-height: 1.1; letter-spacing: -.03em; font-weight: 700; }
+.mis-proyectos__descripcion { margin: 2px 0 0; max-width: 62ch; color: var(--color-text-secondary); font-size: 14.5px; line-height: 1.6; }
+
+/* Paso del flujo: dos columnas (riel de números + contenido), plano, sin
+   tarjeta, borde exterior ni fondo propio. */
+.mis-proyectos .proyectos-paso {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 16px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.mis-proyectos .proyectos-paso__titulo {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--color-text-primary);
+}
+
+.mis-proyectos .proyectos-paso__nota {
+  margin: 8px 0 0;
+  max-width: 720px;
+  color: var(--color-text-secondary);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* Búsqueda del paso 01: campo largo, botón a su derecha alineado con el
+   campo y texto de ayuda debajo ocupando todo el ancho. */
+.mis-proyectos .proyectos-busqueda {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.mis-proyectos .proyectos-busqueda .form-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proyectos-busqueda__accion { min-height: 47px; }
+/* Verde grisáceo claro de la referencia mientras no hay nombre válido:
+   SOLO apariencia; el botón sigue operativo y el contrato del aviso se
+   conserva si se pulsa con el campo vacío. */
+.proyectos-busqueda__accion--inactiva { background: #c9d6d1; border-color: #c9d6d1; color: #fff; }
+.proyectos-busqueda__accion--inactiva:hover:not(:disabled) { background: #c9d6d1; transform: none; }
+.proyectos-busqueda__ayuda { margin: 8px 0 0; color: var(--ink-soft); font-size: 12.5px; line-height: 1.6; }
+
+/* Mensajes de búsqueda y estados vacíos: texto normal con borde lateral
+   discreto, sin tarjeta decorativa. */
+.proyectos-mensajes { display: flex; flex-direction: column; gap: 12px; }
+.mis-proyectos .estado-vacio { padding: 10px 14px; background: none; border: 0; border-left: 2px solid var(--color-accent); border-radius: 0; }
+.mis-proyectos .estado-vacio__titulo { margin: 0; color: var(--color-text-primary); font-size: 13.5px; font-weight: 650; }
+.mis-proyectos .estado-vacio__descripcion { margin: 4px 0 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.55; }
+
+/* Datos (dl): grid tipográfico plano, sin caja. */
+.mis-proyectos .proyectos-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mis-proyectos .proyectos-datos > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mis-proyectos .proyectos-datos dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.mis-proyectos .proyectos-datos dd { margin: 0; color: var(--color-text-primary); font-size: 14.5px; overflow-wrap: anywhere; font-weight: 500; }
+.mis-proyectos .proyectos-nota { margin-top: 16px; color: var(--ink-soft); font-size: 12.5px; line-height: 1.6; }
+
+/* Coincidencia exacta (paso 02): bloque plano con borde lateral terracota. */
+.mis-proyectos .proyectos-coincidencia { padding: 14px 16px; background: var(--color-surface-soft); border: 0; border-left: 2px solid var(--color-accent); border-radius: 0; }
+.mis-proyectos .proyectos-coincidencia .ui-button { margin-top: 14px; }
+.mis-proyectos .proyectos-coincidencia__etiqueta { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: #a5532f; font-size: 11px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.mis-proyectos .proyectos-coincidencia__etiqueta svg { width: 15px; height: 15px; }
+.mis-proyectos .proyectos-coincidencia__nombre { margin: 0 0 14px; color: var(--color-text-primary); font-size: 21px; font-weight: 700; letter-spacing: -.02em; }
+
+/* Sugerencias aproximadas: informativas y planas, en filas con línea fina. */
+.mis-proyectos .proyectos-sugerencias__titulo { margin: 0 0 6px; color: var(--color-text-primary); font-size: 14.5px; font-weight: 700; }
+.mis-proyectos .proyectos-sugerencias__nota { max-width: 660px; margin: 0 0 12px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+.mis-proyectos .proyectos-sugerencias__lista { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+.mis-proyectos .proyecto-sugerencia { padding: 12px 0; background: none; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; }
+.mis-proyectos .proyecto-sugerencia:first-child { border-top: 0; padding-top: 0; }
+.mis-proyectos .proyecto-sugerencia__nombre { margin: 0 0 8px; color: var(--color-text-primary); font-size: 14.5px; font-weight: 650; }
+
+/* Alta (paso 02) y formularios: campos claros y orden, sin cajas extra. */
+.mis-proyectos .proyectos-alta__campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.mis-proyectos .proyectos-alta__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
+/* Confirmaciones: planas, con borde lateral verde. */
+.mis-proyectos .proyectos-creado { padding: 14px 16px; background: var(--color-surface-soft); border: 0; border-left: 2px solid var(--color-primary); border-radius: 0; }
+.mis-proyectos .proyectos-creado__nombre { margin: 8px 0 14px; color: var(--color-text-primary); font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+.mis-proyectos .proyectos-creado .ui-button { align-self: flex-start; }
+.mis-proyectos .proyectos-confirmacion { padding: 14px 16px; background: var(--color-surface-soft); border: 0; border-left: 2px solid var(--color-primary); border-radius: 0; }
+.mis-proyectos .proyectos-confirmacion .ui-alert { margin-bottom: 14px; }
+.mis-proyectos .proyectos-confirmacion .ui-button { align-self: flex-start; }
+
+/* Indicadores del registro (paso 03): dos columnas con ancho suficiente y
+   una sola en pantallas estrechas (el auto-fit responde). */
+.mis-proyectos .proyectos-indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px 24px; margin: 4px 0 0; padding: 0; background: none; border: 0; border-radius: 0; }
+.mis-proyectos .proyectos-indicadores__titulo { grid-column: 1 / -1; margin: 0; color: var(--color-text-secondary); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.mis-proyectos .proyectos-indicador { display: flex; align-items: center; gap: 10px; }
+.mis-proyectos .proyectos-indicador input[type='checkbox'] { width: 16px; height: 16px; margin: 0; accent-color: var(--color-primary); }
+.mis-proyectos .proyectos-indicador label { color: var(--color-text-primary); font-size: 14px; }
+.mis-proyectos .proyectos-indicador__nota { grid-column: 1 / -1; margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+
+.mis-proyectos .proyectos-registro__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.mis-proyectos .proyectos-edicion__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.mis-proyectos .proyectos-edicion { display: flex; flex-direction: column; gap: 16px; }
 /* RH-02.3: breadcrumb del Show (Style Guide §11) — discreto, responde
    «¿dónde estoy?» y envuelve en mobile sin rediseñar la pantalla. El botón
    «Proyectos» regresa al catálogo (/proyectos). */
@@ -228,20 +357,84 @@
    página de detalle. Sin X ni «Cerrar»: es una página, no un overlay. */
 .proyectos-rh__volver { align-self: flex-start; }
 
-/* --- Tarea B: consulta de proyectos registrados (solo frontend, GET
-   /me/participations). Tarjeta de la vista con los mismos tokens y
-   primitivas; sin componentes nuevos. ------------------------------------- */
-.proyectos-registrados { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
-.proyectos-registrados__cabecera { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.proyectos-registrados__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.proyectos-registrados__descripcion { margin: 4px 0 0; color: var(--color-text-secondary); font-size: 13px; }
-.proyectos-registrados__lista { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.proyectos-registrados__item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; width: 100%; padding: 12px 16px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; text-align: left; cursor: pointer; transition: border-color 160ms ease, background 160ms ease; }
-.proyectos-registrados__item:hover { border-color: var(--color-primary); }
-.proyectos-registrados__item[aria-pressed='true'] { border-color: var(--color-primary); background: var(--color-surface-soft); }
-.proyectos-registrados__nombre { margin-right: auto; color: var(--color-text-primary); font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
-.proyectos-registrados__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: var(--ink-soft); font-size: 12px; }
-.proyectos-registrados__detalle { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; padding: 14px 16px; background: var(--color-surface-soft); border: 1px solid var(--line-soft); border-radius: 10px; }
+/* --- Tarea B: consulta de proyectos registrados (GET /me/participations),
+   versión PLANA del rediseño: sin tarjeta contenedora; el buscador y las
+   filas viven directamente sobre el fondo claro de la página. ---------- */
+.proyectos-registrados { display: flex; flex-direction: column; gap: 14px; padding: 0; background: none; border: 0; border-radius: 0; }
+.proyectos-registrados__lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.proyectos-registrados__lista > li + li { border-top: 1px solid var(--line-soft); }
+/* Fila plana: nombre + metadatos a la izquierda, estado y chevron a la
+   derecha; sin fondo propio, borde ni sombra. */
+.proyectos-registrados__item { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; width: 100%; padding: 13px 2px; background: none; border: 0; border-radius: 0; text-align: left; cursor: pointer; }
+.proyectos-registrados__principal { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.proyectos-registrados__nombre { color: var(--color-text-primary); font-size: 14.5px; font-weight: 700; overflow-wrap: anywhere; }
+.proyectos-registrados__item:hover .proyectos-registrados__nombre,
+.proyectos-registrados__item[aria-expanded='true'] .proyectos-registrados__nombre { color: var(--color-brand-deep); }
+.proyectos-registrados__meta { display: flex; flex-wrap: wrap; gap: 2px 0; color: var(--ink-soft); font-size: 12.5px; }
+/* Separador «·» fino entre metadatos, solo visual. */
+.proyectos-registrados__meta span + span::before { content: '·'; margin: 0 8px; color: #9fb0ab; }
+/* Indicador circular del estado REAL: verde sólido (Completado), aro
+   terracota (En proceso), neutral para el resto. */
+.proyectos-registrados__estado { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; color: var(--color-text-secondary); font-size: 12.5px; font-weight: 600; }
+.proyectos-registrados__punto { width: 10px; height: 10px; border-radius: 50%; background: transparent; border: 2px solid #9fb0ab; }
+.proyectos-registrados__punto[data-estado='EN_PROCESO'] { border-color: var(--color-accent); }
+.proyectos-registrados__punto[data-estado='COMPLETADO'] { background: var(--color-primary); border-color: var(--color-primary); }
+.proyectos-registrados__flecha { width: 16px; height: 16px; color: var(--color-text-secondary); transition: transform 160ms ease, color 160ms ease; }
+.proyectos-registrados__item[aria-expanded='true'] .proyectos-registrados__flecha { transform: rotate(180deg); color: #a5532f; }
+/* Detalle expandido: plano y discreto (borde lateral, fondo suave). */
+.proyectos-registrados__detalle { display: flex; flex-direction: column; gap: 12px; margin: 2px 0 14px; padding: 12px 16px; background: var(--color-surface-soft); border: 0; border-left: 2px solid var(--color-accent); border-radius: 0; }
+.proyectos-registrados__detalle--oculto { display: none; }
 .proyectos-registrados__subtitulo { margin: 4px 0 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; }
 .proyectos-registrados__detalle .ui-button { align-self: flex-start; }
-.proyectos-registrados__nota { margin: 0; color: var(--ink-soft); font-size: 12px; }
+/* Pie del listado: «Mostrando X de Y» y «Ver más (N)» como texto en
+   negrita, sin fondo contrastante. */
+.proyectos-registrados__paginacion { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.proyectos-registrados__nota { margin: 0; color: var(--ink-soft); font-size: 12.5px; }
+.proyectos-registrados__ver-mas { min-height: auto; padding: 2px 0; color: var(--color-text-primary); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.proyectos-registrados__ver-mas:hover:not(:disabled) { color: #a5532f; transform: none; background: none; }
+
+/* --- Rediseño plano (continuación): pestañas, panel oculto, buscador
+   ancho de «Registrados» y riel vertical del flujo 01–03. --------------- */
+/* Pestañas: texto oscuro y negrita en la activa (con línea inferior
+   terracota) y gris en la inactiva; la línea divisoria tenue continúa por
+   todo el ancho del contenido. */
+.proyectos-pestanas { display: flex; flex-wrap: wrap; gap: 4px 24px; border-bottom: 1px solid var(--line-soft); }
+.proyectos-pestanas__tab { position: relative; display: flex; align-items: center; gap: 8px; padding: 10px 2px; border: 0; background: none; color: var(--color-text-secondary); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+.proyectos-pestanas__tab:hover { color: var(--color-text-primary); }
+.proyectos-pestanas__tab--activa { color: var(--color-text-primary); font-weight: 700; }
+.proyectos-pestanas__tab--activa::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--color-accent); }
+.proyectos-pestanas__contador { min-width: 22px; padding: 2px 8px; border-radius: 999px; background: #f7e9e1; color: #a5532f; font-size: 11.5px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+/* Panel de pestaña inactivo: ocultado SOLO por CSS (los datos del backend
+   permanecen montados y el estado no se pierde). */
+.proyectos-panel--oculto { display: none; }
+
+/* Buscador ancho de «Registrados»: lupa dentro a la izquierda, fondo
+   claro, borde fino y esquinas discretamente redondeadas. */
+.proyectos-registrados__filtro { display: flex; flex-direction: column; }
+.proyectos-registrados__filtro-etiqueta { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.proyectos-registrados__barra { position: relative; }
+.proyectos-registrados__lupa { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--color-text-secondary); pointer-events: none; }
+.proyectos-registrados__barra-input { min-height: 44px; padding-left: 40px; background: var(--color-surface); border: 1px solid var(--line-soft); border-radius: 10px; }
+
+/* Riel del flujo: línea vertical fina y continua que conecta los círculos
+   numerados (borde fino, fondo claro); el contenido vive a la derecha. */
+.proyectos-flujo { position: relative; display: flex; flex-direction: column; gap: 26px; }
+.proyectos-flujo::before { content: ''; position: absolute; left: 21px; top: 22px; bottom: 22px; width: 2px; background: var(--line-soft); }
+/* Modo edición directa (desde «Registrados»): sin riel de pasos, para no
+   dejar conectores ni círculos que sugieran un 01/02 que no se renderiza. */
+.proyectos-flujo--edicion::before { display: none; }
+.proyectos-paso__numero { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: var(--color-bg); border: 1.5px solid var(--color-accent); border-radius: 50%; color: #a5532f; font-size: 12.5px; font-weight: 750; letter-spacing: .04em; }
+.proyectos-paso__contenido { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+/* Bloques del flujo que no son pasos (mensajes, sugerencias y la
+   confirmación de creación) se alinean con la columna de contenido. */
+.proyectos-flujo > .proyectos-mensajes,
+.proyectos-flujo > .proyectos-sugerencias,
+.proyectos-flujo > .proyectos-creado { margin-left: 60px; }
+
+@media (max-width: 640px) {
+  .proyectos-pestanas { gap: 0 16px; }
+  .mis-proyectos .proyectos-busqueda { flex-direction: column; align-items: stretch; }
+  .proyectos-busqueda__accion { width: 100%; }
+  .proyectos-registrados__item { flex-wrap: wrap; }
+  .proyectos-registrados__estado { margin-left: auto; }
+}

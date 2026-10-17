@@ -46,9 +46,32 @@
 // (PRD §11.3/§8), el copy literal del Style Guide §18.2 y el orden exacto del
 // formulario §18.3. La confirmación del registro NUNCA depende de
 // `participacion.proyecto`: el nombre mostrado sale del proyecto seleccionado.
+//
+// Rediseño estructural (encima de TODO lo anterior, sin cambiar contratos):
+// - Encabezado PLANO «PROYECTOS / Mis proyectos» (sobretítulo terracota,
+//   título oscuro y subtítulo gris, directamente sobre el fondo general,
+//   sin banner ni tarjeta) y DOS pestañas funcionales: «Registrados»
+//   (consulta, la pestaña inicial de la entrada normal) y «Registrar
+//   participación» (el asistente 01–03, intacto).
+// - «Registrados»: se consulta al ACTIVAR la pestaña por primera vez (bajo
+//   demanda: al montar la vista no ocurre ninguna llamada nueva). Contador
+//   real (el `total` del servidor; los registros son 1:1 con proyectos por
+//   la unicidad empleado/proyecto), buscador ancho LOCAL que filtra solo lo
+//   ya cargado (el endpoint no admite filtro de texto: no se inventa
+//   ninguna llamada), filas planas separadas por líneas finas con
+//   indicador circular del estado real y acordeón accesible (botón nativo
+//   con aria-expanded/aria-controls; el detalle queda montado y se oculta
+//   solo con CSS, como el acordeón de «Mi progreso»), ficha técnica con los
+//   datos reales de ProyectoOut y ParticipacionOut, y pie «Mostrando X de
+//   Y» + «Ver más (N)» que pide la página siguiente y anexa los items.
+// - Vistas EXCLUSIVAS por pestaña: solo se renderiza el panel activo
+//   (renderizado condicional de React); el estado vive en el componente,
+//   así que alternar no pierde el flujo ni los datos ya cargados. Al llegar
+//   desde «Inicio» con un proyecto ya elegido, la pestaña del asistente
+//   queda activa.
 
 import { useEffect, useState } from 'react'
-import { ArrowRight, CheckCircle2, ClipboardCheck, FolderKanban, Pencil, Repeat2, Save, Search } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, FolderKanban, Pencil, Repeat2, Save, Search } from 'lucide-react'
 import {
   actualizarParticipacion,
   crearParticipacion,
@@ -63,7 +86,6 @@ import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
 import FormField from '../componentes/FormField.jsx'
-import SectionHeader from '../componentes/SectionHeader.jsx'
 import Alert from '../componentes/ui/Alert.jsx'
 import Badge from '../componentes/ui/Badge.jsx'
 import { Button } from '../componentes/ui/Button.jsx'
@@ -74,6 +96,20 @@ const SIN_DATO = '—'
 
 /** Máximo de sugerencias aproximadas que el producto permite mostrar (§11.3/§8). */
 const SUGERENCIAS_MAXIMAS = 5
+
+/** Tamaño de página de la consulta «Registrados» (contrato: por_pagina 1..100). */
+const REGISTRADOS_POR_PAGINA = 100
+
+/** Texto comparable para el filtro LOCAL de «Registrados»: minúsculas y sin
+ *  acentos (el backend normaliza los nombres; aquí solo se compara lo ya
+ *  cargado, sin llamar a la API). */
+function textoLocal(valor) {
+  return String(valor ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
 
 /** Fecha corta para consultas: la parte de fecha del valor tal cual llega del
  *  backend (ISO); sin valor → dato ausente. No se inventa ni se reformatea. */
@@ -217,6 +253,22 @@ export default function MisProyectos({
     error: null,
   })
   const [detalleRegistrado, setDetalleRegistrado] = useState(null)
+  // Pestañas «Registrados» / «Registrar participación». La entrada normal
+  // abre SIEMPRE «Registrados» (ajuste de navegación); el asistente se
+  // activa al pulsarlo o al llegar desde «Inicio» con un proyecto. Vistas
+  // exclusivas: solo se renderiza el panel activo; el estado vive en este
+  // componente y NO se pierde al alternar.
+  const [pestana, setPestana] = useState('registrados')
+  // Filtro LOCAL de «Registrados»: se aplica SOLO a los items ya cargados
+  // (el endpoint de participaciones no admite filtro de texto) y nunca
+  // dispara llamadas al backend.
+  const [filtroRegistrados, setFiltroRegistrados] = useState('')
+  // Ajuste de edición: participación editada DIRECTAMENTE desde el listado
+  // de «Registrados». Mientras esté activo, la pestaña del flujo renderiza
+  // SOLO el Paso 03 en modo edición (los pasos 01 y 02 ni se montan) con
+  // los datos actuales del item ya descargado. NO es una fase del flujo
+  // normal: buscar o reiniciar la desactiva.
+  const [edicionDesdeConsulta, setEdicionDesdeConsulta] = useState(false)
 
   // --- Entrada desde Inicio (MB-7-2E) -------------------------------------
   // Al llegar desde «Inicio» con el `proyectoId` de una fila pulsada, esta vista
@@ -243,6 +295,11 @@ export default function MisProyectos({
           // muestre aunque todavía no haya ninguna búsqueda ejecutada.
           setProyectoDeEntrada(proyecto)
           seleccionarProyecto(proyecto)
+          // Ajuste de navegación: la llegada contextual YA NO cambia la
+          // pestaña activa (siempre «Registrados» al entrar). El proyecto
+          // queda seleccionado para quien abra «Registrar participación», y
+          // un registro nuevo nunca hereda una edición anterior.
+          setEdicionDesdeConsulta(false)
         }
       })
       .catch(() => {
@@ -258,6 +315,16 @@ export default function MisProyectos({
     }
   }, [proyectoId])
 
+  // Ajuste de navegación: la entrada normal abre «Registrados», así que la
+  // consulta EXISTENTE (GET /me/participations, mismo servicio y contrato)
+  // ocurre al montar la vista. Volver a la pestaña NO repite la llamada
+  // (guard por fase); el refresco explícito va por abrirRegistrados().
+  useEffect(() => {
+    if (pestana === 'registrados' && registrados.fase === 'cerrada') {
+      abrirRegistrados()
+    }
+  }, [pestana])
+
   function buscar(nombre) {
     setConsultaEjecutada(nombre)
     setBusqueda({ fase: 'cargando', datos: null, error: null })
@@ -267,6 +334,8 @@ export default function MisProyectos({
     setProyectoSeleccionado(null)
     // Y deja de aplicar la llegada contextual: a partir de aquí manda la búsqueda.
     setProyectoDeEntrada(null)
+    // Un registro nuevo nunca hereda el estado de una edición anterior.
+    setEdicionDesdeConsulta(false)
     setFormParticipacion(participacionInicial())
     setAvisosParticipacion(avisosIniciales())
     setRegistro({ fase: 'inactiva', datos: null, error: null })
@@ -375,20 +444,61 @@ export default function MisProyectos({
     }
   }
 
+  /**
+   * «Ver más» (rediseño): paginación progresiva de la MISMA consulta. Pide la
+   * página siguiente y ANEXA los items a los ya cargados (`total` sigue
+   * mandando: el botón desaparece al cubrirlo). Sin endpoint nuevo; si falla,
+   * el reintento reabre la consulta desde la primera página (mismo contrato
+   * de errores que abrir).
+   */
+  async function cargarMasRegistrados() {
+    const datos = registrados.datos
+    if (!datos) return
+    const paginaSiguiente = Number(datos.pagina ?? 1) + 1
+    const porPagina = Number(datos.por_pagina ?? REGISTRADOS_POR_PAGINA)
+    setRegistrados({ fase: 'cargando-mas', datos, error: null })
+    try {
+      const respuesta = await listarParticipaciones(token, {
+        pagina: paginaSiguiente,
+        por_pagina: porPagina,
+      })
+      setRegistrados({
+        fase: 'listo',
+        datos: {
+          ...respuesta,
+          items: [...(datos.items ?? []), ...(respuesta?.items ?? [])],
+        },
+        error: null,
+      })
+    } catch (error) {
+      if (error?.estado === 401) {
+        alSesionExpirada?.()
+        return
+      }
+      setRegistrados({ fase: 'error', datos: null, error })
+    }
+  }
+
   /** Detalle del registro pulsado: usa el item YA descargado (sin más llamadas). */
   function alternarDetalleRegistrado(item) {
     setDetalleRegistrado((actual) => (actual?.id === item.id ? null : item))
   }
 
   /**
-   * Puente de solo lectura hacia el asistente: reutiliza el flujo real
-   * (`seleccionarProyecto` → detección MB-5B-3A), que para un proyecto ya
-   * registrado muestra el bloque informativo con edición controlada: NUNCA
-   * un formulario de alta, por lo que no puede duplicarse la participación.
+   * Ajuste de edición: transición DIRECTA desde «Registrados» al modo de
+   * edición. El item YA contiene la participación completa y su `proyecto`,
+   * así que no se busca ni se repite la detección (cero llamadas nuevas):
+   * se activa la pestaña del flujo renderizando SOLO el Paso 03 con los
+   * valores actuales precargados (`abrirEdicion`). NUNCA un formulario de
+   * alta, por lo que no puede duplicarse la participación.
    */
   function editarRegistrado(item) {
     setDetalleRegistrado(null)
-    seleccionarProyecto(item.proyecto)
+    setPestana('registro')
+    setEdicionDesdeConsulta(true)
+    setProyectoSeleccionado(item.proyecto)
+    setDeteccion({ fase: 'listo', participacion: item, error: null })
+    abrirEdicion(item)
   }
 
   /**
@@ -491,8 +601,16 @@ export default function MisProyectos({
     setEdicion({ activa: true, fase: 'inactiva', error: null })
   }
 
-  /** Cancelar NO hace ninguna petición: descarta lo local y vuelve al resumen. */
+  /** Cancelar NO hace ninguna petición: descarta lo local y vuelve al resumen.
+   *  En la edición directa, además, cierra el modo y devuelve a «Registrados»
+   *  con el flujo normal restaurado para el próximo registro. */
   function cancelarEdicion() {
+    if (edicionDesdeConsulta) {
+      setEdicionDesdeConsulta(false)
+      reiniciar()
+      setPestana('registrados')
+      return
+    }
     setFormEdicion({ rol: '', entregables: '', horas: '' })
     setAvisosEdicion(avisosIniciales())
     setEdicion(edicionInicial())
@@ -523,6 +641,16 @@ export default function MisProyectos({
         deteccion.participacion.id,
         payload,
       )
+      if (edicionDesdeConsulta) {
+        // Éxito de la edición directa: se limpia el modo con seguridad, se
+        // vuelve a consultar la lista real y se regresa a «Registrados» para
+        // mostrar el proyecto y su participación ya actualizados.
+        setEdicionDesdeConsulta(false)
+        reiniciar()
+        abrirRegistrados()
+        setPestana('registrados')
+        return
+      }
       // La respuesta del PATCH es la fuente de verdad: el resumen local queda
       // actualizado sin volver a consultar el listado.
       setDeteccion({ fase: 'listo', participacion, error: null })
@@ -551,6 +679,7 @@ export default function MisProyectos({
 
   /** Vuelve al estado inicial de la sección (sin ningún dato simulado). */
   function reiniciar() {
+    setEdicionDesdeConsulta(false)
     setNombreEscrito('')
     setConsultaEjecutada('')
     setAvisoBusqueda(null)
@@ -580,51 +709,124 @@ export default function MisProyectos({
   // Tarea B: items de la consulta abierta (cada uno = participación + proyecto).
   const registradosItems = registrados.datos?.items ?? []
   const registradosTotal = Number(registrados.datos?.total ?? 0)
+  // La pestaña muestra datos tanto en reposo como cargando más: la lista ya
+  // descargada no desaparece mientras llega la página siguiente.
+  const registradosConDatos =
+    registrados.fase === 'listo' || registrados.fase === 'cargando-mas'
+  // Filtro LOCAL: se aplica SOLO a los items ya cargados. El endpoint de
+  // participaciones no admite filtro de texto, así que no se inventa una
+  // llamada: escribir aquí nunca consulta el backend.
+  const filtroLimpio = textoLocal(filtroRegistrados)
+  const registradosFiltrados = filtroLimpio
+    ? registradosItems.filter((item) =>
+        [item.proyecto?.nombre, item.proyecto?.area, item.proyecto?.cliente].some(
+          (campo) => textoLocal(campo).includes(filtroLimpio),
+        ),
+      )
+    : registradosItems
   return (
     <div className="mis-proyectos">
-      <SectionHeader
-        eyebrow="Proyectos"
-        title="Mis proyectos"
-        description="Busca un proyecto del catálogo compartido y, si todavía no existe, regístralo."
-      />
+      {/* Encabezado plano sobre el fondo general (sin banner ni tarjeta):
+          sobretítulo terracota en mayúsculas, título oscuro grande y
+          subtítulo gris inmediatamente debajo. */}
+      <header className="mis-proyectos__cabecera">
+        <p className="mis-proyectos__sobretitulo">Proyectos</p>
+        <h2 className="mis-proyectos__titulo" id="mis-proyectos-titulo">
+          Mis proyectos
+        </h2>
+        <p className="mis-proyectos__descripcion">
+          Busca un proyecto del catálogo compartido y, si todavía no existe,
+          regístralo.
+        </p>
+      </header>
+
+      {/* Pestañas del rediseño: «Registrados» (consulta) y «Registrar
+          participación» (flujo 01–03). Vistas mutuamente EXCLUSIVAS: solo
+          se renderiza el panel de la pestaña activa (el estado vive en el
+          componente, así que alternar no pierde datos del backend). */}
+      <div
+        className="proyectos-pestanas"
+        role="tablist"
+        aria-label="Secciones de Mis proyectos"
+      >
+        <button
+          type="button"
+          role="tab"
+          id="mis-proyectos-tab-registrados"
+          className={`proyectos-pestanas__tab${
+            pestana === 'registrados' ? ' proyectos-pestanas__tab--activa' : ''
+          }`}
+          aria-selected={pestana === 'registrados'}
+          aria-controls="mis-proyectos-panel-registrados"
+          tabIndex={pestana === 'registrados' ? 0 : -1}
+          onClick={() => setPestana('registrados')}
+        >
+          Registrados
+          {/* Contador real: el `total` del servidor, visible solo cuando la
+              consulta ya se hizo (antes no hay número que mostrar). */}
+          {registradosConDatos && (
+            <span className="proyectos-pestanas__contador">
+              {registradosTotal}
+            </span>
+          )}
+        </button>
+        {/* Su nombre accesible se distingue del botón «Registrar
+            participación» del formulario para no duplicar nombres. */}
+        <button
+          type="button"
+          role="tab"
+          id="mis-proyectos-tab-registro"
+          className={`proyectos-pestanas__tab${
+            pestana === 'registro' ? ' proyectos-pestanas__tab--activa' : ''
+          }`}
+          aria-label="Pestaña Registrar participación"
+          aria-selected={pestana === 'registro'}
+          aria-controls="mis-proyectos-panel-registro"
+          tabIndex={pestana === 'registro' ? 0 : -1}
+          onClick={() => setPestana('registro')}
+        >
+          Registrar participación
+        </button>
+      </div>
 
       {/* Consulta de proyectos registrados (Tarea B): proyectos con
           participación guardada, cargados bajo demanda con GET
-          /me/participations (el DTO incluye `proyecto`). El asistente de los
-          pasos 01–03 se conserva íntegro debajo. */}
+          /me/participations (el DTO incluye `proyecto`). Vistas EXCLUSIVAS:
+          este panel solo existe cuando su pestaña está activa (ningún
+          elemento del flujo 01–03 se renderiza aquí). */}
+      {pestana === 'registrados' && (
       <section
+        role="tabpanel"
+        id="mis-proyectos-panel-registrados"
+        aria-labelledby="mis-proyectos-tab-registrados"
         className="proyectos-registrados"
-        aria-labelledby="proyectos-registrados-titulo"
       >
-        <div className="proyectos-registrados__cabecera">
-          <div>
-            <h2
-              className="proyectos-registrados__titulo"
-              id="proyectos-registrados-titulo"
-            >
-              Proyectos registrados
-            </h2>
-            <p className="proyectos-registrados__descripcion">
-              Proyectos en los que ya guardaste tu participación.
-            </p>
+        {/* Buscador ancho del rediseño (lupa dentro, fondo claro, borde
+            fino): filtra lo ya cargado, sin llamadas nuevas (el endpoint de
+            participaciones no admite filtro de texto). El listado aparece
+            directamente debajo con sus estados de carga y error. */}
+        <div className="proyectos-registrados__filtro">
+          <label
+            className="proyectos-registrados__filtro-etiqueta"
+            htmlFor="proyectos-registrados-filtro"
+          >
+            Buscar en mis proyectos
+          </label>
+          <div className="proyectos-registrados__barra">
+            <Search
+              className="proyectos-registrados__lupa"
+              aria-hidden="true"
+            />
+            <input
+              id="proyectos-registrados-filtro"
+              className="ui-input proyectos-registrados__barra-input"
+              type="search"
+              autoComplete="off"
+              placeholder="Filtrar por nombre"
+              value={filtroRegistrados}
+              onChange={(evento) => setFiltroRegistrados(evento.target.value)}
+            />
           </div>
-          {registrados.fase === 'cerrada' ? (
-            <Button type="button" variant="secondary" onClick={abrirRegistrados}>
-              <FolderKanban aria-hidden="true" /> Consultar mis proyectos
-              registrados
-            </Button>
-          ) : (
-            registrados.fase !== 'cargando' && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="small"
-                onClick={abrirRegistrados}
-              >
-                <Repeat2 aria-hidden="true" /> Actualizar
-              </Button>
-            )
-          )}
         </div>
 
         {registrados.fase === 'cargando' && (
@@ -646,10 +848,16 @@ export default function MisProyectos({
           />
         )}
 
-        {registrados.fase === 'listo' && registradosItems.length > 0 && (
+        {registradosConDatos && registradosItems.length > 0 && (
           <>
-            <ul className="proyectos-registrados__lista">
-              {registradosItems.map((item) => {
+            {registradosFiltrados.length === 0 ? (
+              <EstadoVacio
+                titulo="Ningún proyecto coincide con tu búsqueda"
+                descripcion="Prueba con otro nombre, área o cliente, o registra el proyecto en la otra pestaña."
+              />
+            ) : (
+              <ul className="proyectos-registrados__lista">
+                {registradosFiltrados.map((item) => {
                 const abierto = detalleRegistrado?.id === item.id
                 const proyecto = item.proyecto
                 return (
@@ -657,34 +865,62 @@ export default function MisProyectos({
                     <button
                       type="button"
                       className="proyectos-registrados__item"
-                      aria-pressed={abierto}
+                      aria-expanded={abierto}
+                      aria-controls={`proyectos-registrado-detalle-${item.id}`}
                       onClick={() => alternarDetalleRegistrado(item)}
                     >
-                      <span className="proyectos-registrados__nombre">
-                        {proyecto?.nombre ?? `Proyecto ${item.proyecto_id}`}
+                      <span className="proyectos-registrados__principal">
+                        <span className="proyectos-registrados__nombre">
+                          {proyecto?.nombre ?? `Proyecto ${item.proyecto_id}`}
+                        </span>
+                        <span className="proyectos-registrados__meta">
+                          <span>Área: {proyecto?.area ?? SIN_DATO}</span>
+                          <span>Cliente: {proyecto?.cliente ?? SIN_DATO}</span>
+                          <span>
+                            Registrado: {fechaCorta(item.fecha_registro)}
+                          </span>
+                        </span>
                       </span>
-                      <span className="proyectos-registrados__meta">
-                        <span>Área: {proyecto?.area ?? SIN_DATO}</span>
-                        <span>Cliente: {proyecto?.cliente ?? SIN_DATO}</span>
+                      {/* Estado real con indicador circular: verde sólido
+                          (Completado), aro terracota (En proceso), neutral
+                          para el resto. El nombre siempre visible. */}
+                      <span className="proyectos-registrados__estado">
                         {proyecto?.estado ? (
-                          <Badge tone={tonoEstado(proyecto.estado)}>
-                            {etiquetaEstado(proyecto.estado)}
-                          </Badge>
+                          <>
+                            <span
+                              className="proyectos-registrados__punto"
+                              data-estado={proyecto.estado}
+                              aria-hidden="true"
+                            />
+                            <span className="proyectos-registrados__estado-texto">
+                              {etiquetaEstado(proyecto.estado)}
+                            </span>
+                          </>
                         ) : (
-                          <span>Estado: {SIN_DATO}</span>
+                          <span className="proyectos-registrados__estado-texto">
+                            Estado: {SIN_DATO}
+                          </span>
                         )}
-                        <span>Registrado: {fechaCorta(item.fecha_registro)}</span>
+                        <ChevronDown
+                          className="proyectos-registrados__flecha"
+                          aria-hidden="true"
+                        />
                       </span>
                     </button>
 
-                    {abierto && (
-                      <div
-                        className="proyectos-registrados__detalle"
-                        role="group"
-                        aria-label={`Detalle de ${
-                          proyecto?.nombre ?? `Proyecto ${item.proyecto_id}`
-                        }`}
-                      >
+                    {/* Acordeón accesible del rediseño: el detalle queda
+                        montado y se oculta SOLO con CSS (aria-controls
+                        siempre resuelto), como el acordeón de «Mi progreso». */}
+                    <div
+                      id={`proyectos-registrado-detalle-${item.id}`}
+                      className={`proyectos-registrados__detalle${
+                        abierto ? '' : ' proyectos-registrados__detalle--oculto'
+                      }`}
+                      role="group"
+                      aria-label={`Detalle de ${
+                        proyecto?.nombre ?? `Proyecto ${item.proyecto_id}`
+                      }`}
+                    >
                         <h3 className="proyectos-registrados__subtitulo">
                           Proyecto
                         </h3>
@@ -704,13 +940,9 @@ export default function MisProyectos({
                           <div>
                             <dt>Estado</dt>
                             <dd>
-                              {proyecto?.estado ? (
-                                <Badge tone={tonoEstado(proyecto.estado)}>
-                                  {etiquetaEstado(proyecto.estado)}
-                                </Badge>
-                              ) : (
-                                SIN_DATO
-                              )}
+                              {proyecto?.estado
+                                ? etiquetaEstado(proyecto.estado)
+                                : SIN_DATO}
                             </dd>
                           </div>
                           <div>
@@ -782,22 +1014,52 @@ export default function MisProyectos({
                           </Button>
                         )}
                       </div>
-                    )}
                   </li>
                 )
               })}
             </ul>
-            {registradosTotal > registradosItems.length && (
-              <p className="proyectos-registrados__nota">
-                Mostrando {registradosItems.length} de {registradosTotal}{' '}
-                registros. Usa «Actualizar» después de registrar más
-                participaciones.
-              </p>
             )}
+            {/* Pie del listado: «Mostrando X de Y» y «Ver más (N)» como
+                texto en negrita (registros 1:1 con proyectos por la unicidad
+                empleado/proyecto que garantiza el backend con su 409). */}
+            <div className="proyectos-registrados__paginacion">
+              <p className="proyectos-registrados__nota">
+                Mostrando {registradosItems.length} de {registradosTotal}
+              </p>
+              {registradosItems.length < registradosTotal && (
+                <Button
+                  type="button"
+                  className="proyectos-registrados__ver-mas"
+                  variant="ghost"
+                  size="small"
+                  loading={registrados.fase === 'cargando-mas'}
+                  onClick={cargarMasRegistrados}
+                >
+                  Ver más ({registradosTotal - registradosItems.length})
+                </Button>
+              )}
+            </div>
           </>
         )}
       </section>
+      )}
 
+      {/* Panel del flujo (pestaña «Registrar participación»): asistente
+          vertical conectado 01 → 02 → 03. Vistas EXCLUSIVAS: solo se monta
+          cuando su pestaña está activa (nada de la consulta aparece aquí). */}
+      {pestana === 'registro' && (
+      <section
+        role="tabpanel"
+        id="mis-proyectos-panel-registro"
+        aria-labelledby="mis-proyectos-tab-registro"
+        className={`proyectos-flujo${
+          edicionDesdeConsulta ? ' proyectos-flujo--edicion' : ''
+        }`}
+      >
+      {/* Ajuste de edición: en el modo de edición directa el flujo normal
+          (confirmación de creación, pasos 01 y 02 y sus mensajes) NO se
+          renderiza; solo existe el Paso 03 con el formulario de edición. */}
+      {!edicionDesdeConsulta && (<>
       {/* Confirmación de creación (MB-5A): SOLO con el ProyectoOut del POST.
           En MB-5B-1 deja de ser terminal: el proyecto creado queda seleccionado
           y el flujo continúa en el paso 03. */}
@@ -845,79 +1107,113 @@ export default function MisProyectos({
         </section>
       )}
 
-      <section className="proyectos-paso" aria-labelledby="proyectos-busqueda-titulo">
-        <h2 className="proyectos-paso__titulo" id="proyectos-busqueda-titulo">
-          <span>01</span> Buscar el proyecto
-        </h2>
-        <p className="proyectos-paso__nota">
-          La búsqueda es obligatoria antes de registrar un proyecto: así se evitan
-          duplicados en el catálogo compartido.
-        </p>
-        <form
-          className="proyectos-busqueda"
-          onSubmit={manejarBusqueda}
-          aria-busy={busqueda.fase === 'cargando'}
-        >
-          <FormField
-            id="proyectos-busqueda-nombre"
-            label="Nombre del proyecto"
-            hint="Escríbelo como lo conoces: el sistema compara sin distinguir mayúsculas ni acentos."
-            error={avisoBusqueda}
+      <section
+        className="proyectos-paso"
+        aria-labelledby="proyectos-busqueda-titulo"
+      >
+        <span className="proyectos-paso__numero" aria-hidden="true">
+          01
+        </span>
+        <div className="proyectos-paso__contenido">
+          <h2 className="proyectos-paso__titulo" id="proyectos-busqueda-titulo">
+            Buscar el proyecto
+          </h2>
+          <p className="proyectos-paso__nota">
+            La búsqueda es obligatoria antes de registrar un proyecto: así se evitan
+            duplicados en el catálogo compartido.
+          </p>
+          <form
+            className="proyectos-busqueda"
+            onSubmit={manejarBusqueda}
+            aria-busy={busqueda.fase === 'cargando'}
           >
-            <Input
+            <FormField
               id="proyectos-busqueda-nombre"
-              autoComplete="off"
-              value={nombreEscrito}
-              onChange={(evento) => setNombreEscrito(evento.target.value)}
-              invalid={Boolean(avisoBusqueda)}
-            />
-          </FormField>
-          <Button type="submit" loading={busqueda.fase === 'cargando'}>
-            <Search aria-hidden="true" />
-            {busqueda.fase === 'cargando' ? 'Buscando…' : 'Buscar proyecto'}
-          </Button>
-        </form>
+              label="Nombre del proyecto"
+              error={avisoBusqueda}
+            >
+              <Input
+                id="proyectos-busqueda-nombre"
+                autoComplete="off"
+                value={nombreEscrito}
+                onChange={(evento) => setNombreEscrito(evento.target.value)}
+                invalid={Boolean(avisoBusqueda)}
+              />
+            </FormField>
+            {/* Botón alineado con el campo; mientras no hay nombre válido
+                se muestra en verde grisáceo claro (solo apariencia: sigue
+                operativo y muestra el aviso del contrato si se pulsa). */}
+            <Button
+              type="submit"
+              className={`proyectos-busqueda__accion${
+                !nombreEscrito.trim() && busqueda.fase !== 'cargando'
+                  ? ' proyectos-busqueda__accion--inactiva'
+                  : ''
+              }`}
+              loading={busqueda.fase === 'cargando'}
+            >
+              <Search aria-hidden="true" />
+              {busqueda.fase === 'cargando' ? 'Buscando…' : 'Buscar proyecto'}
+            </Button>
+          </form>
+          <p className="proyectos-busqueda__ayuda">
+            Escríbelo como lo conoces: el sistema compara sin distinguir
+            mayúsculas ni acentos.
+          </p>
+        </div>
       </section>
 
       {/* Tras crear el proyecto, el resultado de la búsqueda anterior deja de
           interesar: el foco del flujo pasa a la confirmación y al paso 03. */}
+      {/* Mensajes del paso 01 (plano: texto normal y borde lateral
+          discreto, sin tarjeta decorativa). */}
       {alta.fase !== 'creado' && (
-      <section
-        className="proyectos-resultado"
-        aria-label="Resultado de la búsqueda"
-        aria-live="polite"
-      >
-        {busqueda.fase === 'inicial' && (
-          <EstadoVacio
-            titulo="Todavía no has buscado un proyecto"
-            descripcion="Escribe un nombre y usa «Buscar proyecto». Si ya existe, lo verás aquí; si no, podrás registrarlo."
-          />
-        )}
+        <div className="proyectos-mensajes" aria-live="polite">
+          {busqueda.fase === 'inicial' && (
+            <EstadoVacio
+              titulo="Todavía no has buscado un proyecto"
+              descripcion="Escribe un nombre y usa «Buscar proyecto». Si ya existe, lo verás aquí; si no, podrás registrarlo."
+            />
+          )}
 
-        {busqueda.fase === 'cargando' && (
-          <EstadoCarga texto="Buscando en el catálogo…" />
-        )}
+          {busqueda.fase === 'cargando' && (
+            <EstadoCarga texto="Buscando en el catálogo…" />
+          )}
 
-        {busqueda.fase === 'error' && (
-          <EstadoError
-            titulo="No pudimos completar la búsqueda"
-            mensaje={busqueda.error?.message}
-            onReintentar={() => buscar(consultaEjecutada)}
-          />
-        )}
+          {busqueda.fase === 'error' && (
+            <EstadoError
+              titulo="No pudimos completar la búsqueda"
+              mensaje={busqueda.error?.message}
+              onReintentar={() => buscar(consultaEjecutada)}
+            />
+          )}
+        </div>
+      )}
 
-        {/* Coincidencia exacta: el backend ya decidió que el proyecto existe
-            (PRD §11.1 "Seleccionar existente"). No se calcula nada aquí. */}
-        {busqueda.fase === 'listo' && exacta && (
-          <div className="proyectos-coincidencia">
-            {/* Copy literal del Style Guide §18.2 (decisión F.3): "Este proyecto
-                ya existe." + acción "Seleccionar proyecto". */}
-            <h2 className="proyectos-paso__titulo" id="proyectos-seleccion-titulo">
-              <span>02</span> Crear o seleccionar
+      {/* Paso 02 — coincidencia exacta: el backend ya decidió que el
+          proyecto existe (PRD §11.1 "Seleccionar existente"). No se calcula
+          nada aquí. */}
+      {alta.fase !== 'creado' && busqueda.fase === 'listo' && exacta && (
+        <section
+          className="proyectos-paso"
+          aria-labelledby="proyectos-seleccion-titulo"
+        >
+          <span className="proyectos-paso__numero" aria-hidden="true">
+            02
+          </span>
+          <div className="proyectos-paso__contenido">
+            <h2
+              className="proyectos-paso__titulo"
+              id="proyectos-seleccion-titulo"
+            >
+              Crear o seleccionar
             </h2>
-            <p className="proyectos-coincidencia__etiqueta">
-              <CheckCircle2 aria-hidden="true" /> Este proyecto ya existe.
-            </p>
+            <div className="proyectos-coincidencia">
+              {/* Copy literal del Style Guide §18.2 (decisión F.3): "Este
+                  proyecto ya existe." + acción "Seleccionar proyecto". */}
+              <p className="proyectos-coincidencia__etiqueta">
+                <CheckCircle2 aria-hidden="true" /> Este proyecto ya existe.
+              </p>
             <p className="proyectos-coincidencia__nombre">{exacta.nombre}</p>
             <dl className="proyectos-datos">
               <div>
@@ -948,23 +1244,25 @@ export default function MisProyectos({
             </p>
             {/* Solo la coincidencia exacta continúa al registro (§18.2):
                 las sugerencias aproximadas NO tienen esta acción. */}
-            {proyectoSeleccionado?.id === exacta.id ? (
-              <p className="proyectos-seleccionado">
-                <CheckCircle2 aria-hidden="true" /> Proyecto seleccionado: continúa con el
-                paso 03.
-              </p>
-            ) : (
-              <Button type="button" onClick={() => seleccionarProyecto(exacta)}>
-                <ArrowRight aria-hidden="true" /> Seleccionar proyecto
-              </Button>
-            )}
+              {proyectoSeleccionado?.id === exacta.id ? (
+                <p className="proyectos-seleccionado">
+                  <CheckCircle2 aria-hidden="true" /> Proyecto seleccionado:
+                  continúa con el paso 03.
+                </p>
+              ) : (
+                <Button type="button" onClick={() => seleccionarProyecto(exacta)}>
+                  <ArrowRight aria-hidden="true" /> Seleccionar proyecto
+                </Button>
+              )}
+            </div>
           </div>
-        )}
+        </section>
+      )}
 
-        {/* Sin coincidencia exacta: las sugerencias aproximadas son
-            INFORMATIVAS (§8). No son un error y no crean ninguna relación. */}
-        {busqueda.fase === 'listo' && !exacta && (
-          <div className="proyectos-sugerencias">
+      {/* Sin coincidencia exacta: las sugerencias aproximadas son
+          INFORMATIVAS (§8). No son un error y no crean ninguna relación. */}
+      {alta.fase !== 'creado' && busqueda.fase === 'listo' && !exacta && (
+        <div className="proyectos-sugerencias">
             {/* Copy literal del Style Guide §18.2: advertencia informativa,
                 NUNCA un error y sin opción de seleccionar. */}
             <p className="proyectos-sugerencias__titulo">
@@ -1015,8 +1313,6 @@ export default function MisProyectos({
               />
             )}
           </div>
-        )}
-      </section>
       )}
 
       {/* Alta (PRD §11.1 "Crear nuevo si no existe"): aparece SOLO cuando el
@@ -1028,9 +1324,13 @@ export default function MisProyectos({
           className="proyectos-paso"
           aria-labelledby="proyectos-alta-titulo"
         >
-          <h2 className="proyectos-paso__titulo" id="proyectos-alta-titulo">
-            <span>02</span> Crear o seleccionar
-          </h2>
+          <span className="proyectos-paso__numero" aria-hidden="true">
+            02
+          </span>
+          <div className="proyectos-paso__contenido">
+            <h2 className="proyectos-paso__titulo" id="proyectos-alta-titulo">
+              Crear o seleccionar
+            </h2>
           {alta.fase === 'error' ? (
             <EstadoError
               titulo="No pudimos registrar el proyecto"
@@ -1094,6 +1394,7 @@ export default function MisProyectos({
               </form>
             </>
           )}
+          </div>
         </section>
       )}
 
@@ -1108,13 +1409,17 @@ export default function MisProyectos({
           className="proyectos-paso"
           aria-labelledby="proyectos-entrada-titulo"
         >
-          <div className="proyectos-coincidencia">
+          <span className="proyectos-paso__numero" aria-hidden="true">
+            02
+          </span>
+          <div className="proyectos-paso__contenido">
             <h2
               className="proyectos-paso__titulo"
               id="proyectos-entrada-titulo"
             >
-              <span>02</span> Crear o seleccionar
+              Crear o seleccionar
             </h2>
+            <div className="proyectos-coincidencia">
             <p className="proyectos-coincidencia__etiqueta">
               <CheckCircle2 aria-hidden="true" /> Proyecto seleccionado
             </p>
@@ -1137,20 +1442,30 @@ export default function MisProyectos({
               <CheckCircle2 aria-hidden="true" /> Ya está seleccionado: puedes ver
               tu participación en el paso 03.
             </p>
+            </div>
           </div>
         </section>
       )}
 
+      </>)}
+
       {/* Paso 03 (MB-5B-1, §18.3/§18.4): ParticipationForm con el orden exacto
           de los documentos. Solo existe con un proyecto seleccionado: la
-          coincidencia aproximada jamás llega aquí. */}
+          coincidencia aproximada jamás llega aquí. En el modo de edición
+          directa este es el ÚNICO paso renderizado. */}
       {proyectoSeleccionado && (
         <section
           className="proyectos-paso"
           aria-labelledby="proyectos-registro-titulo"
         >
+          <span className="proyectos-paso__numero" aria-hidden="true">
+            03
+          </span>
+          <div className="proyectos-paso__contenido">
           <h2 className="proyectos-paso__titulo" id="proyectos-registro-titulo">
-            <span>03</span> Registrar la participación
+            {edicionDesdeConsulta
+              ? 'Editar participación'
+              : 'Registrar la participación'}
           </h2>
 
           {registro.fase === 'registrada' ? (
@@ -1389,6 +1704,9 @@ export default function MisProyectos({
                   </div>
                 </dl>
               )}
+              {/* En la edición directa las acciones del resumen no aplican:
+                  el formulario ya trae las suyas (Cancelar/Guardar cambios). */}
+              {!edicionDesdeConsulta && (
               <div className="proyectos-edicion__acciones">
                 {/* MB-5B-2: entrar al modo edición DENTRO de la misma vista.
                     No es navegación ni un detalle nuevo (§18.1/§28). */}
@@ -1405,6 +1723,7 @@ export default function MisProyectos({
                   <Repeat2 aria-hidden="true" /> Buscar otro proyecto
                 </Button>
               </div>
+              )}
             </div>
           ) : registro.fase === 'error' ? (
             <EstadoError
@@ -1579,7 +1898,10 @@ export default function MisProyectos({
               </form>
             </>
           )}
+            </div>
         </section>
+      )}
+      </section>
       )}
     </div>
   )

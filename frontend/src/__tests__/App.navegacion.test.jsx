@@ -11,6 +11,7 @@ import { obtenerEmpleadosActivos, obtenerProyectosActivos, obtenerAtencionRequer
 import { listarEmpleados, POR_PAGINA_DEFECTO } from '../api/empleados.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
 import { listarProyectosRh } from '../api/proyectos.js'
+import { listarParticipaciones } from '../api/participaciones.js'
 import { listarAuditorias } from '../api/auditorias.js'
 import {
   generarEvaluaciones,
@@ -58,6 +59,15 @@ vi.mock('../api/proyectos.js', async () => {
   const original = await vi.importActual('../api/proyectos.js')
   return { ...original, listarProyectosRh: vi.fn() }
 })
+
+// Ajuste de navegación: «Mis proyectos» consulta la lista de registrados al
+// montar (pestaña inicial), así que participaciones también se mockea para
+// que el shell no dependa de red (mismo patrón que el resto de APIs).
+vi.mock('../api/participaciones.js', () => ({
+  actualizarParticipacion: vi.fn(),
+  crearParticipacion: vi.fn(),
+  listarParticipaciones: vi.fn(),
+}))
 
 // Tarea C: la vista de Auditoría consulta GET /rh/audits; se mockea para
 // que el shell no dependa de red (mismo patrón que el resto de APIs RH).
@@ -120,6 +130,13 @@ vi.mocked(obtenerResultadoActual).mockReset()
     total: 0,
     pagina: 1,
     por_pagina: 20,
+    items: [],
+  })
+  vi.mocked(listarParticipaciones).mockReset()
+  vi.mocked(listarParticipaciones).mockResolvedValue({
+    total: 0,
+    pagina: 1,
+    por_pagina: 100,
     items: [],
   })
   vi.mocked(listarEmpleados).mockResolvedValue({
@@ -271,10 +288,21 @@ describe('Shell de Empleado — navegación entre secciones', () => {
 
     abrir('Mis proyectos')
 
+    // Ajuste de navegación: la entrada a la sección abre SIEMPRE la pestaña
+    // «Registrados»; el flujo de registro no se muestra debajo de la lista.
+    // (El título vive en el h2 de la vista: el h1 del shell también lo dice.)
     expect(
-      await screen.findByRole('heading', { name: /Buscar el proyecto/ }),
+      await screen.findByRole('heading', { level: 2, name: 'Mis proyectos' }),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('Nombre del proyecto')).toBeInTheDocument()
+    expect(
+      screen.getByRole('tab', { name: /^Registrados/ }),
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(
+      screen.queryByLabelText('Nombre del proyecto'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: /Buscar el proyecto/ }),
+    ).not.toBeInTheDocument()
     // La búsqueda es obligatoria antes de crear: sin resultados todavía no
     // existe ninguna opción de alta ni dato simulado.
     expect(
