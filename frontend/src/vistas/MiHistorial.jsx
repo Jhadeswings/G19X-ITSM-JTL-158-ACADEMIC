@@ -1,6 +1,12 @@
 // Sección Empleado → Mi historial (PRD §21.5; Especificación Técnica §21–§24,
 // §31; Style Guide §19 Timeline/Evolución, §26, §33).
 //
+// Rediseño visual Fase 1: composición de ZONAS del boceto
+// panel_empleado_v6_zonas(1).html — encabezado sobre el fondo general, zona
+// blanca continua (Evolución + Evaluaciones por periodo, con separador fino)
+// y zona gris verdosa (Historial de mis participaciones). Solo cambia la
+// PRESENTACIÓN; los datos y las reglas de la vista no cambian.
+//
 // Esta pantalla es de SOLO LECTURA. Las evaluaciones oficiales históricas son
 // snapshots inmutables capturados cuando RH genera el periodo (§24, con trigger
 // en base de datos): la vista NO las recalcula, NO las edita y NO las borra.
@@ -13,22 +19,25 @@
 //   - NUNCA ejes ni 9-Box: son exclusivos de RH (PRD §10) y el DTO del Empleado
 //     ni siquiera los trae, así que no se piden, no se derivan y no se inventan.
 //
-// La "evolución" es una Timeline (Style Guide §19: líneas y elementos visuales
-// sutiles) que muestra el nivel/estado histórico REAL de UNA competencia a la
-// vez, con selector (PRD §21.5 y Style Guide §19/§26). NO es una gráfica
-// matemática: no hay eje de valores, ni delta, ni porcentaje de cambio, ni
-// tendencia, ni flechas, ni promedio histórico, ni score acumulado, ni ranking.
-// Cada punto de la Timeline ES un dato del snapshot; la Timeline solo los
-// ordena visualmente.
+// La "evolución" es una Timeline (Style Guide §19) que muestra el nivel/estado
+// histórico REAL de UNA competencia a la vez, con selector en pestañas de texto
+// (PRD §21.5 y Style Guide §19/§26). NO es una gráfica matemática: no hay eje
+// de valores, ni delta, ni porcentaje de cambio, ni tendencia, ni flechas, ni
+// promedio histórico, ni score acumulado, ni ranking. Cada punto de la Timeline
+// ES un dato del snapshot; la Timeline solo los ordena visualmente.
+//
+// Los segmentos de nivel (pips) son representación VISUAL del `nivel` que ya
+// trae el snapshot (cinco segmentos coloreados por rango, estilo boceto v6):
+// nunca rellenan un dato ausente. `INSUFFICIENT_DATA` se muestra con línea
+// discontinua y el texto `Datos insuficientes`, y NUNCA como nivel 0 ni como
+// otra etiqueta (PRD §5, §14).
 //
 // El nivel se presenta con la etiqueta oficial del PRD §5 (1 Inicial, 2 En
 // desarrollo, 3 En crecimiento, 4 Consolidado, 5 Alto). Es un diccionario de
-// PRESENTACIÓN sobre un dato que ya viene del backend (`nivel`), no un cálculo
-// de competencia: aquí no se deriva ningún nivel. `INSUFFICIENT_DATA` se muestra
-// como el texto `Datos insuficientes` y NUNCA como nivel 0 ni como otra etiqueta
-// (PRD §5, §14).
+// PRESENTACIÓN sobre un dato que ya viene del backend (`nivel`), no un cálculo:
+// aquí no se deriva ningún nivel.
 //
-// El orden es el que devuelve el backend (`periodo` DESC): no se reordena en el
+// El orden es el que devuelve el backend (periodo DESC): no se reordena en el
 // cliente, ni para el historial ni para la evolución.
 //
 // Autorización: el frontend no decide permisos; un 401 delega en
@@ -44,8 +53,6 @@ import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
 import SectionHeader from '../componentes/SectionHeader.jsx'
-import Badge from '../componentes/ui/Badge.jsx'
-import { Button } from '../componentes/ui/Button.jsx'
 import Pagination from '../componentes/ui/Pagination.jsx'
 import { NOMBRES_COMPETENCIAS } from '../textos.js'
 
@@ -81,8 +88,8 @@ function nombreCompetencia(clave) {
 
 /**
  * Presenta UNA competencia histórica tal como viene en el snapshot.
- * No calcula, no interpola y no redondea: devuelve el nivel y su etiqueta, o el
- * estado `Datos insuficientes` cuando no hay evidencia mínima.
+ * No calcula, no interpola y no redondea: devuelve el nivel y su etiqueta, o
+ * el estado `Datos insuficientes` cuando no hay evidencia mínima.
  */
 function lecturaCompetencia(competencia) {
   if (!competencia || competencia.status === INSUFICIENTE || competencia.nivel == null) {
@@ -94,6 +101,43 @@ function lecturaCompetencia(competencia) {
   }
 }
 
+/**
+ * Color de los segmentos llenos según el rango del nivel oficial (boceto v6):
+ * petróleo (≥4), verde azulado (3) y terracota (<3). Es presentación pura
+ * sobre el `nivel` del snapshot; no convierte la ausencia de dato en color.
+ */
+function colorSegmento(nivel) {
+  if (nivel >= 4) return '#234B4A'
+  if (nivel === 3) return '#4F7F7B'
+  return '#D99A7C'
+}
+
+/**
+ * Cinco segmentos que REPRESENTAN el nivel real (1–5) del snapshot.
+ * Decorativos (aria-hidden): la etiqueta textual del nivel es la fuente
+ * accesible. Solo se pinta cuando hay nivel; nunca se rellena un nivel
+ * ausente.
+ */
+function Segmentos({ nivel }) {
+  return (
+    <span className="historial-segmentos" aria-hidden="true">
+      {[1, 2, 3, 4, 5].map((posicion) => {
+        const lleno = posicion <= nivel
+        return (
+          <span
+            key={posicion}
+            className={`historial-segmento${lleno ? ' historial-segmento--lleno' : ''}`}
+            style={
+              lleno
+                ? { background: colorSegmento(nivel), animationDelay: `${posicion * 0.07}s` }
+                : undefined
+            }
+          />
+        )
+      })}
+    </span>
+  )
+}
 export default function MiHistorial({ token, alSesionExpirada }) {
   const [pagina, setPagina] = useState(1)
   const [consulta, setConsulta] = useState(consultaInicial)
@@ -141,6 +185,7 @@ export default function MiHistorial({ token, alSesionExpirada }) {
 
   return (
     <div className="mi-historial">
+      {/* Zona 1 — encabezado sobre el fondo general, sin tarjeta ni banner. */}
       <SectionHeader
         eyebrow="Tu desarrollo"
         title="Mi historial"
@@ -165,15 +210,16 @@ export default function MiHistorial({ token, alSesionExpirada }) {
         />
       )}
 
-      {/* Listado de periodos: visible siempre que haya evaluaciones (total > 0),
-          aunque esta página concreta venga sin ítems. El estado vacío se
-          decide SOLO por `total === 0`: una página vacía con total > 0
-          significa "no estás en la página 1", no que no tengas historial. */}
+      {/* Zona 2 — fondo blanco continuo: Evolución + Evaluaciones por periodo.
+          Visible siempre que haya evaluaciones (total > 0), aunque esta página
+          concreta venga sin ítems. El estado vacío se decide SOLO por
+          `total === 0`: una página vacía con total > 0 significa "no estás en
+          la página 1", no que no tengas historial. */}
       {conDatos && (
-        <>
+        <div className="historial-zona historial-zona--blanca">
           {items.length > 0 && (
             <>
-              {/* Evolución: UNA competencia a la vez (PRD §21.5, Style Guide §19). */}
+              {/* Evolución: UNA competencia a la vez (PRD §21.5, §19). */}
               <section
                 className="historial-evolucion"
                 aria-labelledby="historial-evolucion-titulo"
@@ -185,26 +231,27 @@ export default function MiHistorial({ token, alSesionExpirada }) {
                   Elige una competencia para ver cómo fue cambiando de periodo en periodo.
                 </p>
 
+                {/* Pestañas de texto: semántica de botón y aria-pressed intactos. */}
                 <div
-                  className="historial-evolucion__selector"
+                  className="historial-tabs"
                   role="group"
                   aria-label="Elegir competencia"
                 >
                   {clavesCompetencia.map((clave) => (
-                    <Button
+                    <button
                       key={clave}
-                      size="small"
-                      variant={clave === competenciaActiva ? 'primary' : 'secondary'}
+                      type="button"
+                      className="historial-tabs__tab"
                       aria-pressed={clave === competenciaActiva}
                       onClick={() => setCompetenciaActiva(clave)}
                     >
                       {nombreCompetencia(clave)}
-                    </Button>
+                    </button>
                   ))}
                 </div>
 
-                {/* Timeline sutil (Style Guide §19): un punto por evaluación, con el
-                    nivel/estado real del snapshot. Sin ejes ni escalas calculadas. */}
+                {/* Timeline sutil (§19): un punto por evaluación, con el
+                    nivel/estado real del snapshot. Sin ejes ni escalas. */}
                 <ol className="historial-timeline">
                   {items.map((evaluacion) => {
                     const competencia = evaluacion.competencias?.find(
@@ -213,18 +260,28 @@ export default function MiHistorial({ token, alSesionExpirada }) {
                     const lectura = lecturaCompetencia(competencia)
                     return (
                       <li key={evaluacion.id} className="historial-timeline__item">
-                        <p className="historial-timeline__periodo">{evaluacion.periodo}</p>
-                        <p
-                          className={`historial-timeline__estado${
-                            lectura.nivel === null ? ' historial-timeline__estado--di' : ''
+                        <span
+                          className={`historial-timeline__punto${
+                            lectura.nivel === null
+                              ? ''
+                              : ' historial-timeline__punto--lleno'
                           }`}
-                        >
+                          aria-hidden="true"
+                        />
+                        <p className="historial-timeline__contenido">
+                          <b className="historial-timeline__periodo">{evaluacion.periodo}</b>
                           {lectura.nivel === null ? (
-                            TEXTO_DATOS_INSUFICIENTES
+                            <>
+                              <span className="historial-linea-discontinua" aria-hidden="true" />
+                              <span className="historial-n0">{TEXTO_DATOS_INSUFICIENTES}</span>
+                            </>
                           ) : (
                             <>
+                              <Segmentos nivel={lectura.nivel} />
                               <span className="historial-timeline__nivel">{lectura.nivel}</span>
-                              <span className="historial-timeline__etiqueta">{lectura.texto}</span>
+                              <span className="historial-timeline__etiqueta">
+                                {lectura.texto}
+                              </span>
                             </>
                           )}
                         </p>
@@ -233,46 +290,71 @@ export default function MiHistorial({ token, alSesionExpirada }) {
                   })}
                 </ol>
               </section>
+
+              {/* Separador fino del boceto entre los dos apartados. */}
+              <hr className="historial-separador" />
             </>
           )}
 
-          {/* Historial completo: cada evaluación con sus cinco competencias. */}
-          <section className="historial-periodos" aria-labelledby="historial-periodos-titulo">
+          {/* Historial completo: filas planas por periodo (sin tarjetas).
+              Se pinta siempre que total > 0 —aunque esta página concreta venga
+              sin ítems— para conservar la paginación del backend: una página
+              vacía con total > 0 no es un estado vacío (§13.6). */}
+          <section
+            className="historial-periodos"
+            aria-labelledby="historial-periodos-titulo"
+          >
             <h2 className="historial-periodos__titulo" id="historial-periodos-titulo">
               Evaluaciones por periodo
             </h2>
 
-            {items.length > 0 && (
-              <ol className="historial-periodos__lista">
-                {items.map((evaluacion) => (
-                  <li key={evaluacion.id} className="historial-periodo">
-                    <div className="historial-periodo__cabecera">
-                      <h3 className="historial-periodo__titulo">{evaluacion.periodo}</h3>
-                      {evaluacion.generado_en && (
-                        <p className="historial-periodo__fecha">
-                          Generada el {evaluacion.generado_en.slice(0, 10)}
-                        </p>
-                      )}
-                    </div>
-                    <dl className="historial-periodo__competencias">
-                      {(evaluacion.competencias || []).map((competencia) => {
-                        const lectura = lecturaCompetencia(competencia)
-                        return (
-                          <div key={competencia.clave} className="historial-competencia">
-                            <dt>{nombreCompetencia(competencia.clave)}</dt>
-                            <dd>
-                              <Badge tone={lectura.nivel === null ? 'neutral' : 'primary'}>
-                                {lectura.texto}
-                              </Badge>
-                            </dd>
-                          </div>
-                        )
-                      })}
-                    </dl>
-                  </li>
-                ))}
-              </ol>
-            )}
+                {items.length > 0 && (
+                  <div className="historial-periodos__lista">
+                    {items.map((evaluacion) => (
+                      <div key={evaluacion.id} className="historial-periodo">
+                        <div className="historial-periodo__cabecera">
+                          <h3 className="historial-periodo__titulo">
+                            {evaluacion.periodo}
+                          </h3>
+                          {evaluacion.generado_en && (
+                            <p className="historial-periodo__fecha">
+                              Generada el {evaluacion.generado_en.slice(0, 10)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="historial-periodo__competencias">
+                          {(evaluacion.competencias || []).map((competencia) => {
+                            const lectura = lecturaCompetencia(competencia)
+                            return (
+                              <div key={competencia.clave} className="historial-competencia">
+                                <span className="historial-competencia__nombre">
+                                  {nombreCompetencia(competencia.clave)}
+                                </span>
+                                {lectura.nivel === null ? (
+                                  <span
+                                    className="historial-linea-discontinua"
+                                    aria-hidden="true"
+                                  />
+                                ) : (
+                                  <Segmentos nivel={lectura.nivel} />
+                                )}
+                                <span
+                                  className={`historial-competencia__nivel${
+                                    lectura.nivel === null
+                                      ? ' historial-competencia__nivel--sin-datos'
+                                      : ''
+                                  }`}
+                                >
+                                  {lectura.texto}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
             <Pagination
               pagina={datos?.pagina ?? pagina}
@@ -282,25 +364,29 @@ export default function MiHistorial({ token, alSesionExpirada }) {
               etiqueta="evaluaciones"
             />
           </section>
-        </>
+        </div>
       )}
 
-      {/* Apartado interno (Opción A): correcciones administrativas de RH y
-          modificaciones propias sobre MIS participaciones. Es un bloque de solo
-          lectura, distinto de «Mis evaluaciones»: se consulta por separado
-          (GET /me/audits) y el backend ya filtra por el empleado autenticado. */}
-      <section
-        className="historial-apartado"
-        aria-labelledby="historial-correcciones-titulo"
-      >
-        <h2 className="historial-periodos__titulo" id="historial-correcciones-titulo">
-          Historial de mis participaciones
-        </h2>
-        <CorreccionesParticipaciones
-          token={token}
-          alSesionExpirada={alSesionExpirada}
-        />
-      </section>
+      {/* Zona 3 — franja gris verdosa: correcciones administrativas de RH y
+          modificaciones propias sobre MIS participaciones (GET /me/audits;
+          el backend ya filtra por el empleado autenticado). */}
+      <div className="historial-zona historial-zona--suave">
+        <section
+          className="historial-apartado"
+          aria-labelledby="historial-correcciones-titulo"
+        >
+          <h2
+            className="historial-periodos__titulo"
+            id="historial-correcciones-titulo"
+          >
+            Historial de mis participaciones
+          </h2>
+          <CorreccionesParticipaciones
+            token={token}
+            alSesionExpirada={alSesionExpirada}
+          />
+        </section>
+      </div>
     </div>
   )
 }

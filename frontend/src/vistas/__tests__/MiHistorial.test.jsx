@@ -7,7 +7,10 @@
 // - "Datos insuficientes" es texto, nunca nivel 0;
 // - la evolución muestra UNA competencia a la vez y cambia con el selector;
 // - los estados de carga, vacío, error con reintento y paginación;
-// - ninguna métrica derivada: ni delta, ni tendencia, ni promedio, ni score.
+// - ninguna métrica derivada: ni delta, ni tendencia, ni promedio, ni score;
+// - la cronología conserva los siete datos del registro (fecha, tipo, autor,
+//   proyecto, registro, motivo y valores) con sus filtros de presentación
+//   sobre la página cargada, sin tocar el contrato de /me/audits.
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -290,7 +293,7 @@ describe('MiHistorial — evaluaciones históricas', () => {
     render(<MiHistorial token="token-empleado" />)
     await esperarHistorial()
 
-    const etiquetas = [...document.querySelectorAll('.historial-periodo .ui-badge')].map(
+    const etiquetas = [...document.querySelectorAll('.historial-periodo .historial-competencia__nivel')].map(
       (b) => b.textContent,
     )
     expect(etiquetas).toEqual([
@@ -519,7 +522,7 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
           screen.queryByText(
             'Todavía no hay correcciones sobre tus participaciones.',
           ) ||
-          document.querySelector('.historial-correcciones table'),
+          document.querySelector('.historial-correcciones__eventos'),
       ).toBeTruthy(),
     )
   }
@@ -553,25 +556,44 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     render(<MiHistorial token="token-empleado" />)
     await esperarCorrecciones()
 
-    // Proyecto y registro afectado.
-    expect(screen.getByText('Prueba 1')).toBeInTheDocument()
+    // Fecha y hora reales del evento, en la columna izquierda de la cronología.
+    const evento = screen.getByText('Prueba 1').closest('.historial-correcciones__evento')
+    expect(evento).toHaveTextContent('2026-10-01')
+    expect(evento).toHaveTextContent('12:00')
+    // Registro afectado (la referencia real que trae el backend).
     expect(screen.getByText('participacion #7')).toBeInTheDocument()
-    // Campo modificado con valores anterior → nuevo.
-    expect(screen.getAllByText('horas:').length).toBeGreaterThan(0)
-    expect(screen.getByText(/100.*→.*150/)).toBeInTheDocument()
+    // Campo con etiqueta legible y valores anterior → nuevo.
+    const valor = screen.getByText(/Horas:/).closest('.historial-correcciones__valor')
+    expect(valor).toHaveTextContent('→')
+    expect(valor.querySelector('.historial-correcciones__anterior')).toHaveTextContent('100')
+    expect(valor.querySelector('.historial-correcciones__nuevo')).toHaveTextContent('150')
     // Motivo y autor.
     expect(screen.getByText('Corrección de horas')).toBeInTheDocument()
     expect(screen.getByText('rh@empresa.dev')).toBeInTheDocument()
   })
 
-  /** Fila <tr> que contiene un texto único (p. ej. la etiqueta Tipo). */
-  function filaDe(texto) {
-    return screen.getByText(texto).closest('tr')
+  /** Chip de tipo DENTRO de la cronología (el texto se repite en los filtros). */
+  function chipTipo(tipo) {
+    const chips = [...screen.getAllByText(tipo)].filter(
+      (elemento) => elemento.closest('.historial-correcciones__evento'),
+    )
+    expect(chips).toHaveLength(1)
+    return chips[0]
   }
 
-  /** Texto de la celda de una fila por su `data-label` (columna exacta). */
-  function celda(fila, etiqueta) {
-    return fila.querySelector(`td[data-label='${etiqueta}']`).textContent
+  /** Evento cronológico que contiene un texto único (p. ej. el proyecto). */
+  function eventoDe(texto) {
+    return screen.getByText(texto).closest('.historial-correcciones__evento')
+  }
+
+  /** Autor presentado en un evento cronológico. */
+  function autorDe(evento) {
+    return evento.querySelector('.historial-correcciones__autor b').textContent
+  }
+
+  /** Motivo presentado en un evento cronológico («—» cuando no corresponde). */
+  function motivoDe(evento) {
+    return evento.querySelector('.historial-correcciones__motivo').textContent
   }
 
   /** Evento de modificación propia, con el actor = persona autenticada. */
@@ -595,8 +617,12 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     render(<MiHistorial token="token-empleado" />)
     await esperarCorrecciones()
 
-    expect(screen.getByText('Corrección de RH')).toBeInTheDocument()
-    expect(screen.getByText('Mi modificación')).toBeInTheDocument()
+    // El texto del tipo se repite en los filtros: se acota a la cronología.
+    expect(chipTipo('Corrección de RH')).toHaveAttribute('data-dato', 'tipo')
+    expect(chipTipo('Mi modificación')).toHaveAttribute('data-dato', 'tipo')
+    // Punto de color: verde azulado lo propio, terracota las correcciones RH.
+    expect(chipTipo('Mi modificación').className).not.toContain('--rh')
+    expect(chipTipo('Corrección de RH').className).toContain('--rh')
   })
 
   it('una modificación propia muestra «Tú» como autor, en su columna', async () => {
@@ -607,9 +633,11 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
 
     // «Tú» aparece cuando la identidad propia (GET /me) corroboró al actor.
     const tu = await screen.findByText('Tú')
-    expect(tu.closest("td[data-label='Autor']")).not.toBeNull()
-    // La fila completa: el autor «Tú» NO es el correo del actor.
-    expect(celda(filaDe('Mi modificación'), 'Autor')).toBe('Tú')
+    expect(tu.closest('.historial-correcciones__autor')).not.toBeNull()
+    // El evento completo: el autor «Tú» NO es el correo del actor.
+    expect(
+      autorDe(chipTipo('Mi modificación').closest('.historial-correcciones__evento')),
+    ).toBe('Tú')
   })
 
   it('una corrección de RH mantiene al responsable como autor', async () => {
@@ -619,7 +647,9 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     render(<MiHistorial token="token-empleado" />)
     await esperarCorrecciones()
 
-    expect(celda(filaDe('Corrección de RH'), 'Autor')).toBe('rh@empresa.dev')
+    expect(
+      autorDe(chipTipo('Corrección de RH').closest('.historial-correcciones__evento')),
+    ).toBe('rh@empresa.dev')
   })
 
   it('el motivo de una modificación propia es siempre «—»', async () => {
@@ -633,7 +663,9 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     render(<MiHistorial token="token-empleado" />)
     await esperarCorrecciones()
 
-    expect(celda(filaDe('Mi modificación'), 'Motivo')).toBe('—')
+    expect(
+      motivoDe(chipTipo('Mi modificación').closest('.historial-correcciones__evento')),
+    ).toBe('—')
     expect(screen.queryByText(/Sobrante/)).toBeNull()
   })
 
@@ -647,8 +679,8 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     render(<MiHistorial token="token-empleado" />)
     await esperarCorrecciones()
 
-    expect(celda(filaDe('Prueba 1'), 'Motivo')).toBe('Corrección de horas')
-    expect(celda(filaDe('Prueba 2'), 'Motivo')).toBe('—')
+    expect(motivoDe(eventoDe('Prueba 1'))).toBe('Corrección de horas')
+    expect(motivoDe(eventoDe('Prueba 2'))).toBe('—')
   })
 
   it('sin actor_email el autor es «No disponible», sin inventar identidad', async () => {
@@ -658,7 +690,9 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     render(<MiHistorial token="token-empleado" />)
     await esperarCorrecciones()
 
-    expect(celda(filaDe('Corrección de RH'), 'Autor')).toBe('No disponible')
+    expect(
+      autorDe(chipTipo('Corrección de RH').closest('.historial-correcciones__evento')),
+    ).toBe('No disponible')
     expect(screen.queryByText(/Cuenta #/)).toBeNull()
   })
 
@@ -672,30 +706,28 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     render(<MiHistorial token="token-empleado" />)
     await esperarCorrecciones()
 
-    expect(celda(filaDe('Mi modificación'), 'Autor')).toBe('empleado@empresa.dev')
+    expect(
+      autorDe(chipTipo('Mi modificación').closest('.historial-correcciones__evento')),
+    ).toBe('empleado@empresa.dev')
     expect(screen.queryByText('Tú')).toBeNull()
   })
 
-  it('mantiene las siete columnas de la tabla en su orden actual', async () => {
+  it('presenta los siete datos del registro en cada evento, en su orden', async () => {
     vi.mocked(listarMisAuditorias).mockResolvedValue(
       paginaCorrecciones([correccion(5)]),
     )
     render(<MiHistorial token="token-empleado" />)
     await esperarCorrecciones()
 
-    const encabezados = [
-      ...document.querySelectorAll('.historial-correcciones thead th'),
-    ].map((th) => th.textContent)
-    expect(encabezados).toEqual([
-      'Fecha', 'Tipo', 'Proyecto', 'Registro', 'Motivo', 'Valores', 'Autor',
-    ])
-    // Cada fila conserva una celda por columna, en el mismo orden: así el
-    // autor siempre vive en su columna (también en la vista de tarjetas).
-    const etiquetas = [...filaDe('Corrección de RH').querySelectorAll('td')].map(
-      (td) => td.dataset.label,
+    // Los siete datos de la antigua tabla (fecha, tipo, autor, proyecto,
+    // registro, motivo y valores) siguen presentes en la cronología, en su
+    // orden de lectura: nada del registro se pierde en el rediseño.
+    const evento = chipTipo('Corrección de RH').closest('.historial-correcciones__evento')
+    const datos = [...evento.querySelectorAll('[data-dato]')].map(
+      (nodo) => nodo.dataset.dato,
     )
-    expect(etiquetas).toEqual([
-      'Fecha', 'Tipo', 'Proyecto', 'Registro', 'Motivo', 'Valores', 'Autor',
+    expect(datos).toEqual([
+      'fecha', 'tipo', 'autor', 'proyecto', 'registro', 'motivo', 'valores',
     ])
   })
 
@@ -773,6 +805,133 @@ describe('MiHistorial — Historial de mis participaciones (apartado interno)', 
     await waitFor(() => expect(listarMisAuditorias).toHaveBeenCalledTimes(2))
     const [, opciones] = vi.mocked(listarMisAuditorias).mock.calls.at(-1)
     expect(opciones.pagina).toBe(2)
+  })
+
+  it('ofrece tres filtros de tipo y por defecto lista todos los eventos cargados', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5), modificacionPropia(6)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    const filtros = screen.getByRole('group', { name: 'Filtrar por tipo de cambio' })
+    expect(within(filtros).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'Todos',
+      'Mi modificación',
+      'Corrección de RH',
+    ])
+    expect(within(filtros).getByRole('button', { name: 'Todos' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(document.querySelectorAll('.historial-correcciones__evento')).toHaveLength(2)
+    // Sin aviso de filtro: solo aparece cuando hay un filtro específico activo.
+    expect(screen.queryByText(/Mostrando solo los registros de esta página/)).toBeNull()
+  })
+
+  it('«Corrección de RH» filtra la página cargada sin tocar total ni consultas', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones(
+        [correccion(5), modificacionPropia(6), correccion(7, { proyecto_nombre: 'Prueba 2' })],
+        { total: 40, pagina: 1, porPagina: 20 },
+      ),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    const filtros = screen.getByRole('group', { name: 'Filtrar por tipo de cambio' })
+    fireEvent.click(within(filtros).getByRole('button', { name: 'Corrección de RH' }))
+
+    // Solo correcciones de RH visibles; la modificación propia desaparece.
+    const eventos = [...document.querySelectorAll('.historial-correcciones__evento')]
+    expect(eventos).toHaveLength(2)
+    for (const evento of eventos) {
+      expect(evento).toHaveTextContent('Corrección de RH')
+      expect(evento).not.toHaveTextContent('Mi modificación')
+    }
+    // Aviso discreto: el filtro es sobre la página cargada, no el historial total.
+    expect(
+      screen.getByText(/Mostrando solo los registros de esta página/),
+    ).toBeInTheDocument()
+    // El total y la paginación del backend no cambian, y NO se vuelve a consultar.
+    expect(listarMisAuditorias).toHaveBeenCalledTimes(1)
+    expect(
+      screen.getByRole('navigation', { name: 'Paginación de correcciones' }),
+    ).toHaveTextContent('40')
+  })
+
+  it('«Mi modificación» muestra solo lo propio y «Todos» restaura la página', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5), modificacionPropia(6)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    const filtros = screen.getByRole('group', { name: 'Filtrar por tipo de cambio' })
+    fireEvent.click(within(filtros).getByRole('button', { name: 'Mi modificación' }))
+
+    const propios = [...document.querySelectorAll('.historial-correcciones__evento')]
+    expect(propios).toHaveLength(1)
+    expect(propios[0]).toHaveTextContent('Tú')
+    expect(within(filtros).getByRole('button', { name: 'Mi modificación' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(listarMisAuditorias).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(within(filtros).getByRole('button', { name: 'Todos' }))
+
+    expect(document.querySelectorAll('.historial-correcciones__evento')).toHaveLength(2)
+    expect(within(filtros).getByRole('button', { name: 'Todos' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.queryByText(/Mostrando solo los registros de esta página/)).toBeNull()
+  })
+
+  it('un filtro sin coincidencias no muestra el estado vacío global', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([correccion(5)]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    const filtros = screen.getByRole('group', { name: 'Filtrar por tipo de cambio' })
+    fireEvent.click(within(filtros).getByRole('button', { name: 'Mi modificación' }))
+
+    expect(
+      screen.getByText('Ningún registro de esta página coincide con el filtro seleccionado.'),
+    ).toBeInTheDocument()
+    // El estado vacío global solo corresponde a total === 0.
+    expect(
+      screen.queryByText('Todavía no hay correcciones sobre tus participaciones.'),
+    ).not.toBeInTheDocument()
+    expect(listarMisAuditorias).toHaveBeenCalledTimes(1)
+  })
+
+  it('traduce claves técnicas a etiquetas legibles y conserva las desconocidas', async () => {
+    vi.mocked(listarMisAuditorias).mockResolvedValue(
+      paginaCorrecciones([
+        correccion(5, {
+          valores_anteriores: { horas: 100, en_equipo: true, clave_interna: 'a' },
+          valores_nuevos: { horas: 10, en_equipo: false, clave_interna: 'b' },
+        }),
+      ]),
+    )
+    render(<MiHistorial token="token-empleado" />)
+    await esperarCorrecciones()
+
+    // Etiquetas legibles para claves REALES de participación…
+    expect(screen.getByText('Horas:')).toBeInTheDocument()
+    expect(screen.getByText('Trabajo en equipo:')).toBeInTheDocument()
+    // …y clave desconocida visible tal cual, sin perder información.
+    expect(screen.getByText('clave_interna:')).toBeInTheDocument()
+    // Los valores siguen siendo los del backend (booleanos → Sí/No).
+    const equipo = screen
+      .getByText('Trabajo en equipo:')
+      .closest('.historial-correcciones__valor')
+    expect(equipo.querySelector('.historial-correcciones__anterior')).toHaveTextContent('Sí')
+    expect(equipo.querySelector('.historial-correcciones__nuevo')).toHaveTextContent('No')
   })
 
   it('no ofrece editar, eliminar ni regenerar correcciones', async () => {

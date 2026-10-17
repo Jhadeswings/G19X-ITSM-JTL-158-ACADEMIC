@@ -1,79 +1,525 @@
-/* Mi historial (Empleado, Style Guide §19 Timeline/Evolución, §26, §33).
+/* Mi historial (Empleado, PRD §21.5; Style Guide §19 Timeline/Evolución, §26, §33).
+   Rediseño visual Fase 1 — replica la composición de «zonas» del boceto
+   panel_empleado_v6_zonas(1).html: encabezado sobre el fondo general, zona
+   blanca continua (Evolución + Evaluaciones por periodo, con separador fino)
+   y zona gris verdosa (Historial de mis participaciones) con cronología plana.
 
-   Solo estilos de la Timeline, el selector de competencia y el listado de
-   periodos. Se reutilizan los componentes y tokens existentes (`ui-button`,
-   `ui-badge`, `estado-*`, `paginacion`, `section-header`): aquí no se crea una
-   paleta nueva, ni un sistema de botones, ni un componente genérico.
+   Todo es PRESENTACIÓN sobre los datos reales del snapshot: los segmentos de
+   nivel representan el nivel oficial 1–5 que ya trae el backend; nunca se
+   calcula, interpola ni completa nada. «Datos insuficientes» sigue siendo
+   TEXTO (§5), nunca nivel 0.
 
-   La Timeline es SUTIL por definición (§19): una línea vertical de 1px y
-   puntos pequeños. No hay ejes, escalas, barras proporcionales ni gráficas
-   cuantitativas, porque no existe ninguna métrica derivada que representar.
+   ANCHO COMPLETO (misma técnica local que inicio.css / progreso.css): las
+   zonas se desangran con márgenes negativos hasta los bordes del área
+   principal, compensando el padding de `.app-content` (shell.css) más la
+   mitad del sobrante sobre --content-width (1240px). No se modifica el shell.
 
-   El estado "Datos insuficientes" se distingue por texto y por su propio
-   modificador de estilo: el color nunca es la única señal (§3). */
+   Se reutilizan tokens existentes con equivalente exacto (--color-brand-deep
+   = petróleo #234B4A; --color-primary = verde azulado #4F7F7B;
+   --color-accent = terracota #D99A7C). Los demás colores son locales y
+   están acotados a clases .mi-historial / .historial-*. */
 
-.mi-historial { display: flex; flex-direction: column; gap: 22px; }
-
-/* --- Evolución de una competencia a la vez (PRD §21.5) --- */
-.historial-evolucion { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
-.historial-evolucion__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.historial-evolucion__nota { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
-.historial-evolucion__selector { display: flex; flex-wrap: wrap; gap: 8px; }
-
-.historial-timeline { display: flex; flex-direction: column; gap: 0; margin: 6px 0 0; padding: 0; list-style: none; }
-.historial-timeline__item { position: relative; display: flex; align-items: baseline; gap: 14px; padding: 12px 0 12px 24px; }
-/* Línea vertical sutil que une los puntos de la Timeline (§19). */
-.historial-timeline__item::before { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 1px; background: var(--line-soft); }
-.historial-timeline__item:first-child::before { top: 50%; }
-.historial-timeline__item:last-child::before { bottom: 50%; }
-/* Punto del periodo: pequeño y discreto, nunca una barra de valor. */
-.historial-timeline__item::after { content: ''; position: absolute; left: 0; top: 18px; width: 9px; height: 9px; background: #fff; border: 2px solid var(--color-primary); border-radius: 50%; }
-.historial-timeline__periodo { margin: 0; min-width: 88px; color: var(--color-text-primary); font-size: 13px; font-weight: 700; letter-spacing: .04em; }
-.historial-timeline__estado { display: flex; align-items: baseline; gap: 8px; margin: 0; color: var(--color-text-primary); font-size: 14px; }
-.historial-timeline__nivel { color: var(--color-brand-deep); font-size: 18px; font-weight: 700; line-height: 1; }
-.historial-timeline__etiqueta { color: var(--color-text-secondary); }
-/* "Datos insuficientes" es un estado válido, no un error ni un nivel 0 (§5). */
-.historial-timeline__estado--di { color: #6d797e; font-style: normal; font-weight: 600; }
-
-/* --- Historial por periodo --- */
-.historial-periodos { display: flex; flex-direction: column; gap: 14px; }
-.historial-periodos__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.historial-periodos__lista { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
-.historial-periodo { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; }
-.historial-periodo__cabecera { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.historial-periodo__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; }
-.historial-periodo__fecha { margin: 0; color: var(--ink-soft); font-size: 12px; }
-.historial-periodo__competencias { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 20px; margin: 0; }
-.historial-competencia { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.historial-competencia dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.historial-competencia dd { margin: 0; }
-
-/* Adaptación a pantallas estrechas (§7): sin overflow horizontal. */
-@media (max-width: 760px) {
-  .historial-evolucion { padding: 18px; }
-  .historial-timeline__item { flex-direction: column; gap: 2px; }
-  .historial-periodo { padding: 16px; }
-  .historial-periodo__competencias { grid-template-columns: 1fr; }
+.mi-historial {
+  /* Espejo del padding horizontal de `.app-content` (shell.css). */
+  --historial-sangrado: clamp(32px, 4vw, 58px);
+  /* Sobre 1240px, sobrante/2 = 50vw − 756px (756 = (272 + 1240)/2). */
+  --historial-exterior: calc(var(--historial-sangrado) + max(0px, 50vw - 756px));
+  display: flex;
+  flex-direction: column;
 }
 
-/* --- Apartado interno: Correcciones de mis participaciones (Opción A) ---
-   Bloque de solo lectura dentro de «Mi historial». Reutiliza los tokens y
-   primitivas existentes (tabla §14.1, paginación §14.2, aviso discreto §13);
-   aquí solo la composición del apartado, sin paleta ni componentes nuevos. */
-.historial-apartado { display: flex; flex-direction: column; gap: 14px; }
-.historial-correcciones { display: flex; flex-direction: column; gap: 16px; }
+/* --- Zona 1: encabezado sobre el fondo general --------------------------
+   Sin tarjeta ni banner: hereda el fondo gris de la app. Ajuste local de la
+   escala del boceto (h1 28–30px, lead corto) sin tocar tokens globales. */
+.mi-historial .section-header {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 26px;
+}
+
+.mi-historial .section-header__eyebrow {
+  /* Terracota textual del boceto (más cálido que el token global). */
+  color: #A5532F;
+  margin-bottom: 2px;
+}
+
+.mi-historial .section-header__title {
+  font-size: clamp(26px, 2.6vw, 30px);
+  letter-spacing: -.03em;
+}
+
+.mi-historial .section-header__description {
+  max-width: 560px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* --- Zonas de ancho completo ------------------------------------------- */
+.historial-zona {
+  width: auto;
+  margin-inline: calc(var(--historial-exterior) * -1);
+  padding-inline: var(--historial-exterior);
+}
+
+.historial-zona--blanca {
+  padding-block: clamp(24px, 4vw, 36px);
+  background: #fff;
+}
+
+.historial-zona--suave {
+  padding-block: clamp(24px, 4vw, 36px);
+  background: #EEF3F1;
+}
+
+/* Separador fino entre Evolución y Evaluaciones (filete del boceto). */
+.historial-separador {
+  margin: 40px 0 30px;
+  border: 0;
+  border-top: 1px solid #D6E0DD;
+}
+
+/* --- Pestañas de texto subrayadas (selector de competencia y filtros) ---
+   NO son píldoras: texto plano con subrayado terracota en la opción activa,
+   igual que `.tabs/.tab` del boceto. Se conserva la semántica de botón y
+   `aria-pressed` de la implementación anterior (accesibilidad y tests). */
+.historial-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  border-bottom: 1px solid #D6E0DD;
+}
+
+.historial-tabs__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 9px 0;
+  background: none;
+  border: 0;
+  color: #4A5F5D;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.historial-tabs__tab:hover {
+  color: #263238;
+}
+
+.historial-tabs__tab[aria-pressed='true'] {
+  color: var(--color-brand-deep);
+  font-weight: 600;
+}
+
+.historial-tabs__tab[aria-pressed='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: #D99A7C;
+}
+
+.historial-tabs__tab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+/* --- Segmentos del nivel (indicador visual del nivel real 1–5) ----------
+   Cinco segmentos pequeños; los llenos se colorean por rango del nivel
+   (petróleo ≥4, verde azulado 3, terracota <3). Son representación del dato
+   existente, no una métrica: decorativos (aria-hidden), porque la fuente
+   accesible es la etiqueta textual del nivel. */
+.historial-segmentos {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.historial-segmento {
+  display: block;
+  width: 16px;
+  height: 6px;
+  border-radius: 2px;
+  background: #D6E0DD;
+}
+
+.historial-segmento--lleno {
+  animation: historial-segmento-entrada 0.6s ease both;
+  transform-origin: left center;
+}
+
+@keyframes historial-segmento-entrada {
+  from { opacity: 0; transform: scaleX(0.4); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .historial-segmento--lleno { animation: none; }
+}
+
+/* Línea discontinua del boceto para «Datos insuficientes» (nunca un 0). */
+.historial-linea-discontinua {
+  display: block;
+  width: 60px;
+  border-top: 1.5px dashed #CFDCD9;
+}
+
+.historial-n0 {
+  color: #587472;
+  font-style: italic;
+}
+
+/* --- Evolución de una competencia (PRD §21.5) --------------------------- */
+.historial-evolucion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.historial-evolucion__titulo,
+.historial-periodos__titulo {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+.historial-evolucion__nota {
+  margin: 0 0 8px;
+  color: #4A5F5D;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Línea temporal plana: punto verde azulado + periodo + segmentos + etiqueta. */
+.historial-timeline {
+  display: flex;
+  flex-direction: column;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historial-timeline__item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.historial-timeline__punto {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin: 0 4px;
+  background: #fff;
+  border: 2px solid var(--color-primary);
+  border-radius: 50%;
+}
+
+.historial-timeline__punto--lleno {
+  background: var(--color-primary);
+}
+
+.historial-timeline__contenido {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 0;
+}
+
+.historial-timeline__periodo {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.historial-timeline__nivel {
+  color: var(--color-brand-deep);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.historial-timeline__etiqueta {
+  color: #4A5F5D;
+  font-size: 14px;
+}
+/* --- Evaluaciones por periodo: lista plana, sin tarjetas ni badges ------ */
+.historial-periodos {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.historial-periodos__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.historial-periodo {
+  display: flex;
+  flex-direction: column;
+}
+
+.historial-periodo__cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+
+.historial-periodo__titulo {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.historial-periodo__fecha {
+  margin: 0;
+  color: #587472;
+  font-size: 12px;
+}
+
+.historial-periodo__competencias {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fila por competencia: nombre · segmentos · etiqueta oficial (columnas del
+   boceto). Sin badges de píldora ni caja por evaluación. */
+.historial-competencia {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 112px;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  border-top: 1px solid #E1E8E5;
+  font-size: 14px;
+}
+
+.historial-competencia__nombre {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.historial-competencia__nivel {
+  color: #4A5F5D;
+}
+
+.historial-competencia__nivel--sin-datos {
+  color: #587472;
+  font-style: italic;
+}
+
+/* --- Apartado interno: Historial de mis participaciones -----------------
+   Cronología plana (no tabla): fecha/hora a la izquierda; tipo con punto de
+   color, autor, proyecto, registro, motivo y valores a la derecha. El
+   filtrado es de presentación sobre la página ya cargada (el contrato
+   /me/audits solo admite paginación). */
+.historial-apartado {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.historial-correcciones {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .historial-correcciones__aviso {
   margin: 0;
-  padding: 12px 16px;
-  background: #fff;
-  border: 1px solid var(--line-soft);
+  padding: 2px 0 2px 14px;
   border-left: 3px solid var(--color-primary);
-  border-radius: 8px;
-  color: var(--color-text-secondary);
+  color: #4A5F5D;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.55;
+}
+
+.historial-correcciones__nota-filtro {
+  margin: 0;
+  color: #587472;
+  font-size: 12px;
+}
+.historial-correcciones__eventos {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historial-correcciones__evento {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 4px 14px;
+  padding: 14px 0;
+  border-top: 1px solid #E1E8E5;
+}
+
+.historial-correcciones__fecha {
+  display: flex;
+  flex-direction: column;
+}
+
+.historial-correcciones__fecha b {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.historial-correcciones__fecha span {
+  color: #587472;
+  font-size: 12px;
+}
+
+.historial-correcciones__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.historial-correcciones__tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.historial-correcciones__tipo::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.historial-correcciones__tipo--rh::before {
+  background: #D99A7C;
+}
+
+.historial-correcciones__autor {
+  color: #587472;
+  font-size: 12px;
+}
+
+.historial-correcciones__autor b {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.historial-correcciones__proyecto {
+  margin: 2px 0 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.historial-correcciones__registro {
+  color: #587472;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.historial-correcciones__motivo {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid #CFDCD9;
+  color: #4A5F5D;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.historial-correcciones__valores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.historial-correcciones__valor {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.historial-correcciones__campo {
+  color: #4A5F5D;
+  font-weight: 600;
+}
+
+.historial-correcciones__anterior {
+  color: #587472;
+  text-decoration: line-through;
+}
+
+.historial-correcciones__flecha {
+  color: #587472;
+}
+
+.historial-correcciones__nuevo {
+  color: var(--color-brand-deep);
+  font-weight: 600;
+}
+
+.historial-correcciones__sin-eventos {
+  margin: 0;
+  color: #587472;
+  font-size: 13px;
+}
+
+/* --- Adaptación a pantallas estrechas (§7) ------------------------------ */
+@media (max-width: 900px) {
+  .mi-historial { --historial-sangrado: 18px; }
 }
 
 @media (max-width: 760px) {
-  .historial-correcciones__aviso { padding: 12px; }
+  .historial-separador { margin: 30px 0 24px; }
+  /* Pestañas sin ajuste de línea: desplazamiento horizontal, sin overflow
+     de página (scrollbar oculta, como en el boceto). */
+  .historial-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0 22px;
+    scrollbar-width: none;
+  }
+  .historial-tabs::-webkit-scrollbar { display: none; }
+  .historial-tabs__tab { flex: none; white-space: nowrap; }
+  .historial-correcciones__evento {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Etiqueta del nivel a fila propia, como en el boceto móvil. */
+  .historial-competencia {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 2px;
+    padding: 8px 0;
+  }
+  .historial-competencia__nivel { grid-column: 1 / -1; }
+}
+
+/* Objetivo táctil para las pestañas (44px), como el boceto. */
+@media (pointer: coarse) {
+  .historial-tabs__tab { min-height: 44px; }
 }

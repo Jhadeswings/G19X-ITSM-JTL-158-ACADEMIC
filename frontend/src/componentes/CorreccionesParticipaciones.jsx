@@ -1,30 +1,46 @@
 // Apartado interno de «Mi historial» (Empleado): Historial de mis
 // participaciones. Equivalente, para el Empleado, de la vista de Auditoría de
-// RH (PRD §22; ET §25/§32; Style Guide §13 estados, §14.1 tabla, §14.2
-// paginación).
+// RH (PRD §22; ET §25/§32; Style Guide §13 estados, §26 rediseño visual).
+//
+// Rediseño visual Fase 1: la presentación en tabla pasa a ser una CRONOLOGÍA
+// plana (boceto panel_empleado_v6_zonas(1).html): fecha y hora a la izquierda;
+// tipo con punto de color, autor, proyecto, registro, motivo y valores
+// anterior → nuevo a la derecha. Solo cambia la presentación: siguen los
+// mismos registros, en el orden del backend y con los mismos textos.
 //
 // SOLO LECTURA: consulta GET /api/v1/me/audits, que el backend ya filtra por
 // las participaciones del empleado autenticado. Aquí NO se crea, edita ni
 // borra nada, y esta consulta tampoco genera auditoría. El orden y la
-// paginación los decide el backend; no se reordena ni se filtra en el cliente.
-// Un 401 delega en `alSesionExpirada`.
+// paginación los decide el backend; no se reordena. Un 401 delega en
+// `alSesionExpirada`.
+//
+// Los filtros «Todos / Mi modificación / Corrección de RH» son de
+// PRESENTACIÓN sobre la página YA cargada: el contrato /me/audits solo admite
+// paginación, así que aquí no se pide ningún parámetro nuevo al backend, no se
+// altera el `total` del backend y el resultado filtrado NUNCA se presenta como
+// el historial completo (un aviso discreto lo aclara al activar un filtro
+// específico). «Todos» restaura la página cargada completa.
 //
 // Muestra DOS tipos de evento sobre mis participaciones (§25): las correcciones
 // administrativas de RH (`CORRECCION`) y mis propias modificaciones
-// (`MODIFICACION_EMPLEADO`), diferenciadas por la etiqueta «Tipo».
+// (`MODIFICACION_EMPLEADO`), diferenciadas por el tipo y por el punto de color
+// (verde azulado para lo propio, terracota para RH).
 //
 // Presentación del AUTOR y del MOTIVO por tipo de operación (§25):
 // - `MODIFICACION_EMPLEADO` → autor «Tú»: se decide con la operación Y la
-//   identidad de la cuenta autenticada (`GET /me` vía `obtenerCuenta`, el
-//   mismo contrato que usa Mi cuenta), comparando `cuenta_id` —el email solo
-//   como respaldo—; nunca comparando a ciegas cadenas de correo. Si la
-//   identidad no se pudo corroborar, se muestra el correo real del actor:
-//   no se afirma «Tú» sin evidencia.
+//   identidad de la cuenta autenticada (`GET /me` vía `obtenerCuenta`),
+//   comparando `cuenta_id` —el email solo como respaldo—; nunca comparando a
+//   ciegas cadenas de correo. Si la identidad no se pudo corroborar, se
+//   muestra el correo real del actor: no se afirma «Tú» sin evidencia.
 // - `CORRECCION` → el correo del responsable que registró RH; si el registro
 //   no trae correo, «No disponible» (indicador neutro, sin inventar nombres).
 // - Operación desconocida → «No disponible» en el autor.
 // - El motivo NO existe para la operación del Empleado → siempre «—»; el de
 //   RH se conserva tal cual se registró y, si falta, «—». Nada se inventa.
+//
+// Las etiquetas de campo («Horas», «Trabajo en equipo», …) son un diccionario
+// SOLO de presentación sobre las claves REALES de participación; una clave
+// desconocida se muestra tal cual llega, sin perder información.
 
 import { useCallback, useEffect, useState } from 'react'
 import { obtenerCuenta } from '../api/cuenta.js'
@@ -33,18 +49,6 @@ import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
 import Pagination from '../componentes/ui/Pagination.jsx'
-import Table from '../componentes/ui/Table.jsx'
-
-/** Columnas de la tabla (Style Guide §14.1: encabezado claro, sin cálculos). */
-const COLUMNAS = [
-  { key: 'fecha', label: 'Fecha' },
-  { key: 'tipo', label: 'Tipo' },
-  { key: 'proyecto', label: 'Proyecto' },
-  { key: 'registro', label: 'Registro' },
-  { key: 'motivo', label: 'Motivo' },
-  { key: 'valores', label: 'Valores' },
-  { key: 'autor', label: 'Autor' },
-]
 
 const SIN_DATO = '—'
 
@@ -73,6 +77,35 @@ function etiquetaTipo(operacion) {
   return ETIQUETA_TIPO[operacion] || operacion
 }
 
+/**
+ * Filtros visuales de la cronología: presentación sobre la página cargada.
+ * `id` coincide con la `operación` REAL del contrato; vacío = «Todos».
+ */
+const FILTROS = [
+  { id: '', etiqueta: 'Todos' },
+  { id: MODIFICACION_EMPLEADO, etiqueta: 'Mi modificación' },
+  { id: CORRECCION, etiqueta: 'Corrección de RH' },
+]
+
+/**
+ * Etiquetas legibles SOLO de presentación para las claves REALES de la
+ * participación (modelo Participacion del backend). No renombran datos ni
+ * cambian contratos: una clave desconocida se muestra tal cual llega.
+ */
+const ETIQUETAS_CAMPO = {
+  horas: 'Horas',
+  en_equipo: 'Trabajo en equipo',
+  coordino_tareas: 'Coordinó tareas',
+  explico_a_publico_distinto: 'Explicación a públicos distintos',
+  rol: 'Rol',
+  entregables: 'Entregables',
+  resolvio_problema: 'Resolvió problema',
+  fecha_registro: 'Fecha de registro',
+}
+
+function etiquetaCampo(clave) {
+  return ETIQUETAS_CAMPO[clave] || clave
+}
 /**
  * ¿El evento lo realizó la cuenta autenticada? Se decide con la operación
  * (solo `MODIFICACION_EMPLEADO` es, por contrato §25, cambio propio) Y la
@@ -120,10 +153,13 @@ function consultaInicial() {
   return { fase: 'cargando', datos: null, error: null }
 }
 
-/** Fecha/hora tal como llega del backend, sin recalcular la zona. */
-function formatearFecha(iso) {
-  if (!iso) return SIN_DATO
-  return String(iso).replace('T', ' ').slice(0, 16)
+/** Fecha y hora tal como llegan del backend, sin recalcular la zona. */
+function fechaDe(iso) {
+  return iso ? String(iso).slice(0, 10) : SIN_DATO
+}
+
+function horaDe(iso) {
+  return iso ? String(iso).slice(11, 16) : SIN_DATO
 }
 
 /**
@@ -149,12 +185,14 @@ function textoValor(valor) {
   if (typeof valor === 'object') return JSON.stringify(valor)
   return String(valor)
 }
-
 export default function CorreccionesParticipaciones({ token, alSesionExpirada }) {
   const [pagina, setPagina] = useState(1)
   const [consulta, setConsulta] = useState(consultaInicial)
   // Identidad propia (GET /me) para el autor «Tú»; independiente del listado.
   const [identidad, setIdentidad] = useState(null)
+  // Filtro visual activo sobre la página YA cargada ('' = Todos). No altera
+  // el total del backend ni dispara nuevas consultas.
+  const [filtro, setFiltro] = useState('')
 
   const cargar = useCallback(() => {
     setConsulta(consultaInicial())
@@ -175,8 +213,8 @@ export default function CorreccionesParticipaciones({ token, alSesionExpirada })
 
   // Identidad propia (GET /me) SOLO para presentar el autor «Tú»: es una
   // consulta de solo lectura más, independiente del listado. Un fallo
-  // distinto de 401 no rompe el apartado: la tabla sigue mostrando el correo
-  // real del actor (§13.6) y no se afirma «Tú» sin corroborar la identidad.
+  // distinto de 401 no rompe el apartado: la cronología sigue mostrando el
+  // correo real del actor (§13.6) y no se afirma «Tú» sin corroborarla.
   useEffect(() => {
     let cancelado = false
     obtenerCuenta(token)
@@ -199,6 +237,11 @@ export default function CorreccionesParticipaciones({ token, alSesionExpirada })
   const total = fase === 'listo' ? datos?.total ?? 0 : 0
   const porPagina =
     fase === 'listo' ? datos?.por_pagina ?? POR_PAGINA_DEFECTO : POR_PAGINA_DEFECTO
+  // Filtro de PRESENTACIÓN sobre la página cargada: no reordena, no consulta
+  // y no altera `total`; «Todos» restaura los registros de la página.
+  const itemsVisibles = filtro
+    ? items.filter((registro) => registro.operacion === filtro)
+    : items
 
   return (
     <section className="historial-correcciones">
@@ -228,51 +271,108 @@ export default function CorreccionesParticipaciones({ token, alSesionExpirada })
 
       {fase === 'listo' && total > 0 && (
         <>
-          <Table
-            columns={COLUMNAS}
-            caption="Correcciones administrativas sobre mis participaciones"
+          {/* Filtros de presentación sobre la página ya cargada. */}
+          <div
+            className="historial-tabs"
+            role="group"
+            aria-label="Filtrar por tipo de cambio"
           >
-            {items.map((registro) => {
-              const valores = resumirValores(
-                registro.valores_anteriores,
-                registro.valores_nuevos,
-              )
-              return (
-                <tr key={registro.id}>
-                  <td data-label="Fecha">{formatearFecha(registro.fecha)}</td>
-                  <td data-label="Tipo">
-                    {etiquetaTipo(registro.operacion)}
-                  </td>
-                  <td data-label="Proyecto">
-                    {registro.proyecto_nombre || SIN_DATO}
-                  </td>
-                  <td data-label="Registro">
-                    {registro.entidad} #{registro.entidad_id}
-                  </td>
-                  <td data-label="Motivo">{textoMotivo(registro)}</td>
-                  <td data-label="Valores">
-                    {valores === null ? (
-                      SIN_DATO
-                    ) : (
-                      <ul className="auditoria-rh__valores">
-                        {valores.map((par) => (
-                          <li key={par.clave}>
-                            <span className="auditoria-rh__campo">
-                              {par.clave}:
-                            </span>{' '}
-                            {textoValor(par.anterior)} → {textoValor(par.nuevo)}
-                          </li>
-                        ))}
+            {FILTROS.map((f) => (
+              <button
+                key={f.id || 'todos'}
+                type="button"
+                className="historial-tabs__tab"
+                aria-pressed={filtro === f.id}
+                onClick={() => setFiltro(f.id)}
+              >
+                {f.etiqueta}
+              </button>
+            ))}
+          </div>
+
+          {filtro !== '' && (
+            <p className="historial-correcciones__nota-filtro">
+              Mostrando solo los registros de esta página que coinciden con el
+              filtro; el historial completo se pagina con los controles inferiores.
+            </p>
+          )}
+
+          {itemsVisibles.length > 0 ? (
+            <ol className="historial-correcciones__eventos">
+              {itemsVisibles.map((registro) => {
+                const valores = resumirValores(
+                  registro.valores_anteriores,
+                  registro.valores_nuevos,
+                )
+                const esCorreccionRH = registro.operacion === CORRECCION
+                return (
+                  <li key={registro.id} className="historial-correcciones__evento">
+                    <div className="historial-correcciones__fecha" data-dato="fecha">
+                      <b>{fechaDe(registro.fecha)}</b>
+                      <span>{horaDe(registro.fecha)}</span>
+                    </div>
+                    <div className="historial-correcciones__detalle">
+                      <div className="historial-correcciones__cabecera">
+                        <span
+                          className={`historial-correcciones__tipo${
+                            esCorreccionRH ? ' historial-correcciones__tipo--rh' : ''
+                          }`}
+                          data-dato="tipo"
+                        >
+                          {etiquetaTipo(registro.operacion)}
+                        </span>
+                        <span className="historial-correcciones__autor" data-dato="autor">
+                          Autor: <b>{textoAutor(registro, identidad)}</b>
+                        </span>
+                      </div>
+                      <p className="historial-correcciones__proyecto" data-dato="proyecto">
+                        <b>{registro.proyecto_nombre || SIN_DATO}</b>{' '}
+                        <span className="historial-correcciones__registro" data-dato="registro">
+                          {registro.entidad} #{registro.entidad_id}
+                        </span>
+                      </p>
+                      <p className="historial-correcciones__motivo" data-dato="motivo">
+                        {textoMotivo(registro)}
+                      </p>
+                      <ul className="historial-correcciones__valores" data-dato="valores">
+                        {valores === null ? (
+                          <li>{SIN_DATO}</li>
+                        ) : (
+                          valores.map((par) => (
+                            <li key={par.clave} className="historial-correcciones__valor">
+                              <span className="historial-correcciones__campo">
+                                {etiquetaCampo(par.clave)}:
+                              </span>
+                              <span className="historial-correcciones__anterior">
+                                {textoValor(par.anterior)}
+                              </span>
+                              <span
+                                className="historial-correcciones__flecha"
+                                aria-hidden="true"
+                              >
+                                →
+                              </span>
+                              <span className="historial-correcciones__nuevo">
+                                {textoValor(par.nuevo)}
+                              </span>
+                            </li>
+                          ))
+                        )}
                       </ul>
-                    )}
-                  </td>
-                  <td data-label="Autor">
-                    {textoAutor(registro, identidad)}
-                  </td>
-                </tr>
-              )
-            })}
-          </Table>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+          ) : filtro !== '' ? (
+            <p className="historial-correcciones__sin-eventos">
+              Ningún registro de esta página coincide con el filtro seleccionado.
+            </p>
+          ) : (
+            <p className="historial-correcciones__sin-eventos">
+              Esta página no trae registros por el momento.
+            </p>
+          )}
 
           <Pagination
             pagina={datos?.pagina ?? pagina}
