@@ -91,18 +91,18 @@ export default function MiCuenta({ token, alSesionExpirada }) {
       {fase === 'listo' && datos && (
         <>
           {/* Datos laborales: SOLO LECTURA. Sin inputs, sin botones de editar,
-              sin formularios: §21.6 prohíbe modificarlos. El título vive en su
-              propia banda de encabezado, igual que en "Seguridad": las dos
-              secciones comparten la MISMA estructura de tarjeta del sistema. */}
+              sin formularios: §21.6 prohíbe modificarlos. El título vive
+              dentro del cuerpo de la tarjeta (boceto `.sc`, sin banda), misma
+              estructura de tarjeta que "Seguridad". */}
+          {/* Tarjeta del boceto (`.sc`): SIN banda de encabezado; el título
+              vive dentro del cuerpo, con aire propio. */}
           <section
             className="cuenta-datos"
             aria-labelledby="cuenta-datos-titulo"
           >
-            <div className="cuenta-datos__encabezado">
-              <h2 id="cuenta-datos-titulo" className="cuenta-datos__titulo">
-                Información de la cuenta
-              </h2>
-            </div>
+            <h2 id="cuenta-datos-titulo" className="cuenta-datos__titulo">
+              Información de la cuenta
+            </h2>
             <dl className="cuenta-datos__lista">
               <div>
                 <dt>Nombre</dt>
@@ -124,19 +124,18 @@ export default function MiCuenta({ token, alSesionExpirada }) {
           </section>
 
           {/* Cambio de contraseña: la ÚNICA acción editable de la pantalla.
-              La sección lleva banda de encabezado propia para que "Seguridad"
-              se lea como una sección formal de la pantalla (misma estructura
-              de tarjeta que "Información de la cuenta"), no como un formulario
-              suelto. El formulario en sí es el componente independiente. */}
+              "Seguridad" es la segunda tarjeta del boceto (mismo borde, radio
+              10px y sin banda que "Información de la cuenta"); el formulario
+              en sí es el componente independiente. */}
+          {/* MISMA tarjeta del boceto que la información: radio 10px, sin
+              banda y sin sombra. */}
           <section
             className="cuenta-seguridad"
             aria-labelledby="cuenta-seguridad-titulo"
           >
-            <div className="cuenta-seguridad__encabezado">
-              <h2 id="cuenta-seguridad-titulo" className="cuenta-seguridad__titulo">
-                Seguridad
-              </h2>
-            </div>
+            <h2 id="cuenta-seguridad-titulo" className="cuenta-seguridad__titulo">
+              Seguridad
+            </h2>
             <CambioPasswordCuenta
               token={token}
               alSesionExpirada={alSesionExpirada}

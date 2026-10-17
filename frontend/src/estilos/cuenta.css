@@ -1,136 +1,208 @@
-/* Mi cuenta (Empleado, Style Guide §12 Card, §24 densidad baja de Empleado,
+/* Mi cuenta (Empleado, PRD §21.6; Style Guide §12 Card, §24 densidad baja,
    §28 estados).
 
-   Solo estilos de los dos bloques de la pantalla: la información de la cuenta
-   (lectura) y el formulario de cambio de contraseña. Se reutilizan tokens y
-   componentes existentes (`section-header`, `form-field`, `ui-input`,
-   `ui-button`, `ui-alert`, `estado-*`): aquí no se crea una paleta nueva, ni un
-   sistema de botones, ni tokens globales, ni estilos que afecten a otras
-   pantallas.
+   Rediseño visual Fase 1 — reproduce la sección «Mi cuenta» del boceto
+   panel_empleado_v6_zonas(1).html (P.cta, línea 367): encabezado directo
+   sobre el fondo general (eyebrow CUENTA terracota, h1 ~28px, lead 14px) y
+   DOS tarjetas blancas de radio 10px con borde gris verdoso, sin banda de
+   encabezado ni sombra. «Mi cuenta» NO es una página de zonas en el boceto
+   (solo Inicio, Mi progreso y Mi historial llevan `zp`): aquí NO se crean
+   franjas de ancho completo; el ancho y el centrado los sigue poniendo el
+   shell (`.app-content`), como en el resto de vistas.
 
-   El bloque de datos reproduce el patrón de definición de datos del perfil de
-   RH (`PerfilEmpleado`), ajustado a la densidad baja que el Style Guide §24
-   exige al rol Empleado. Los datos laborales son de solo lectura: no hay
-   inputs ni controles de edición, y este archivo no añade ninguno. */
+   Solo PRESENTACIÓN sobre los datos reales de `GET /me` y sobre el
+   formulario de cambio de contraseña: los indicadores de requisitos
+   reproducen la MISMA política PRD §3.5 que ya guiaba la ayuda estática
+   (8 caracteres / al menos un número); la autoridad sigue siendo el backend
+   (422). Los campos siguen siendo los cuatro que exige §21.6 y `SIN_DATO`
+   para los nulos. Todo está acotado a clases .mi-cuenta / .cuenta-*. */
 
-/* El ancho de esta pantalla NO se fija aquí: es el ANCHO ESTÁNDAR del área de
-   contenido del Empleado.
+.mi-cuenta { display: flex; flex-direction: column; gap: 20px; width: 100%; }
 
-   Todas las vistas del rol dejan el ancho en manos del shell —
-   `.app-content { width: min(100%, var(--content-width)) }` con
-   `--content-width: 1240px` (tokens.css)— y ninguna define `max-width` en su
-   raíz: ni `.growth-experience` (Mi progreso), ni `.mis-proyectos`, ni
-   `.capacitaciones-registro`, ni `.historial-evolucion`, ni `.inicio-empleado`.
+/* --- Encabezado sobre el fondo general (sin tarjeta ni banner) ---
+   Escala local del boceto (h1 ~28px, lead 14px a ~480px) aplicada SOLO bajo
+   `.mi-cuenta`, igual que en historial.css: no se toca tokens globales. */
+.mi-cuenta .section-header {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
 
-   "Mi cuenta" era la única excepción (`max-width: 840px; margin: 0 auto`), lo que
-   la hacía visiblemente más angosta que el resto de secciones. Aquí se replica
-   el patrón de Inicio: `width: 100%` y nada más. El límite, el centrado y el
-   padding vertical los pone el shell, igual que en las demás vistas. */
-.mi-cuenta { display: flex; flex-direction: column; gap: 22px; width: 100%; }
+.mi-cuenta .section-header__eyebrow {
+  color: #A5532F;
+  margin-bottom: 0;
+}
 
-/* --- Información de la cuenta (solo lectura) ---
-   Título en banda de encabezado propia (borde inferior, patrón de las tarjetas
-   con franja de `alta.css`): separa jerárquicamente el nombre de la sección del
-   contenido y hace que las dos secciones de la pantalla se lean iguales.
+.mi-cuenta .section-header__title {
+  font-size: clamp(24px, 2.6vw, 28px);
+  letter-spacing: -.03em;
+}
 
-   Los cuatro datos van SIEMPRE en una sola fila en escritorio (referencia), con
-   cuatro columnas `minmax(0, 1fr)`: equitativas, sin desbordar y —porque el
-   ancho ya no está contenido en 840px— con sitio de sobra para el correo. A
-   ≤900px la rejilla pasa a 2 columnas para que ninguna celda quede estrangulada,
-   y a ≤760px a una sola columna. */
-.cuenta-datos { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
-.cuenta-datos__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
-.cuenta-datos__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.cuenta-datos__lista { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 24px; margin: 0; padding: 20px 24px 24px; }
-.cuenta-datos__lista > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.cuenta-datos__lista dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.cuenta-datos__lista dd { margin: 0; color: var(--color-text-primary); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.mi-cuenta .section-header__description {
+  max-width: 480px;
+  margin-top: 2px;
+  color: #4A5F5D;
+  font-size: 14px;
+  line-height: 1.5;
+}
 
-/* --- Seguridad ---
-   MISMA estructura de tarjeta que "Información de la cuenta": banda de
-   encabezado + cuerpo, mismo borde, mismo radio, mismo `overflow: hidden` y
-   NINGÚN `max-width` propio.
+/* --- Las dos tarjetas (`.sc` del boceto): mismo sistema visual ---
+   Borde gris verdoso fino, radio 10px, sin sombra y SIN banda de encabezado:
+   el título vive dentro del cuerpo con su propio aire (margin-bottom 14px,
+   20px seminegrita, como el `.h2` del boceto). */
+.cuenta-datos,
+.cuenta-seguridad {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px;
+  background: #fff;
+  border: 1px solid #D6E0DD;
+  border-radius: 10px;
+}
 
-   El ancho lo fija el shell, igual que para la tarjeta de datos: así ambas
-   comparten exactamente el mismo eje izquierdo y derecho. Esta tarjeta tuvo un
-   `max-width` propio (660px) que la hacía más estrecha que "Información de la
-   cuenta" y rompía la alineación de las dos cajas; ya no lo tiene.
+.cuenta-datos__titulo,
+.cuenta-seguridad__titulo {
+  margin: 0 0 14px;
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
 
-   El cuerpo es una composición de dos columnas: "Contraseña actual" abre en
-   ancho completo y el par "Nueva contraseña / Confirma" comparte fila. La
-   jerarquía interna sigue siendo: título de sección (h2) → etiqueta del
-   grupo (h3 del componente) → campos → política → mensajes de estado →
-   acción principal. */
-.cuenta-seguridad { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
-.cuenta-seguridad__encabezado { padding: 18px 24px; border-bottom: 1px solid var(--line-soft); }
-.cuenta-seguridad__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+/* Información de la cuenta: cuadrícula adaptable `.dl` del boceto
+   (`auto-fit minmax(200px,1fr)`): 4 columnas cuando hay sitio, y 2 y 1
+   automáticamente al estrechar, con `overflow-wrap` para el correo largo.
+   El marcado sigue siendo dl > div > dt/dd (etiqueta ↔ valor asociados). */
+.cuenta-datos__lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px 20px;
+  margin: 0;
+}
 
-/* Clases del formulario (componente `CambioPasswordCuenta`): cuerpo de la
-   sección. Hereda el ancho de la tarjeta —sin `max-width` propio— y todos los
-   hijos abarcan el ancho completo por defecto; SOLO el par nueva/confirmación
-   comparte fila. El `row-gap` de 14px mantiene el formulario compacto —la
-   referencia muestra los campos más juntos de lo que permite un gap de 16px—
-   sin que las etiquetas y los inputs se toquen.
+.cuenta-datos__lista > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
 
-   El `padding` es IDENTICO al de `.cuenta-datos__lista`: ambas tarjetas
-   comparten así el mismo aire interior y se leen como el mismo sistema visual. */
-.cuenta-password { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; padding: 20px 24px 24px; }
+.cuenta-datos__lista dt {
+  color: #587472;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .07em;
+}
+
+.cuenta-datos__lista dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+/* --- Seguridad: formulario (`.kh`, campo con ojo, `.rq`, `.ft`, `.okm`) ---
+   Rejilla de 2 columnas: SOLO el par nueva/confirmación comparte fila en
+   escritorio; título, actual, indicadores, mensajes y pie ocupan el ancho
+   completo. El padding lo pone la tarjeta (misma tarjeta que la información). */
+.cuenta-password {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
 .cuenta-password > * { grid-column: 1 / -1; }
 
-/* El orden de los hijos es estable porque `CambioPasswordCuenta` es un
-   componente cerrado (MB-6-3): 1 = etiqueta del grupo, 2 = contraseña actual,
-   3 = nueva, 4 = confirmación y, después, la política, los mensajes y la
-   acción.
-
-   El cuerpo usa TODO el ancho de la tarjeta: "Contraseña actual" abre en una
-   fila completa y el par nueva/confirmación se reparte en dos columnas
-   iguales, con el `column-gap` entre ellas. Así el formulario aprovecha el ancho
-   estándar de la vista en lugar de quedar encogido dentro de una caja ancha, y
-   los dos campos quedan exactamente igual de anchos. */
+/* El orden de los hijos es estable (componente cerrado): 1 = título, 2 =
+   contraseña actual, 3 = nueva, 4 = confirmación, 5 = indicadores, 6 =
+   Alert (solo con error) y 7 = pie. */
 .cuenta-password > .form-field:nth-child(3),
 .cuenta-password > .form-field:nth-child(4) { grid-column: auto; }
 
-/* Política de contraseña (PRD §3.5): una sola línea bajo el par
-   "Nueva / Confirma", como ayuda del CONJUNTO (no del campo "Nueva
-   contraseña"). El margen negativo la sube para compensar el `row-gap` de 14px
-   de la rejilla y dejarla pegada a los campos que describe, sin abrir un hueco
-   entre el par y su ayuda. Deja además un pequeño margen inferior para que el
-   botón no quede pegado al texto. Conserva el texto y el `id` con que el campo
-   "Nueva contraseña" se describe. */
-.cuenta-password__politica { margin: -4px 0 6px; }
+/* `.kh` del boceto: subtítulo con llave en petróleo, sobre los campos. */
+.cuenta-password__titulo { display: flex; align-items: center; gap: 8px; }
+.cuenta-password__titulo svg { width: 16px; height: 16px; color: var(--color-brand-deep); }
+.cuenta-password__titulo h3 { margin: 0; color: var(--color-brand-deep); font-size: 14px; font-weight: 600; }
 
-/* Etiqueta del grupo: más pequeña que el h2 de la sección para no competir
-   con "Seguridad"; el bloque se lee como la primera pieza del formulario, no
-   como una sección anidada más. El `margin-bottom` abre el cuerpo con algo más
-   de aire del que hay entre campos, para que "Cambiar contraseña" se lea como
-   el encabezado del formulario y no como un campo más de la rejilla. */
-.cuenta-password__titulo { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.cuenta-password__titulo svg { width: 16px; height: 16px; color: var(--color-primary); }
-.cuenta-password__titulo h3 { margin: 0; color: var(--color-text-primary); font-size: 13px; font-weight: 700; }
+/* Campo con ojo (`.pw` + `.eye` del boceto): envoltorio LOCAL de cuenta,
+   sin tocar `ui/Input`. El padding-right reserva el hueco del ojo. */
+.cuenta-password__campo { position: relative; }
+.cuenta-password__campo .ui-input { padding-right: 40px; }
+.cuenta-password__ojo {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: none;
+  border: 0;
+  color: #587472;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.cuenta-password__ojo svg { width: 16px; height: 16px; }
+.cuenta-password__ojo:hover { color: var(--color-brand-deep); }
+.cuenta-password__ojo:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 4px; }
 
-/* Acción principal: a la izquierda e inmediatamente debajo de los campos y de
-   la política, con una separación vertical moderada (patrón de `proyectos-creado
-   .ui-button`), nunca estirada a todo el ancho del formulario. El `margin-top`
-   pequeño se suma al `row-gap` para que la separación sea suficiente sin que el
-   botón se perciba desligado del formulario. */
-.cuenta-password > .ui-button { justify-self: start; min-height: 40px; margin-top: 4px; }
-
-/* Breakpoint estándar del proyecto (`responsive.css`, `inicio.css`): con menos
-   ancho, las cuatro columnas de información dejarían la celda del correo
-   demasiado estrecha, así que pasan a 2 × 2. No limita el ancho de las
-   tarjetas: las dos siguen midiendo exactamente lo mismo. */
-@media (max-width: 900px) {
-  .cuenta-datos__lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Requisitos vivos (`.rq` del boceto): gris verdoso discreto con círculo;
+   al cumplirse, petróleo y check. Presentación de la política §3.5 ya
+   existente: no añaden reglas ni sustituyen la validación del servidor. */
+.cuenta-password__rq {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: -2px 0 0;
+  color: #587472;
+  font-size: 12px;
 }
 
-/* Adaptación a pantallas estrechas (§7): sin desbordamiento horizontal.
-   Las dos tarjetas siguen teniendo EXACTAMENTE el mismo ancho disponible,
-   porque ninguna define `max-width` y el límite lo pone la columna del shell.
-   "Información de la cuenta" colapsa a una columna y el formulario de
-   Seguridad también, para que los labels y los valores se lean igual en móvil. */
+.cuenta-password__req { display: inline-flex; align-items: center; gap: 6px; }
+.cuenta-password__req svg { width: 14px; height: 14px; flex: none; }
+.cuenta-password__req--ok { color: var(--color-brand-deep); font-weight: 600; }
+
+/* Pie (`.ft` + `.okm` del boceto): acción a la izquierda y mensaje de éxito
+   REAL del servidor a su lado, en petróleo. Los errores siguen en Alert. */
+.cuenta-password__ft {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.cuenta-password__ft .ui-button {
+  min-height: 40px;
+  border-radius: 8px;
+}
+
+.cuenta-password__ok {
+  color: var(--color-brand-deep);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* --- Responsive (breakpoints del boceto y del proyecto) --- */
 @media (max-width: 760px) {
-  .cuenta-datos__encabezado, .cuenta-seguridad__encabezado { padding: 16px 18px; }
-  .cuenta-datos__lista { grid-template-columns: 1fr; padding: 18px; }
-  .cuenta-password { grid-template-columns: 1fr; max-width: 100%; padding: 18px; }
-  .cuenta-password > .ui-button { justify-self: stretch; width: 100%; }
+  .cuenta-datos,
+  .cuenta-seguridad { padding: 18px 16px; }
+  /* Nueva/Confirma a una sola columna (`.g2b` → 1fr del boceto). */
+  .cuenta-password { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+  /* iOS: inputs de 16px para impedir el zoom automático al enfocar. */
+  .cuenta-password__campo .ui-input { font-size: 16px; }
+  /* El botón ocupa el ancho disponible (`.ft > .btn` del boceto). */
+  .cuenta-password__ft { align-items: stretch; flex-direction: column; }
+  .cuenta-password__ft .ui-button { width: 100%; }
+}
+
+/* Objetivo táctil ≥44px (`.inp`/`.btn` del boceto en pointer:coarse). */
+@media (pointer: coarse) {
+  .cuenta-password__campo .ui-input,
+  .cuenta-password__ft .ui-button { min-height: 44px; }
+  .cuenta-password__ojo { min-width: 44px; min-height: 44px; right: 2px; }
 }
