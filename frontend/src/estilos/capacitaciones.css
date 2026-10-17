@@ -1,40 +1,99 @@
 /* Mis capacitaciones (Estilo Empleado, Style Guide §19, §21, §31, §33).
 
-   Solo estilos de la TrainingCard y del formulario de registro. Se reutilizan
-   los componentes y tokens existentes (`ui-input`, `ui-button`, `ui-badge`,
-   `form-field`, `estado-*`, `paginacion`): aquí no se crea una paleta nueva, ni
-   un sistema de botones, ni un componente genérico.
+   Rediseño según la referencia: encabezado tipográfico plano sobre el fondo
+   general y DOS paneles blancos con borde fino gris verdoso, esquinas
+   suavemente redondeadas y sin sombras decorativas. Solo clases del dominio
+   capacitaciones-*; mismos tokens y primitivas del shell (ui-input,
+   ui-button, form-field, estado-*, paginacion). Sin gráficos ni
+   puntuaciones: el estado de completado es texto acompañado de un punto
+   circular, nunca solo color (§3). */
 
-   Sin gráficos, sin puntuaciones y sin semáforo: el estado de completado se
-   presenta como texto dentro de un Badge, nunca solo con color (§3). */
+.mis-capacitaciones { display: flex; flex-direction: column; gap: 20px; }
 
-.mis-capacitaciones { display: flex; flex-direction: column; gap: 22px; }
+/* Encabezado plano: sobretítulo terracota en mayúsculas, título oscuro
+   grande y subtítulo gris azulado; misma columna y ancho que los paneles. */
+.mis-capacitaciones__cabecera { display: flex; flex-direction: column; gap: 6px; }
+.mis-capacitaciones__sobretitulo { margin: 0; color: var(--color-accent); font-size: 12px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+.mis-capacitaciones__titulo { margin: 0; color: var(--color-text-primary); font-size: clamp(26px, 3vw, 34px); line-height: 1.1; letter-spacing: -.03em; font-weight: 700; }
+.mis-capacitaciones__descripcion { margin: 2px 0 0; max-width: 62ch; color: var(--color-text-secondary); font-size: 14.5px; line-height: 1.6; }
 
-/* Tarea principal: registrar capacitación (Style Guide §19). */
-.capacitaciones-registro { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; background: #fff; border: 1px solid var(--line-soft); border-radius: 12px; }
+/* Paneles blancos: borde fino gris verdoso, esquinas discretas, sin sombra. */
+.capacitaciones-registro,
+.capacitaciones-lista { padding: 20px 24px 24px; background: var(--color-surface); border: 1px solid var(--line-soft); border-radius: 12px; }
+
+/* Panel 1 — Registrar capacitación. */
+.capacitaciones-registro__cabecera { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
 .capacitaciones-registro__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.capacitaciones-registro__form { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
-.capacitaciones-registro__campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; width: 100%; }
-.capacitaciones-registro__completado { display: flex; align-items: center; gap: 10px; align-self: end; padding-bottom: 10px; }
-.capacitaciones-registro__completado input[type='checkbox'] { width: 16px; height: 16px; margin: 0; accent-color: var(--color-primary); }
+.capacitaciones-registro__subtitulo { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+.capacitaciones-registro__form { display: flex; flex-direction: column; gap: 16px; }
+/* Fila de campos: Nombre flexible y Fecha más estrecha (proporción de la
+   referencia); se apilan en pantallas estrechas. */
+.capacitaciones-registro__campos { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 14px; align-items: end; }
+/* Fila de acciones: casilla Completado y botón principal en la misma línea. */
+.capacitaciones-registro__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.capacitaciones-registro__completado { display: flex; align-items: center; gap: 10px; }
+/* La casilla usa el componente Input (clase `ui-input`), cuyo marco de campo
+   de texto NO corresponde aquí: se neutraliza SOLO para esta casilla, que
+   queda limpia y pegada a su etiqueta (ningún otro input de la app cambia).
+   Especificidad mayor que .ui-input/.ui-input:focus, así que no hace falta
+   tocar primitives.css. */
+.capacitaciones-registro__completado input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+/* Foco accesible conservado SOLO para navegación con teclado: anillo propio
+   del control, sin el halo rectangular del campo de texto. */
+.capacitaciones-registro__completado input[type='checkbox']:focus {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+.capacitaciones-registro__completado input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
 .capacitaciones-registro__completado label { color: var(--color-text-primary); font-size: 14px; }
 .capacitaciones-registro__form .ui-button { min-height: 40px; }
+/* Verde grisáceo claro mientras faltan datos obligatorios: SOLO apariencia
+   (el botón sigue operativo y el contrato de avisos se conserva al enviar). */
+.capacitaciones-registro__accion--inactiva { background: #c9d6d1; border-color: #c9d6d1; color: #fff; }
+.capacitaciones-registro__accion--inactiva:hover:not(:disabled) { background: #c9d6d1; transform: none; }
 
-/* Listado: TrainingCard con nombre, fecha y estado (sin gráficos). */
+/* Panel 2 — Capacitaciones registradas: filas planas separadas por líneas
+   finas (no una tarjeta por elemento). */
 .capacitaciones-lista { display: flex; flex-direction: column; gap: 14px; }
 .capacitaciones-lista__titulo { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-.capacitaciones-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
-.capacitacion-card { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 10px; }
-.capacitacion-card__nombre { margin: 0; color: var(--color-text-primary); font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
-.capacitaciones-card__datos { display: flex; flex-wrap: wrap; gap: 14px 24px; margin: 0; }
-.capacitaciones-card__datos > div { display: flex; flex-direction: column; gap: 4px; }
-.capacitaciones-card__datos dt { color: var(--color-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.capacitaciones-card__datos dd { margin: 0; color: var(--color-text-primary); font-size: 14px; }
+.capacitaciones-lista__items { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.capacitaciones-lista__items > li + li { border-top: 1px solid var(--line-soft); }
+.capacitacion-card { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 13px 0; }
+.capacitacion-card__principal { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.capacitacion-card__nombre { margin: 0; color: var(--color-text-primary); font-size: 14.5px; font-weight: 700; overflow-wrap: anywhere; }
+.capacitacion-card__fecha { margin: 0; color: var(--ink-soft); font-size: 12.5px; }
+/* Estado real: punto circular + texto; sólido verde petróleo apagado SOLO
+   cuando la capacitación está completada. */
+.capacitacion-card__estado { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; color: var(--color-text-primary); font-size: 12.5px; font-weight: 600; }
+.capacitacion-card__punto { width: 10px; height: 10px; border-radius: 50%; background: transparent; border: 2px solid #9fb0ab; }
+.capacitacion-card__punto[data-completado='true'] { background: var(--color-primary); border-color: var(--color-primary); }
 
-/* Adaptación a pantallas estrechas (§7): sin overflow horizontal. */
-@media (max-width: 760px) {
-  .capacitaciones-registro { padding: 18px; }
+/* Pantallas estrechas (§7): sin overflow horizontal; los campos y las
+   acciones se apilan y el botón sigue visible y utilizable. */
+@media (max-width: 640px) {
+  .capacitaciones-registro,
+  .capacitaciones-lista { padding: 18px; }
   .capacitaciones-registro__campos { grid-template-columns: 1fr; }
-  .capacitaciones-registro__completado { padding-bottom: 0; }
-  .capacitaciones-cards { grid-template-columns: 1fr; }
+  .capacitaciones-registro__acciones { flex-direction: column; align-items: stretch; gap: 14px; }
+  .capacitaciones-registro__acciones .ui-button { width: 100%; }
+  .capacitacion-card { flex-wrap: wrap; }
+  .capacitacion-card__estado { margin-left: auto; }
 }

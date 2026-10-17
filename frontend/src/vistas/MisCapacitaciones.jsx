@@ -37,9 +37,7 @@ import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
 import FormField from '../componentes/FormField.jsx'
-import SectionHeader from '../componentes/SectionHeader.jsx'
 import Alert from '../componentes/ui/Alert.jsx'
-import Badge from '../componentes/ui/Badge.jsx'
 import { Button } from '../componentes/ui/Button.jsx'
 import { Input } from '../componentes/ui/Input.jsx'
 import Pagination from '../componentes/ui/Pagination.jsx'
@@ -145,23 +143,37 @@ export default function MisCapacitaciones({ token, alSesionExpirada }) {
   const porPagina =
     fase === 'listo' ? datos?.por_pagina ?? POR_PAGINA_DEFECTO : POR_PAGINA_DEFECTO
   const enviando = registro.fase === 'enviando'
+  // Solo apariencia del botón (la validación real ocurre al enviar, como
+  // siempre): verde grisáceo claro mientras falten nombre o fecha.
+  const formularioValido = Boolean(formulario.nombre.trim() && formulario.fecha.trim())
 
   return (
     <div className="mis-capacitaciones">
-      <SectionHeader
-        eyebrow="Tu desarrollo"
-        title="Mis capacitaciones"
-        description="Registra las capacitaciones que realizas. Solo se guardan nombre, fecha y si ya las completaste."
-      />
+      {/* Encabezado plano directamente sobre el fondo (sin banner ni caja):
+          sobretítulo terracota, título oscuro y subtítulo gris, compartiendo
+          columna y ancho con los dos paneles de abajo. */}
+      <header className="mis-capacitaciones__cabecera">
+        <p className="mis-capacitaciones__sobretitulo">Tu desarrollo</p>
+        <h1 className="mis-capacitaciones__titulo">Mis capacitaciones</h1>
+        <p className="mis-capacitaciones__descripcion">
+          Registra las capacitaciones que realizas. Solo se guardan nombre,
+          fecha y si ya las completaste.
+        </p>
+      </header>
 
       {/* Tarea principal de la pantalla (Style Guide §19): registrar. */}
       <section
         className="capacitaciones-registro"
         aria-labelledby="capacitaciones-registro-titulo"
       >
-        <h2 className="capacitaciones-registro__titulo" id="capacitaciones-registro-titulo">
-          Registrar capacitación
-        </h2>
+        <div className="capacitaciones-registro__cabecera">
+          <h2 className="capacitaciones-registro__titulo" id="capacitaciones-registro-titulo">
+            Registrar capacitación
+          </h2>
+          <p className="capacitaciones-registro__subtitulo">
+            Nombre, fecha y si ya la completaste.
+          </p>
+        </div>
 
         {registro.fase === 'listo' && <Alert tone="success">{registro.mensaje}</Alert>}
         {registro.fase === 'error' && <Alert tone="error">{registro.error?.message}</Alert>}
@@ -193,9 +205,13 @@ export default function MisCapacitaciones({ token, alSesionExpirada }) {
                 }
               />
             </FormField>
+          </div>
 
-            {/* `completado` es un dato, no un indicador de desempeño: puede
-                quedarse en false al registrar (el contrato lo permite). */}
+          {/* Fila de acciones: la casilla `completado` y el botón principal,
+              como en la referencia. `completado` es un dato, no un indicador
+              de desempeño: puede quedarse en false al registrar (el contrato
+              lo permite). */}
+          <div className="capacitaciones-registro__acciones">
             <div className="capacitaciones-registro__completado">
               <Input
                 id="capacitacion-completado"
@@ -208,11 +224,23 @@ export default function MisCapacitaciones({ token, alSesionExpirada }) {
               />
               <label htmlFor="capacitacion-completado">Completado</label>
             </div>
-          </div>
 
-          <Button type="submit" loading={enviando}>
-            <Save aria-hidden="true" /> Registrar capacitación
-          </Button>
+            {/* Verde grisáceo claro mientras faltan datos obligatorios: SOLO
+                apariencia (misma convención que el botón de búsqueda de
+                «Mis proyectos»); el envío sigue operativo y conserva los
+                avisos del contrato al pulsarlo. */}
+            <Button
+              type="submit"
+              loading={enviando}
+              className={
+                !formularioValido && !enviando
+                  ? 'capacitaciones-registro__accion--inactiva'
+                  : undefined
+              }
+            >
+              <Save aria-hidden="true" /> Registrar capacitación
+            </Button>
+          </div>
         </form>
       </section>
 
@@ -243,25 +271,25 @@ export default function MisCapacitaciones({ token, alSesionExpirada }) {
         )}
 
         {fase === 'listo' && items.length > 0 && (
-          <ul className="capacitaciones-cards">
+          <ul className="capacitaciones-lista__items">
             {items.map((capacitacion) => (
               <li key={capacitacion.id} className="capacitacion-card">
-                <p className="capacitacion-card__nombre">{capacitacion.nombre}</p>
-                <dl className="capacitaciones-card__datos">
-                  <div>
-                    <dt>Fecha</dt>
-                    <dd>{capacitacion.fecha}</dd>
-                  </div>
-                  <div>
-                    <dt>Estado</dt>
-                    <dd>
-                      {/* Texto + badge: el color nunca es la única señal. */}
-                      <Badge tone={capacitacion.completado ? 'success' : 'neutral'}>
-                        {etiquetaCompletado(capacitacion.completado)}
-                      </Badge>
-                    </dd>
-                  </div>
-                </dl>
+                <div className="capacitacion-card__principal">
+                  <p className="capacitacion-card__nombre">{capacitacion.nombre}</p>
+                  <p className="capacitacion-card__fecha">
+                    Fecha: <time dateTime={capacitacion.fecha}>{capacitacion.fecha}</time>
+                  </p>
+                </div>
+                {/* Punto circular + texto: el color nunca es la única señal
+                    (§3). Sólido verde petróleo SOLO si está completada. */}
+                <span className="capacitacion-card__estado">
+                  <span
+                    className="capacitacion-card__punto"
+                    data-completado={capacitacion.completado ? 'true' : 'false'}
+                    aria-hidden="true"
+                  />
+                  {etiquetaCompletado(capacitacion.completado)}
+                </span>
               </li>
             ))}
           </ul>
