@@ -4,7 +4,7 @@
 // determina los niveles. Contenido estático de transparencia según el
 // Style Guide y el PRD §21.2.
 
-import { FileSearch, Scale } from 'lucide-react'
+import { Scale } from 'lucide-react'
 
 export default function DataTransparencyPanel() {
   return (
@@ -18,7 +18,7 @@ export default function DataTransparencyPanel() {
         <li>Explicación a públicos distintos.</li>
         <li>Capacitaciones registradas.</li>
         </ul>
-        <div className="transparencia__note"><FileSearch aria-hidden="true" /><p className="transparencia__nota">Los niveles se calculan con reglas del sistema a partir de estos datos. La IA no determina los niveles ni modifica el resultado oficial: solo genera sugerencias de desarrollo.</p></div>
+        <div className="transparencia__note"><p className="transparencia__nota">Los niveles se calculan con reglas del sistema a partir de estos datos. La IA no determina los niveles ni modifica el resultado oficial: solo genera sugerencias de desarrollo.</p></div>
       </div>
     </section>
   )

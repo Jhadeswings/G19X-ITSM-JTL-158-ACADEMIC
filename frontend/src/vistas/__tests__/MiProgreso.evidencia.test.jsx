@@ -183,31 +183,37 @@ describe('CompetenciaCard — evidencia organizada', () => {
     expect(screen.queryByText('0 ·')).not.toBeInTheDocument()
     expect(screen.getByText('participaciones')).toBeInTheDocument()
   })
-  it('el índice rellena niveles reales (01–05) y DI muestra solo —', () => {
-    for (const nivel of [1, 2, 3, 4, 5]) {
+  it('el círculo numera la fila (1–5) y DI conserva su número sin nivel', () => {
+    for (const indice of [1, 2, 3, 4, 5]) {
       const { unmount } = render(
         <CompetenciaCard
+          indice={indice}
           competencia={{
             clave: 'liderazgo',
             estado: CALC,
-            nivel,
-            etiqueta: 'Etiqueta',
+            nivel: 4,
+            etiqueta: 'Consolidado',
             evidencia: { participaciones: 3, coordino_tareas_true: 0 },
           }}
         />,
       )
       const tarjeta = screen.getByRole('article', { name: /Liderazgo/ })
+      // El círculo es la POSICIÓN, no el nivel: sin ceros ni guiones.
       expect(tarjeta.querySelector('.competencia__index')?.textContent).toBe(
-        String(nivel).padStart(2, '0'),
+        String(indice),
       )
-      // Los ceros de la Evidencia siguen siendo 0 y no generan `0—`.
+      // El nivel oficial viaja aparte y los ceros de la Evidencia siguen
+      // siendo 0 sin generar `0—`.
+      expect(tarjeta.querySelector('.acordeon__nu')?.textContent).toBe('4')
       expect(within(tarjeta).getAllByRole('definition').map((n) => n.textContent)).toContain('0')
       expect(tarjeta.textContent).not.toContain('0—')
       unmount()
     }
-    render(<CompetenciaCard competencia={POR_CLAVE.comunicacion} />)
+    render(<CompetenciaCard indice={4} competencia={POR_CLAVE.comunicacion} />)
     const tarjeta = screen.getByRole('article', { name: /Comunicación/ })
-    expect(tarjeta.querySelector('.competencia__index')?.textContent).toBe('—')
+    // DI conserva el número de su fila y no muestra nivel alguno.
+    expect(tarjeta.querySelector('.competencia__index')?.textContent).toBe('4')
+    expect(tarjeta.querySelector('.acordeon__nu')?.textContent).toBe('')
     expect(tarjeta.textContent).not.toContain('0—')
     expect(screen.getByText('— Datos insuficientes')).toBeInTheDocument()
   })

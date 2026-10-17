@@ -48,9 +48,12 @@ describe('MiProgreso — competencias (dato del sistema)', () => {
       screen.getByRole('heading', { name: 'Competencias' }),
     )
 
-    expect(screen.getByText('5 · Alto')).toBeInTheDocument()
-    expect(screen.getByText('4 · Consolidado')).toBeInTheDocument()
-    expect(screen.getByText('3 · En crecimiento')).toBeInTheDocument()
+    // Nivel y etiqueta viajan SEPARADOS (columnas propias del acordeón).
+    const liderazgo = screen.getByRole('article', { name: 'Liderazgo: nivel 5, Alto' })
+    expect(liderazgo.querySelector('.acordeon__nu')?.textContent).toBe('5')
+    expect(within(liderazgo).getByText('Alto')).toBeInTheDocument()
+    expect(screen.getByText('Consolidado')).toBeInTheDocument()
+    expect(screen.getByText('En crecimiento')).toBeInTheDocument()
     expect(screen.getAllByRole('article')).toHaveLength(5)
   })
 
@@ -109,9 +112,12 @@ describe('MiProgreso — fortalezas y oportunidades (solo backend)', () => {
     expect(
       screen.getByText('Aún no hay oportunidades de desarrollo calculadas'),
     ).toBeInTheDocument()
-    // El nivel 5 sigue visible en Competencias, pero NO listado como
-    // fortaleza: prueba de que el frontend no calcula.
-    expect(screen.getByText('5 · Alto')).toBeInTheDocument()
+    // El nivel 5 sigue visible en Competencias (nivel y etiqueta
+    // separados), pero NO listado como fortaleza: prueba de que el
+    // frontend no calcula.
+    const liderazgo = screen.getByRole('article', { name: 'Liderazgo: nivel 5, Alto' })
+    expect(liderazgo.querySelector('.acordeon__nu')?.textContent).toBe('5')
+    expect(within(liderazgo).getByText('Alto')).toBeInTheDocument()
   })
 })
 
@@ -144,7 +150,9 @@ describe('MiProgreso — recomendación IA (bloque secundario)', () => {
 
     // El resultado oficial se muestra con normalidad (5 competencias).
     expect(screen.getAllByRole('article')).toHaveLength(5)
-    expect(screen.getByText('5 · Alto')).toBeInTheDocument()
+    const liderazgo = screen.getByRole('article', { name: 'Liderazgo: nivel 5, Alto' })
+    expect(liderazgo.querySelector('.acordeon__nu')?.textContent).toBe('5')
+    expect(within(liderazgo).getByText('Alto')).toBeInTheDocument()
 
     // La sección sigue presente y el bloque IA muestra su estado controlado.
     expect(

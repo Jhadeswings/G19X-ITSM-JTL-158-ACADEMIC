@@ -1,84 +1,876 @@
-.growth-experience { display: flex; flex-direction: column; gap: 46px; }
-.growth-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding: 0 2px 20px; border-bottom: 1px solid var(--line-soft); }
-.growth-intro > p:nth-child(2) { max-width: 650px; margin: 0; color: var(--color-text-secondary); font-size: 16px; }
-.growth-intro a { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; color: var(--color-brand-deep); font-size: 13px; font-weight: 700; text-decoration: none; }
-.growth-intro a svg { width: 16px; }
-.growth-current { position: relative; overflow: hidden; padding: clamp(30px,4vw,52px); color: #fff; background: var(--color-brand-deep); border-radius: 15px; }
-.growth-current::after { content: ''; position: absolute; right: 0; top: 0; width: 28%; height: 5px; background: var(--color-accent); }
-.growth-current h2 { max-width: 700px; margin: 0; font-size: clamp(32px,4vw,50px); line-height: 1.08; letter-spacing: -.045em; }
-.growth-current > .seccion__intro { max-width: 690px; margin: 18px 0 0; color: #c5d8d5; line-height: 1.65; }
-.growth-current__context { margin-top: 34px; padding: 20px 22px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
-.growth-current__label { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; color: #d9e7e4; font-size: 12px; font-weight: 700; }
-.growth-current__label svg { width: 17px; color: var(--color-accent); }
-.growth-current__context .contexto__texto { margin: 0; color: #fff; }
-.growth-current__context .contexto__nota { margin: 6px 0 0; color: #a9c2be; }
-.growth-section { display: flex; flex-direction: column; gap: 22px; }
-.growth-section > h2, .growth-section__heading h2 { margin: 0; font-size: clamp(25px,2.6vw,34px); line-height: 1.15; letter-spacing: -.035em; }
-.growth-section__heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 28px; }
-.growth-section__heading > p { max-width: 440px; margin: 0; color: var(--color-text-secondary); text-align: right; }
-.competencias { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; }
-.competencia { display: flex; flex-direction: column; min-height: 290px; padding: 18px; background: #fff; border: 1px solid var(--line-soft); border-radius: 11px; }
-.competencia__heading { display: flex; flex-direction: column; min-height: 102px; }
-.competencia__index { color: #b1bcb9; font-size: 26px; font-weight: 300; }
-.competencia__nombre { margin: 14px 0 0; font-size: 16px; line-height: 1.3; }
-.competencia__state { margin: 12px 0; }
-.competencia__nivel { margin: 0; color: var(--color-brand-deep); font-size: 14px; font-weight: 750; }
-.competencia__nivel--di { color: #6d797e; font-weight: 600; }
-.competencia__track { position: relative; height: 3px; margin-top: 13px; background: #e8ecea; }
-.competencia__track i { position: absolute; inset: 0 auto 0 0; width: calc(var(--nivel) * 20%); background: var(--color-primary); }
-.competencia__ayuda { margin: 8px 0 0; color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
-.competencia__evidence { margin-top: auto; padding: 16px 0; }
-.competencia__evidence > span { display: block; margin-bottom: 10px; color: #9aa4a8; font-size: 9px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-/* Cada dato es independiente: etiqueta arriba, valor destacado debajo.
-   En pantallas con espacio el valor se alinea a la derecha sin parecer
-   tabla: sin bordes por dato, solo aire y peso tipográfico. */
-.competencia__evidencia { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; }
-.competencia__dato { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; min-width: 0; }
-.competencia__dato dt { margin: 0; color: #536167; font-size: 11px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
-.competencia__dato dd { margin: 0; color: var(--color-brand-deep); font-size: 17px; font-weight: 750; line-height: 1.25; letter-spacing: -.01em; }
-.competencia--di .competencia__dato dd { color: var(--color-text-secondary); }
-/* Referencia/contexto: menor peso, mismo color de negocio (sin rojo). */
-.competencia__dato--secundario dt { color: var(--ink-soft); }
-.competencia__dato--secundario dd { font-size: 14px; font-weight: 600; }
-/* Excluido: separado del grupo anterior, tipografía menor, sin rojo. */
-.competencia__dato--excluido { margin-top: 2px; padding-top: 10px; border-top: 1px dashed var(--line-soft); }
-.competencia__dato--excluido dt { color: var(--ink-soft); font-size: 10px; font-weight: 500; }
-.competencia__dato--excluido dd { color: var(--ink-soft); font-size: 13px; font-weight: 600; }
-/* Inicio de un grupo secundario/excluido: aire extra sin etiqueta nueva. */
-.competencia__dato--inicio-grupo { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
-.competencia__dato--excluido.competencia__dato--inicio-grupo { border-top-style: dashed; }
-.categorias { padding: 24px; border-radius: 12px; }
-.categorias--fortalezas { background: #edf4f1; border-left: 3px solid var(--color-primary); }
-.categorias--oportunidades { background: #f7f0eb; border-left: 3px solid var(--color-accent); }
-.categorias__heading { display: flex; align-items: center; gap: 9px; margin-bottom: 16px; color: var(--color-text-secondary); font-size: 12px; font-weight: 700; }
-.categorias__heading svg { width: 17px; }
-.categorias__lista { display: flex; flex-wrap: wrap; gap: 9px; list-style: none; margin: 0; padding: 0; }
-.categorias__item { display: flex; align-items: center; gap: 7px; padding: 9px 12px; background: rgba(255,255,255,.72); border: 1px solid rgba(50,80,75,.1); border-radius: 7px; font-size: 13px; font-weight: 650; }
-.categorias__item svg { width: 14px; color: var(--color-primary); }
-.growth-section--ia { padding: 28px; background: #eef1f6; border: 1px solid #dce1ea; border-radius: 13px; }
-.ia { padding-left: 24px; border-left: 2px solid #8797b0; }
-.ia__label { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: #63718a; font-size: 10px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
-.ia__label svg { width: 15px; }
-.ia__titulo { margin: 0 0 10px; font-size: 18px; }
-.ia__texto { margin: 0; color: #475462; line-height: 1.65; }
-.ia__acciones { margin: 18px 0; padding-left: 20px; color: #465464; }
-.ia__nota { margin: 18px 0 0; color: #6c7787; font-size: 11px; }
-.transparencia { padding: 28px; color: #fff; background: #2f4b4a; border-radius: 13px; }
-.transparencia__title { display: flex; align-items: center; gap: 11px; }
-.transparencia__title svg { width: 20px; color: #e3a386; }
-.transparencia__titulo { margin: 0; font-size: 18px; }
-.transparencia__content { display: grid; grid-template-columns: 1.2fr .8fr; gap: 30px; margin-top: 22px; }
-.transparencia__lista { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px 24px; list-style: none; margin: 0; padding: 0; color: #d2e0de; font-size: 12px; }
-.transparencia__lista li::before { content: '—'; margin-right: 8px; color: #dfa084; }
-.transparencia__note { padding: 18px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); border-radius: 9px; }
-.transparencia__note svg { width: 18px; color: #e3a386; }
-.transparencia__nota { margin: 8px 0 0; color: #c1d3d0; font-size: 11px; line-height: 1.55; }
+/* Mi progreso (PRD §21.2) — rediseño visual Fase 2 (boceto «Mi progreso»).
 
-.competencia__como { display: flex; align-items: center; gap: 6px; color: var(--color-brand-deep); font-size: 11px; font-weight: 700; text-decoration: none; }
-.competencia__como svg { width: 14px; }
-.competencia--di { background: #f8f9f8; }
-.growth-section--criteria { padding: 30px; background: #fff; border: 1px solid var(--line-soft); border-radius: 13px; }
-.como-se-obtienen { display: flex; flex-direction: column; margin: 0; }
-.como-se-obtienen__fila { display: grid; grid-template-columns: minmax(160px,.35fr) 1fr; gap: 24px; padding: 14px 0; border-top: 1px solid var(--line-soft); }
-.como-se-obtienen__fila dt { font-weight: 700; }
-.como-se-obtienen__fila dd { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+   ZONAS DE ANCHO COMPLETO (misma técnica y tokens que Inicio): franjas
+   continuas separadas por cambios de fondo —verde petróleo, blanco,
+   degradado suave, blanco y verde petróleo— sin bordes de tarjeta. El
+   desangrado reproduce el cálculo de inicio.css (padding del shell más la
+   mitad del sobrante sobre 1240px); el leve exceso se recorta con
+   `body { overflow-x: hidden }` (tokens.css), sin tocar el shell.
+
+   Acordeón de competencias y «¿Cómo se obtienen?» desplegable replican la
+   referencia: cabecera como `<button>` nativo (teclado incluido) con
+   `aria-expanded` / `aria-controls`; el cuerpo se oculta SOLO con CSS
+   (`display:none`), nunca desmontando datos del backend.
+
+   Neutraliza la capa heredada de index.css (fondos/bordes de `.ia`,
+   `.transparencia` y `.como-se-obtienen`): aquí se redefine el aspecto
+   de cada bloque DENTRO de esta vista, sin tocar index.css.
+
+   Todo está acotado a clases `.growth-*`, `.acordeon*` y `.competencia*`;
+   ningún estilo de este archivo afecta a otras secciones. */
+
+.growth-experience {
+  /* Espejo del padding horizontal de `.app-content` (shell.css). */
+  --growth-sangrado: clamp(32px, 4vw, 58px);
+  /* Mitad del sobrante del área principal sobre 1240px (ver inicio.css). */
+  --growth-exterior: calc(var(--growth-sangrado) + max(0px, 50vw - 756px));
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  margin-inline: calc(var(--growth-exterior) * -1);
+}
+
+/* --- Zonas apiladas a ancho completo ------------------------------------
+   Cada bloque es una ZONA continua, no una tarjeta: fondo plano, sin
+   borde, sin radio y sin sombra. `--light` blanca, `--soft` degradado
+   verde tenue (fortalezas/oportunidades) y `--deep` verde petróleo
+   (encabezado y transparencia). */
+.growth-zone {
+  padding: clamp(30px, 3.6vw, 46px) var(--growth-exterior);
+}
+
+.growth-zone--light {
+  background: #fff;
+}
+
+.growth-zone--soft {
+  background: linear-gradient(180deg, #e7f0ed 0%, #f5f7f5 100%);
+}
+
+.growth-zone--deep {
+  color: #fff;
+  background: var(--color-brand-deep);
+}
+
+/* --- 1. Encabezado «¿Cómo voy?» (franja verde petróleo) ----------------
+   Título, texto de apoyo y los indicadores contextuales REALES del
+   contrato (antigüedad y proyectos únicos); sin dato, sin indicador. */
+.growth-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 22px 40px;
+  padding: clamp(34px, 4.4vw, 56px) var(--growth-exterior) clamp(30px, 4vw, 48px);
+  color: #fff;
+  background: var(--color-brand-deep);
+  /* Barra de acento del panel de referencia. */
+  border-bottom: 4px solid transparent;
+  border-image: linear-gradient(90deg, var(--color-accent) 34%, transparent 34%) 1;
+}
+
+.growth-hero__copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 660px;
+}
+
+.growth-hero__eyebrow {
+  margin: 0;
+  color: #e6bfa9;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.growth-hero h2 {
+  margin: 0;
+  font-size: clamp(30px, 3.8vw, 46px);
+  line-height: 1.06;
+  letter-spacing: -.04em;
+}
+
+.growth-hero__intro {
+  margin: 0;
+  max-width: 58ch;
+  color: #c5d8d5;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* Indicadores contextuales (referencia `.hx`): etiqueta pequeña y valor
+   grande, con filete vertical entre columnas. `tabular-nums` alinea los
+   números. Solo se renderizan cuando el contrato trae el dato. */
+.growth-hero__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 0;
+  margin-top: 6px;
+}
+
+.growth-hero__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-right: 28px;
+}
+
+.growth-hero__stat + .growth-hero__stat {
+  padding-left: 28px;
+  border-left: 1px solid rgba(255, 255, 255, .25);
+}
+
+.growth-hero__stat small {
+  color: #cfe0dd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.growth-hero__stat b {
+  color: #fff;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.growth-hero__nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 0;
+  max-width: 52ch;
+  color: #a9c2be;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.growth-hero__nota svg {
+  flex: 0 0 auto;
+  width: 15px;
+  margin-top: 1px;
+  color: var(--color-accent);
+}
+
+.growth-hero__ancla {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #e6bfa9;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.growth-hero__ancla svg {
+  width: 16px;
+}
+
+.growth-hero__ancla:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Decoración discreta de ondas y nodos (referencia `hero>svg`): la MISMA
+   pieza compartida del sistema (ContextualNetwork, estilos base en
+   tokens.css) en modo decorativo —`aria-hidden`— anclada a la derecha del
+   hero, igual que en Inicio pero con la opacidad .4 del boceto. Nunca
+   recibe interacción (`pointer-events:none` base) ni anuncia contenido. */
+.growth-hero__red {
+  position: absolute;
+  top: 50%;
+  right: clamp(-36px, 1vw, 24px);
+  z-index: 0;
+  width: min(46%, 460px);
+  height: auto;
+  aspect-ratio: 560 / 360;
+  color: #a9cbc6;
+  opacity: .4;
+  transform: translateY(-50%);
+}
+
+/* --- Encabezado de sección (heading + apoyo a la derecha) -------------- */
+.growth-section__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 28px;
+  margin-bottom: 10px;
+}
+
+.growth-section__heading h2 {
+  margin: 0;
+  font-size: clamp(24px, 2.6vw, 32px);
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+
+.growth-section__heading > p {
+  max-width: 440px;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  text-align: right;
+}
+
+/* --- 2. Acordeón de competencias ---------------------------------------
+   Filas separadas por filetes, sin cajas. La cabecera es un `<button>`
+   nativo: operable con teclado y con estado ARIA explícito. */
+.acordeon {
+  display: flex;
+  flex-direction: column;
+}
+
+.acordeon__item {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.acordeon__item:first-child {
+  border-top: 1px solid var(--line-soft);
+}
+
+/* Cabecera: índice circular, nombre, pips del nivel, nivel textual y
+   chevron. Grilla de columnas estables, como la referencia `.ah`. */
+.acordeon__ah {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 96px 20px minmax(96px, 124px) 16px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 17px 4px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* El medidor (pips + nivel + etiqueta) se reparte en las columnas 3–5
+   del botón; en móvil se apila (ver responsive). */
+.acordeon__medidor {
+  display: contents;
+}
+
+.acordeon__ah:hover .acordeon__nombre {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.acordeon__nombre {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+/* Índice circular (referencia `.bd`): la POSICIÓN de la competencia
+   (1–5), también con DI — nunca el nivel oficial. */
+.competencia__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--color-brand-deep);
+  background: var(--color-primary-soft);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pips del nivel (referencia `.pips`): 5 barritas, decorativas. Color
+   del relleno según la etiqueta oficial: 1–2 terracota (Inicial / En
+   desarrollo), 3 verde medio (En crecimiento), 4–5 verde oscuro
+   (Consolidado / Alto). Vacíos y DI: gris claro, neutro. */
+.acordeon__pips {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.acordeon__pip {
+  display: block;
+  width: 16px;
+  height: 6px;
+  border-radius: 2px;
+  background: #dfe6e3;
+}
+
+.acordeon__pip--llena {
+  background: var(--color-accent);
+}
+
+.acordeon__pips--n3 .acordeon__pip--llena {
+  background: var(--color-primary);
+}
+
+.acordeon__pips--n4 .acordeon__pip--llena,
+.acordeon__pips--n5 .acordeon__pip--llena {
+  background: var(--color-brand-deep);
+}
+
+/* Nivel numérico oficial (referencia `.nu`), alineado a la derecha. */
+.acordeon__nu {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 650;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Etiqueta textual del nivel: peso secundario; la lectura cromática
+   ya la aporta el medidor. */
+.competencia__nivel {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* DI (§15.3): neutro, JAMÁS rojo ni nivel 0. */
+.competencia__nivel--di {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.acordeon__flecha {
+  width: 16px;
+  color: var(--ink-soft);
+  transition: transform .2s ease;
+}
+
+.acordeon__ah[aria-expanded='true'] .acordeon__flecha {
+  transform: rotate(180deg);
+}
+
+/* Cuerpo plegable: SOLO display; los datos siguen en el DOM. */
+.acordeon__cuerpo {
+  display: none;
+  padding: 0 4px 24px 38px;
+}
+
+.acordeon__cuerpo--abierto {
+  display: block;
+}
+
+.competencia__ayuda {
+  margin: 0 0 14px;
+  max-width: 60ch;
+}
+
+/* Evidencia (referencia `.el` + `.ev`): etiqueta en versalitas y lista de
+   datos independientes etiqueta → valor. */
+.competencia__evidence > span {
+  display: block;
+  margin-bottom: 10px;
+  color: #9aa4a8;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.competencia__evidencia {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px 28px;
+  margin: 0;
+}
+
+.competencia__dato {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.competencia__dato dt {
+  margin: 0;
+  color: #536167;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.competencia__dato dd {
+  margin: 0;
+  color: var(--color-brand-deep);
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.25;
+  letter-spacing: -.01em;
+}
+
+/* Referencia/contexto: menor peso, mismo color de negocio (sin rojo). */
+.competencia__dato--secundario dt {
+  color: var(--ink-soft);
+}
+
+.competencia__dato--secundario dd {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Excluido: separado del grupo anterior, tipografía menor, sin rojo. */
+.competencia__dato--excluido {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line-soft);
+}
+
+.competencia__dato--excluido dt {
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.competencia__dato--excluido dd {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Inicio de un grupo secundario/excluido: aire extra sin etiqueta nueva. */
+.competencia__dato--inicio-grupo {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.competencia__dato--excluido.competencia__dato--inicio-grupo {
+  border-top-style: dashed;
+}
+
+.competencia__como {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  color: var(--color-brand-deep);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.competencia__como svg {
+  width: 14px;
+}
+
+.competencia__como:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* --- 3. «¿Cómo se obtienen?» desplegable -------------------------------
+   Neutraliza la caja heredada de index.css: aquí es una lista abierta
+   bajo su cabecera, dentro de la misma franja blanca. */
+.growth-criterios {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.growth-criterios__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.growth-criterios__head h2 {
+  margin: 0;
+  font-size: clamp(22px, 2.4vw, 30px);
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+
+.growth-criterios__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  color: var(--color-brand-deep);
+  background: none;
+  border: 1px solid var(--line-soft);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.growth-criterios__toggle svg {
+  width: 16px;
+  transition: transform .2s ease;
+}
+
+.growth-criterios__toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.como-se-obtienen {
+  display: none;
+  flex-direction: column;
+  margin: 14px 0 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.como-se-obtienen--abierto {
+  display: flex;
+}
+
+.como-se-obtienen__fila {
+  display: grid;
+  grid-template-columns: minmax(160px, .35fr) 1fr;
+  gap: 24px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.como-se-obtienen__fila + .como-se-obtienen__fila {
+  border-top: 1px solid var(--line-soft);
+}
+
+.como-se-obtienen dt {
+  font-weight: 700;
+}
+
+.como-se-obtienen__fila dt {
+  font-weight: 700;
+}
+
+.como-se-obtienen__fila dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* --- 4+5. Fortalezas y Oportunidades en DOS columnas -------------------
+   Referencia `.two`: dos bloques con filete de acento lateral, sin caja. */
+.growth-duo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(24px, 3vw, 44px);
+}
+
+.growth-duo h2 {
+  margin: 0 0 6px;
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+
+.growth-duo .seccion__intro {
+  margin: 0 0 16px;
+}
+
+/* Categorías (componente Categorias.jsx): filete lateral de acento y
+   lista abierta, sin tarjeta de fondo (neutraliza las cápsulas de
+   index.css solo dentro de esta vista). */
+.categorias {
+  padding: 2px 0 2px 16px;
+  background: transparent;
+  border: 0;
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0;
+}
+
+.categorias--oportunidades {
+  background: transparent;
+  border-left-color: var(--color-accent);
+  border-radius: 0;
+}
+
+.categorias__heading {
+  margin: 6px 0 12px;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -.01em;
+}
+
+.categorias__lista {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Fila (referencia `.li`): nombre a la izquierda; a la derecha, el
+   nivel numérico y la etiqueta OFICIALES del contrato, con separador
+   fino entre filas. Sin DI aquí: las categorías solo listan
+   competencias calculadas por reglas del backend. */
+.categorias__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0 10px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #dbe4e1;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.categorias__dato {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.categorias__dato b {
+  margin-right: 6px;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 6. Recomendación IA (bloque secundario) ---------------------------
+   Referencia `.rc`: vive al final de la franja suave (continuidad de la
+   zona menta, sin franja blanca intermedia) como panel de superficie
+   AZUL muy suave (#eaf3fa), apenas diferenciado del fondo menta, con
+   filete lateral verde, etiqueta de procedencia y texto de apoyo. */
+.growth-recomendacion {
+  margin-top: clamp(28px, 3.4vw, 44px);
+}
+
+.growth-recomendacion h2 {
+  margin: 0 0 16px;
+  font-size: clamp(22px, 2.4vw, 30px);
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+
+.ia {
+  max-width: 780px;
+  padding: 18px 22px 20px 19px;
+  background: #eaf3fa;
+  border: 0;
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0;
+}
+
+.ia__label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.ia__label svg {
+  width: 15px;
+}
+
+.ia__titulo {
+  margin: 0 0 10px;
+  color: var(--color-brand-deep);
+  font-size: 18px;
+}
+
+.ia__texto {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--color-text-primary);
+  line-height: 1.65;
+}
+
+.ia__acciones {
+  margin: 16px 0;
+  padding-left: 20px;
+  max-width: 70ch;
+  color: var(--color-text-secondary);
+  line-height: 1.65;
+}
+
+.ia__nota {
+  margin: 16px 0 0;
+  max-width: 70ch;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* --- 7. Transparencia de datos (franja verde petróleo) -----------------
+   El panel vive sobre la propia franja oscura: sin la caja heredada de
+   index.css (fondo, borde y radio se anulan aquí). */
+.transparencia {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.transparencia__title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.transparencia__title svg {
+  width: 20px;
+  color: var(--color-accent);
+}
+
+.transparencia__titulo {
+  margin: 0;
+  color: #fff;
+  font-size: 18px;
+}
+
+/* Dos columnas equilibradas a todo el ancho (referencia `.tr .g`) y el
+   texto legal en su PROPIA fila inferior, bajo un separador completo. */
+.transparencia__content {
+  display: block;
+  margin-top: 20px;
+}
+
+.transparencia__lista {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: #d2e0de;
+  font-size: 12px;
+}
+
+.transparencia__lista li::before {
+  content: '—';
+  margin-right: 8px;
+  color: var(--color-accent);
+}
+
+.transparencia__note {
+  margin-top: 14px;
+  padding: 14px 0 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 0;
+}
+
+.transparencia__nota {
+  margin: 0 auto;
+  max-width: 78ch;
+  color: #c1d3d0;
+  font-size: 11px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+/* --- Responsive (reglas propias de esta sección) ----------------------- */
+@media (max-width: 900px) {
+  .growth-duo {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  /* La decoración se atenúa antes de desaparecer (referencia ≤1080px). */
+  .growth-hero__red {
+    opacity: .3;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Espejo móvil del padding de `.app-content` (responsive.css: 18px):
+     las franjas siguen llegando al borde y el contenido conserva el
+     mismo aire que el resto del sistema. */
+  .growth-experience {
+    --growth-sangrado: 18px;
+  }
+
+  .growth-section__heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .growth-section__heading > p {
+    text-align: left;
+  }
+
+  .growth-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  /* Sin sitio para la decoración en una columna (misma regla que Inicio). */
+  .growth-hero__red {
+    display: none;
+  }
+
+  .growth-hero__stat {
+    padding-right: 18px;
+  }
+
+  .growth-hero__stat + .growth-hero__stat {
+    padding-left: 18px;
+  }
+
+  /* Cabecera del acordeón en móvil: nombre a ancho completo y el
+     medidor (pips + nivel + etiqueta) apilado debajo (ref. ≤560px). */
+  .acordeon__ah {
+    grid-template-columns: 22px minmax(0, 1fr) 16px;
+    gap: 8px 12px;
+    padding: 15px 2px;
+  }
+
+  .acordeon__nombre {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .acordeon__flecha {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .acordeon__medidor {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    grid-column: 2 / 4;
+    grid-row: 2;
+  }
+
+  .acordeon__cuerpo {
+    padding-left: 0;
+  }
+
+  .como-se-obtienen__fila {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .transparencia__lista {
+    grid-template-columns: 1fr;
+  }
+}
