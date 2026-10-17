@@ -5,12 +5,18 @@
 // "Mi progreso", que es donde están las cinco tarjetas con evidencia, las
 // fortalezas, las oportunidades, la recomendación IA y la transparencia.
 //
-// Estructura (las cuatro orientaciones que exige el PRD §21.1):
-//   1. SectionHeader.
-//   2. Resumen superior: acceso a Mi progreso / Proyectos / Capacitaciones.
-//   3. Tus proyectos: selección compacta, máximo 3, del contrato real.
-//   4. Resumen de competencias: una fila por competencia, sin evidencia.
+// Estructura (rediseño visual Fase 1, boceto «Inicio»):
+//   1. Encabezado de bienvenida: saludo personalizado sobre verde petróleo,
+//      botón «Ver mi progreso» e ilustración decorativa de nodos conectados.
+//   2. Resumen de actividad: Proyectos y Capacitaciones (totales reales).
+//   3. Resumen de competencias: gráfico radial + lista numerada emparejada.
+//   4. Tus proyectos: selección compacta, máximo 3, del contrato real.
 //   5. Próximo paso: bloque honesto, SIN regla automática.
+//
+// El gráfico radial es SOLO una capa visual sobre los niveles que ya envía el
+// backend: dibuja un vértice por competencia calculable y numera los ejes para
+// emparejarlos con la lista de al lado. `INSUFFICIENT_DATA` no dibuja vértice
+// (jamás se pinta como nivel 0) y su número pasa a estilo neutro.
 //
 // Reglas que esta vista respeta (Style Guide §3.6, §15.3; PRD §17.4):
 // - No calcula nada: ni niveles, ni promedios, ni porcentajes globales, ni
@@ -30,23 +36,46 @@
 // cargó. El 401 de cualquier fuente delega en `alSesionExpirada`.
 
 import { useCallback, useEffect, useState } from 'react'
-import { FolderKanban, GraduationCap, Target } from 'lucide-react'
+import { ArrowRight, FolderKanban, GraduationCap, Target } from 'lucide-react'
 import { obtenerResultadoActual } from '../api/resultado.js'
 import { listarMisProyectos } from '../api/proyectos.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
 import { NOMBRES_COMPETENCIAS } from '../textos.js'
-import Badge from '../componentes/ui/Badge.jsx'
 import { Button } from '../componentes/ui/Button.jsx'
+import ContextualNetwork from '../componentes/ContextualNetwork.jsx'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
 import MetricCard from '../componentes/MetricCard.jsx'
-import SectionHeader from '../componentes/SectionHeader.jsx'
 
 const DI = 'INSUFFICIENT_DATA'
 
 /** Máximo de proyectos listados en el resumen (sin paginación en Inicio). */
 const MAX_PROYECTOS = 3
+
+/** Escala oficial de niveles del contrato (CompetencyEngine): 1–5. */
+const NIVEL_MAXIMO = 5
+
+/** Geometría del gráfico radial: unidades del viewBox 300×300, solo dibujo. */
+const RADIAL = {
+  centro: 150,
+  radioValor: 100,
+  radioIndice: 127,
+  anillos: [1, 2, 3, 4, 5],
+}
+
+/**
+ * Punto (x, y) sobre el círculo: trigonometría de PRESENTACIÓN. No calcula
+ * niveles ni valores: solo traduce a coordenadas el `nivel` que ya trae el
+ * contrato para dibujar el gráfico.
+ */
+function puntoEn(anguloGrados, radio) {
+  const radianes = (anguloGrados * Math.PI) / 180
+  return [
+    RADIAL.centro + radio * Math.cos(radianes),
+    RADIAL.centro + radio * Math.sin(radianes),
+  ]
+}
 
 /** Estado inicial de cada consulta: misma forma en todas las fuentes. */
 function consultaInicial() {
@@ -86,6 +115,7 @@ function usarConsulta(consultar, token, alSesionExpirada) {
 export default function Inicio({
   token,
   alSesionExpirada,
+  nombreEmpleado,
   onIrAProgreso,
   onIrAProyectos,
   onIrACapacitaciones,
@@ -124,19 +154,47 @@ export default function Inicio({
 
   return (
     <div className="inicio-empleado">
-      <SectionHeader
-        eyebrow="Resumen"
-        title="Inicio"
-        description="Una lectura breve de tu progreso, tus proyectos y tus competencias."
-      />
+      {/* --- Encabezado de bienvenida (boceto Fase 1) ----------------------
+          Verde petróleo profundo, saludo personalizado y el MISMO acceso a
+          «Mi progreso» que ya existía más abajo: no se añade navegación nueva.
+          El nombre llega como prop desde la cuenta que el shell ya consulta
+          (GET /api/v1/me): aquí no se hace ninguna llamada adicional, y sin
+          nombre el saludo es genérico —nunca se inventa identidad. La red de
+          nodos conectados es decorativa (aria-hidden en ContextualNetwork). */}
+      <header className="inicio-hero" aria-labelledby="inicio-saludo">
+        <div className="inicio-hero__copy">
+          <p className="inicio-hero__eyebrow">Tu espacio de desarrollo</p>
+          <h1 id="inicio-saludo" className="inicio-hero__saludo">
+            {nombreEmpleado ? `¡Hola, ${nombreEmpleado}!` : '¡Hola!'}
+          </h1>
+          <p className="inicio-hero__descripcion">
+            Una lectura breve de tu progreso, tus proyectos y tus competencias.
+          </p>
+          {onIrAProgreso && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="inicio-hero__boton"
+              onClick={onIrAProgreso}
+            >
+              Ver mi progreso <ArrowRight aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+        <ContextualNetwork
+          className="inicio-hero__red"
+          label="Ilustración decorativa de nodos conectados"
+        />
+      </header>
 
-      {/* --- Fila superior: DOS tarjetas (referencia definitiva) -------------
-          Solo Proyectos y Capacitaciones. La ficha de «Mi progreso» se
-          eliminó: el acceso a esa sección queda donde corresponde —el botón
-          del resumen de competencias y el enlace de Próximo paso—.
-          `1fr 1fr` + `stretch` = mismo ancho y misma altura; el prop `action`
-          de `MetricCard` ancla ambos botones a la misma línea base
-          (`margin-top: auto`). */}
+      {/* --- Resumen de actividad: franja gris verdoso claro ---------------
+          Los DOS indicadores (Solo Proyectos y Capacitaciones) viven
+          directamente sobre la franja, sin tarjetas blancas individuales: el
+          override acotado de `.metric-card` neutraliza su caja SOLO aquí.
+          El acceso a «Mi progreso» vive en el héroe, en el botón del resumen
+          de competencias y en el enlace de Próximo paso. `1fr 1fr` +
+          `stretch` igualan alturas y el prop `action` de `MetricCard` ancla
+          los enlaces a la misma línea base (`margin-top: auto`). */}
       <div className="inicio-metricas">
         <MetricCard
           label="Proyectos"
@@ -184,25 +242,24 @@ export default function Inicio({
         </MetricCard>
       </div>
 
-      {/* --- Tus proyectos: listado compacto de filas -------------------- */}
-      <Panel titulo="Tus proyectos" id="inicio-proyectos">
-        <p className="inicio-panel__intro">
-          Proyectos del catálogo en los que tienes una participación registrada.
-        </p>
-        <EstadoProyectos
-          estado={proyectos}
-          recargar={recargarProyectos}
-          onIrAProyecto={onIrAProyecto}
-        />
-      </Panel>
-
-      {/* --- Resumen de competencias: cinco filas ------------------------ */}
+      {/* --- Resumen de competencias: gráfico radial + lista numerada ------
+          El gráfico SOLO organiza visualmente los niveles del contrato: un
+          vértice por competencia calculable y un número por eje emparejado
+          con la lista. DI no dibuja vértice ni se convierte en 0 (§14). */}
       <Panel titulo="Resumen de competencias" id="inicio-competencias">
         <p className="inicio-panel__intro">
           Las cinco competencias con su nivel actual. La evidencia de cada una y
           cómo se obtiene están en Mi progreso.
         </p>
-        <Competencias competencias={competencias} />
+        <div className="inicio-competencias">
+          <div className="inicio-competencias__grafico">
+            <GraficoRadial competencias={competencias} />
+            <p className="inicio-competencias__leyenda">
+              Los números del gráfico corresponden a la lista.
+            </p>
+          </div>
+          <Competencias competencias={competencias} />
+        </div>
         {onIrAProgreso && (
           <Button
             type="button"
@@ -213,6 +270,25 @@ export default function Inicio({
             Ver mi progreso
           </Button>
         )}
+      </Panel>
+
+      {/* --- Tus proyectos: lista abierta sobre la franja suave -----------
+          Filas separadas por filetes horizontales finos, sin tarjetas
+          individuales ni borde exterior: la franja gris verdoso claro es la
+          zona que las contiene. */}
+      <Panel
+        titulo="Tus proyectos"
+        id="inicio-proyectos"
+        className="inicio-panel--suave"
+      >
+        <p className="inicio-panel__intro">
+          Proyectos del catálogo en los que tienes una participación registrada.
+        </p>
+        <EstadoProyectos
+          estado={proyectos}
+          recargar={recargarProyectos}
+          onIrAProyecto={onIrAProyecto}
+        />
       </Panel>
 
       {/* --- Próximo paso --------------------------------------------------
@@ -247,15 +323,70 @@ export default function Inicio({
 }
 
 /**
- * Panel de sección: caja blanca de ancho completo, como en la referencia.
- * Título + apoyo + contenido, sin contenedores anidados.
+ * Panel de sección: ZONA de ancho completo (ajuste Fase 1b), no una tarjeta.
+ * Fondo plano por cambio de zona —blanca por defecto; `--suave` para la
+ * franja gris verdoso claro—, sin borde ni esquinas redondeadas. Título +
+ * apoyo + contenido, sin contenedores anidados.
  */
-function Panel({ id, titulo, children }) {
+function Panel({ id, titulo, className = '', children }) {
   return (
-    <section className="inicio-panel" aria-labelledby={id}>
+    <section
+      className={`inicio-panel ${className}`.trim()}
+      aria-labelledby={id}
+    >
       <h2 id={id}>{titulo}</h2>
       {children}
     </section>
+  )
+}
+
+/**
+ * Etiquetas de PRESENTACIÓN de los estados oficiales del proyecto (§6),
+ * idénticas a las de «Mis proyectos»: solo cambia el texto visible, nunca
+ * el dato del contrato. Un estado no contemplado conserva su etiqueta real.
+ */
+const ETIQUETAS_ESTADO = {
+  EN_PROCESO: 'En proceso',
+  COMPLETADO: 'Completado',
+  CANCELADO: 'Cancelado',
+}
+
+/**
+ * Indicador VISUAL del estado de un proyecto (ajuste final de Inicio):
+ * punto + etiqueta, sin píldora ni etiqueta rectangular. «Completado»
+ * lleva punto verde relleno; «En proceso», punto naranja delineado con
+ * interior transparente; «Cancelado» y cualquier otro estado real se
+ * muestran solo con su etiqueta (Cancelado en rojo sobrio, el resto en
+ * gris neutral). La clase de variante (`--completado`, `--en-proceso`,
+ * `--cancelado`) pinta el color del TEXTO en el CSS. No es un control:
+ * la fila completa ya es el botón existente que lleva a «Mis proyectos».
+ */
+const VARIANTE_ESTADO = {
+  EN_PROCESO: 'en-proceso',
+  COMPLETADO: 'completado',
+  CANCELADO: 'cancelado',
+}
+
+function EstadoProyecto({ estado }) {
+  const punto =
+    estado === 'COMPLETADO'
+      ? 'inicio-estado__punto--completado'
+      : estado === 'EN_PROCESO'
+        ? 'inicio-estado__punto--en-proceso'
+        : null
+  const variante = VARIANTE_ESTADO[estado]
+
+  return (
+    <span
+      className={
+        variante
+          ? `inicio-proyectos__estado inicio-proyectos__estado--${variante}`
+          : 'inicio-proyectos__estado'
+      }
+    >
+      {punto && <i className={`inicio-estado__punto ${punto}`} aria-hidden="true" />}
+      {ETIQUETAS_ESTADO[estado] ?? estado}
+    </span>
   )
 }
 
@@ -306,7 +437,7 @@ function EstadoProyectos({ estado, recargar, onIrAProyecto }) {
                   {proyecto.area && (
                     <span className="inicio-proyectos__area">{proyecto.area}</span>
                   )}
-                  <Badge tone="outline">{proyecto.estado}</Badge>
+                  <EstadoProyecto estado={proyecto.estado} />
                 </span>
               </button>
             </li>
@@ -325,24 +456,32 @@ function EstadoProyectos({ estado, recargar, onIrAProyecto }) {
 }
 
 /**
- * Resumen compacto de las cinco competencias, en el orden oficial del
- * contrato. NO se usan `CompetenciaCard`: su evidencia, sus barras y "¿Cómo se
- * obtiene?" pertenecen a "Mi progreso" (§21.2).
+ * Lista numerada de las cinco competencias, en el orden oficial del contrato.
+ * NO se usan `CompetenciaCard`: su evidencia, sus barras y "¿Cómo se obtiene?"
+ * pertenecen a "Mi progreso" (§21.2).
  *
- * Cada fila es una LISTA limpia de dos columnas —nombre a la izquierda y
- * `nivel` + `etiqueta` a la derecha— sin chip, badge, cápsula ni borde: el nivel
- * va en su propia columna y la etiqueta en otra, ambas alineadas, sin `·`.
- * No se calcula nada: `nivel` y `etiqueta` se pintan tal cual los devuelve el
- * backend, e `INSUFFICIENT_DATA` ocupa la columna del estado (nunca nivel 0,
- * §14).
+ * El número inicial de cada fila replica el del eje en el gráfico radial: así
+ * fila y eje quedan emparejados (boceto Fase 1). El nivel se pinta tal cual lo
+ * devuelve el backend —número y etiqueta en celdas propias, sin chip ni borde—
+ * y `INSUFFICIENT_DATA` ocupa la columna del estado (nunca nivel 0, §14).
  */
 function Competencias({ competencias }) {
   return (
-    <ul className="inicio-competencias">
-      {competencias.map((competencia) => {
+    <ul className="inicio-competencias__lista">
+      {competencias.map((competencia, indice) => {
         const sinDatos = competencia.estado === DI
         return (
           <li key={competencia.clave} className="inicio-competencias__fila">
+            <span
+              className={
+                sinDatos
+                  ? 'inicio-competencias__indice inicio-competencias__indice--di'
+                  : 'inicio-competencias__indice'
+              }
+              aria-hidden="true"
+            >
+              {indice + 1}
+            </span>
             <span className="inicio-competencias__nombre">
               {NOMBRES_COMPETENCIAS[competencia.clave] || competencia.clave}
             </span>
@@ -366,5 +505,117 @@ function Competencias({ competencias }) {
         )
       })}
     </ul>
+  )
+}
+
+/**
+ * Gráfico radial de las cinco competencias (capa VISUAL, §17.4).
+ *
+ * Solo traduce a geometría lo que el backend ya envía: un vértice por
+ * competencia CALCULABLE a distancia `nivel` sobre su eje, y un número por eje
+ * (1–5) que empareja el gráfico con la lista de al lado. Los anillos son la
+ * escala oficial de niveles del contrato (1–5): no se calcula ni promedia
+ * nada en React.
+ *
+ * `INSUFFICIENT_DATA` NO dibuja vértice —no existe un nivel 0 que pintar— y
+ * su número de eje toma el estilo neutro, igual que en la lista.
+ *
+ * El SVG es decorativo (`aria-hidden`): toda la información accesible vive en
+ * la lista numerada contigua.
+ */
+function GraficoRadial({ competencias }) {
+  if (!competencias.length) return null
+
+  const paso = 360 / competencias.length
+  const puntos = competencias.map((competencia, indice) => {
+    const nivel = Number(competencia.nivel)
+    const calculable = competencia.estado !== DI && Number.isFinite(nivel)
+    return {
+      numero: indice + 1,
+      angulo: -90 + indice * paso,
+      calculable,
+      radio: calculable ? (nivel / NIVEL_MAXIMO) * RADIAL.radioValor : null,
+    }
+  })
+
+  const anillos = RADIAL.anillos.map((nivel) =>
+    puntos
+      .map((punto) =>
+        puntoEn(punto.angulo, (nivel / NIVEL_MAXIMO) * RADIAL.radioValor).join(','),
+      )
+      .join(' '),
+  )
+
+  const vertices = puntos
+    .filter((punto) => punto.calculable)
+    .map((punto) => ({ ...punto, xy: puntoEn(punto.angulo, punto.radio) }))
+
+  return (
+    <svg
+      className="inicio-radial"
+      viewBox="0 0 300 300"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {anillos.map((puntosAnillo, indice) => (
+        <polygon
+          key={`anillo-${indice}`}
+          className="inicio-radial__anillo"
+          points={puntosAnillo}
+        />
+      ))}
+      {puntos.map((punto) => {
+        const [x, y] = puntoEn(punto.angulo, RADIAL.radioValor)
+        return (
+          <line
+            key={`eje-${punto.numero}`}
+            className="inicio-radial__eje"
+            x1={RADIAL.centro}
+            y1={RADIAL.centro}
+            x2={x}
+            y2={y}
+          />
+        )
+      })}
+      {vertices.length >= 3 && (
+        <polygon
+          className="inicio-radial__area"
+          points={vertices.map((vertice) => vertice.xy.join(',')).join(' ')}
+        />
+      )}
+      {vertices.length >= 2 && (
+        <polyline
+          className="inicio-radial__linea"
+          points={vertices.map((vertice) => vertice.xy.join(',')).join(' ')}
+        />
+      )}
+      {vertices.map((vertice) => (
+        <circle
+          key={`vertice-${vertice.numero}`}
+          className="inicio-radial__vertice"
+          cx={vertice.xy[0]}
+          cy={vertice.xy[1]}
+          r={5.5}
+        />
+      ))}
+      {puntos.map((punto) => {
+        const [x, y] = puntoEn(punto.angulo, RADIAL.radioIndice)
+        return (
+          <g
+            key={`indice-${punto.numero}`}
+            className={
+              punto.calculable
+                ? 'inicio-radial__chip'
+                : 'inicio-radial__chip inicio-radial__chip--di'
+            }
+          >
+            <circle cx={x} cy={y} r={11.5} />
+            <text x={x} y={y}>
+              {punto.numero}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
   )
 }

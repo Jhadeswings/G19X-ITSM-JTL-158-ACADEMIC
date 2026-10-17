@@ -331,6 +331,9 @@ function Aplicacion() {
         <Inicio
           token={sesion.token}
           alSesionExpirada={cerrarSesion}
+          // Saludo del héroe de Inicio: la identidad YA consultada para el
+          // header (GET /api/v1/me). Sin nombre, el saludo es genérico.
+          nombreEmpleado={cuenta}
           onIrAProgreso={() => setSeccion('mi-progreso')}
           onIrAProyectos={() => setSeccion('mis-proyectos')}
           onIrACapacitaciones={() => setSeccion('mis-capacitaciones')}

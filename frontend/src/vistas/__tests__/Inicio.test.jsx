@@ -1,9 +1,10 @@
 // Tests de estructura, contratos y estados de "Inicio" (PRD §21.1, MB-7-2).
 //
 // Inicio es un RESUMEN: orienta y lleva a la sección del detalle, sin repetir
-// "Mi progreso". Estos tests cubren las tres consultas independientes, la
-// ausencia de las cinco `CompetenciaCard` completas, la ausencia de IA, el
-// recorte de proyectos y los estados por bloque.
+// "Mi progreso". Estos tests cubren las tres consultas independientes, el
+// encabezado de bienvenida del rediseño (Fase 1), el gráfico radial emparejado
+// con la lista numerada, la ausencia de las cinco `CompetenciaCard` completas,
+// la ausencia de IA, el recorte de proyectos y los estados por bloque.
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,14 +54,14 @@ const CINCO = [
 }))
 
 /** Proyecto fiel a `ProyectoOut` (GET /api/v1/me/projects). */
-function proyecto(id, nombre, area = 'TI') {
+function proyecto(id, nombre, area = 'TI', estado = 'EN_PROCESO') {
   return {
     id,
     nombre,
     nombre_normalizado: nombre.toLowerCase(),
     area,
     cliente: null,
-    estado: 'EN_PROCESO',
+    estado,
     created_at: '2026-06-01T10:00:00',
     updated_at: '2026-06-01T10:00:00',
   }
@@ -92,7 +93,8 @@ async function montar({
       onIrACapacitaciones={vi.fn()}
     />,
   )
-  await screen.findByRole('heading', { name: 'Inicio', level: 1 })
+  // El H1 de la vista es el saludo del héroe (boceto Fase 1).
+  await screen.findByRole('heading', { name: /^¡Hola/, level: 1 })
   return utils
 }
 
@@ -107,30 +109,30 @@ beforeEach(() => {
   vi.mocked(listarCapacitaciones).mockResolvedValue(paginaCapacitaciones(0))
 })
 describe('Inicio — estructura de la vista (PRD §21.1)', () => {
-  it('muestra el encabezado y consulta las tres fuentes con el token', async () => {
+  it('muestra el saludo del héroe y consulta las tres fuentes con el token', async () => {
     await montar()
 
     expect(
-      screen.getByRole('heading', { name: 'Inicio', level: 1 }),
+      screen.getByRole('heading', { name: /^¡Hola/, level: 1 }),
     ).toBeInTheDocument()
     expect(obtenerResultadoActual).toHaveBeenCalledWith('token-empleado')
     expect(listarMisProyectos).toHaveBeenCalledWith('token-empleado')
     expect(listarCapacitaciones).toHaveBeenCalledWith('token-empleado')
   })
 
-  it('presenta los bloques del resumen en el orden del PRD', async () => {
+  it('presenta los bloques del resumen en el orden del boceto (Fase 1)', async () => {
     const { container } = await montar()
 
     // Orden del DOM: fila superior (2 tarjetas `MetricCard`, también h2) →
-    // Tus proyectos → Resumen de competencias → Próximo paso.
+    // Resumen de competencias → Tus proyectos → Próximo paso.
     const titulos = [...container.querySelectorAll('h2')].map((n) =>
       n.textContent.trim(),
     )
     expect(titulos).toEqual([
       'Proyectos',
       'Capacitaciones',
-      'Tus proyectos',
       'Resumen de competencias',
+      'Tus proyectos',
       'Próximo paso',
     ])
   })
@@ -164,12 +166,27 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
     const { container } = await montar()
 
     // Cada bloque es un panel de ancho completo; NO existe la rejilla de dos
-    // columnas ni un contenedor que agrupe proyectos y competencias.
+    // columnas externa ni un contenedor que agrupe proyectos y competencias.
     expect(container.querySelectorAll('.inicio-principal')).toHaveLength(0)
     const paneles = container.querySelectorAll('.inicio-panel')
     expect(paneles).toHaveLength(2)
-    expect(paneles[0].textContent).toContain('Tus proyectos')
-    expect(paneles[1].textContent).toContain('Resumen de competencias')
+    expect(paneles[0].textContent).toContain('Resumen de competencias')
+    expect(paneles[1].textContent).toContain('Tus proyectos')
+  })
+
+  it('proyectos usa la franja suave y competencias la zona blanca', async () => {
+    const { container } = await montar()
+
+    // Zonas de ancho completo (ajuste Fase 1b): la misma base `.inicio-panel`
+    // cambia de fondo con un modificador; ninguna sección es una tarjeta.
+    const paneles = container.querySelectorAll('.inicio-panel')
+    expect(paneles[0]).not.toHaveClass('inicio-panel--suave')
+    expect(paneles[1]).toHaveClass('inicio-panel--suave')
+    // Las métricas siguen siendo `metric-card` reutilizado, pero viven sobre
+    // la franja `.inicio-metricas`, no como tarjetas independientes.
+    expect(
+      container.querySelectorAll('.inicio-metricas .metric-card'),
+    ).toHaveLength(2)
   })
 
   it('el botón del resumen ocupa el ancho del bloque', async () => {
@@ -224,17 +241,82 @@ describe('Inicio — estructura de la vista (PRD §21.1)', () => {
         onIrACapacitaciones={onIrACapacitaciones}
       />,
     )
-    await screen.findByRole('heading', { name: 'Inicio', level: 1 })
+    await screen.findByRole('heading', { name: /^¡Hola/, level: 1 })
 
-    // Acceso a «Mi progreso» desde el resumen de competencias (MB-7-2D: la
-    // tarjeta superior se eliminó, así que queda un único botón de ese texto).
-    fireEvent.click(screen.getByRole('button', { name: 'Ver mi progreso' }))
+    // Acceso a «Mi progreso»: el botón del héroe y el del resumen de
+    // competencias comparten texto (boceto Fase 1), así que se pulsan ambos.
+    const progreso = screen.getAllByRole('button', { name: 'Ver mi progreso' })
+    expect(progreso).toHaveLength(2)
+    fireEvent.click(progreso[0])
+    fireEvent.click(progreso[1])
     fireEvent.click(screen.getByRole('button', { name: 'Ir a Mis proyectos' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ir a Mis capacitaciones' }))
 
-    expect(onIrAProgreso).toHaveBeenCalled()
+    expect(onIrAProgreso).toHaveBeenCalledTimes(2)
     expect(onIrAProyectos).toHaveBeenCalled()
     expect(onIrACapacitaciones).toHaveBeenCalled()
+  })
+})
+
+describe('Inicio — encabezado de bienvenida (boceto Fase 1)', () => {
+  /** Monta solo con las fuentes resueltas y props extra a elección. */
+  async function montarHero(props = {}) {
+    vi.mocked(obtenerResultadoActual).mockResolvedValue(resultado())
+    vi.mocked(listarMisProyectos).mockResolvedValue(paginaProyectos([]))
+    vi.mocked(listarCapacitaciones).mockResolvedValue(paginaCapacitaciones(0))
+    const utils = render(
+      <Inicio token="token-empleado" alSesionExpirada={vi.fn()} {...props} />,
+    )
+    await screen.findByRole('heading', { name: /^¡Hola/, level: 1 })
+    return utils
+  }
+
+  it('saluda con el nombre de la cuenta cuando llega', async () => {
+    await montarHero({ nombreEmpleado: 'Ana Pino' })
+
+    expect(
+      screen.getByRole('heading', { name: '¡Hola, Ana Pino!', level: 1 }),
+    ).toBeInTheDocument()
+  })
+
+  it('sin nombre usa un saludo genérico, sin inventar identidad', async () => {
+    await montarHero()
+
+    expect(
+      screen.getByRole('heading', { name: '¡Hola!', level: 1 }),
+    ).toBeInTheDocument()
+  })
+
+  it('el botón del héroe lleva a Mi progreso', async () => {
+    const onIrAProgreso = vi.fn()
+    await montarHero({ onIrAProgreso })
+
+    // Hay dos «Ver mi progreso» (héroe y resumen de competencias): se pulsa
+    // el del héroe, identificado por su clase de bloque.
+    const botones = screen.getAllByRole('button', { name: 'Ver mi progreso' })
+    const delHeroe = botones.find((boton) =>
+      boton.className.includes('inicio-hero__boton'),
+    )
+    expect(delHeroe).toBeDefined()
+    fireEvent.click(delHeroe)
+    expect(onIrAProgreso).toHaveBeenCalledTimes(1)
+  })
+
+  it('incluye la ilustración decorativa de nodos conectados', async () => {
+    const { container } = await montarHero()
+
+    // ContextualNetwork reutilizada: misma pieza que el resto del sistema.
+    expect(
+      container.querySelector('.inicio-hero .contextual-network'),
+    ).not.toBeNull()
+  })
+
+  it('no consulta ninguna fuente adicional para el saludo', async () => {
+    await montar()
+
+    expect(obtenerResultadoActual).toHaveBeenCalledTimes(1)
+    expect(listarMisProyectos).toHaveBeenCalledTimes(1)
+    expect(listarCapacitaciones).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -282,11 +364,83 @@ describe('Inicio — proyectos (GET /me/projects)', () => {
 
     const fila = screen.getByRole('button', { name: /Proyecto Roble/ })
     expect(within(fila).getByText('Operaciones')).toBeInTheDocument()
-    expect(within(fila).getByText('EN_PROCESO')).toBeInTheDocument()
+    // Etiqueta de presentación del §6 (corrección Fase 1), no el valor crudo.
+    expect(within(fila).getByText('En proceso')).toBeInTheDocument()
+    // Sin etiquetas tipo píldora: el estado es un indicador visual con punto.
+    expect(fila.querySelector('.ui-badge, [class*="badge" i]')).toBeNull()
+    expect(
+      fila.querySelector('.inicio-estado__punto--en-proceso'),
+    ).not.toBeNull()
     const texto = container.textContent.toLowerCase()
     for (const prohibido of ['horas', 'destacado', 'reciente', 'puntaje']) {
       expect(texto).not.toContain(prohibido)
     }
+  })
+
+  it('la fila reparte: nombre a la izquierda, área y estado a la derecha', async () => {
+    await montar({
+      proyectos: paginaProyectos([proyecto(1, 'Proyecto Roble', 'Tecnología')]),
+    })
+
+    const fila = screen.getByRole('button', { name: /Proyecto Roble/ })
+    const nombre = within(fila).getByText('Proyecto Roble')
+    const area = within(fila).getByText('Tecnología')
+    const estado = within(fila).getByText('En proceso')
+
+    // Estructura (sin depender de clases CSS): área y estado comparten el
+    // MISMO bloque derecho, que va después del nombre en el documento.
+    const bloqueDerecho = area.parentElement
+    expect(bloqueDerecho).toContainElement(estado)
+    expect(bloqueDerecho).not.toContainElement(nombre)
+    expect(
+      nombre.compareDocumentPosition(bloqueDerecho),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('cada estado oficial lleva su color: Completado verde, En proceso ámbar, Cancelado rojo', async () => {
+    await montar({
+      proyectos: paginaProyectos([
+        proyecto(1, 'Proyecto Roble', 'TI', 'COMPLETADO'),
+        proyecto(2, 'Proyecto Olmo', 'TI', 'EN_PROCESO'),
+        proyecto(3, 'Proyecto Cedro', 'TI', 'CANCELADO'),
+      ]),
+    })
+
+    // Completado: texto verde oscuro + punto relleno del mismo tono.
+    const completado = screen.getByRole('button', { name: /Proyecto Roble/ })
+    expect(within(completado).getByText('Completado')).toHaveClass(
+      'inicio-proyectos__estado--completado',
+    )
+    expect(
+      completado.querySelector('.inicio-estado__punto--completado'),
+    ).not.toBeNull()
+
+    // En proceso: texto ámbar + punto delineado.
+    const enProceso = screen.getByRole('button', { name: /Proyecto Olmo/ })
+    expect(within(enProceso).getByText('En proceso')).toHaveClass(
+      'inicio-proyectos__estado--en-proceso',
+    )
+    expect(
+      enProceso.querySelector('.inicio-estado__punto--en-proceso'),
+    ).not.toBeNull()
+
+    // Cancelado: rojo sobrio SOLO en el texto, sin punto ni elementos nuevos.
+    const cancelado = screen.getByRole('button', { name: /Proyecto Cedro/ })
+    expect(within(cancelado).getByText('Cancelado')).toHaveClass(
+      'inicio-proyectos__estado--cancelado',
+    )
+    expect(cancelado.querySelector('.inicio-estado__punto')).toBeNull()
+  })
+
+  it('estados no contemplados quedan neutros, sin variante de color ni punto', async () => {
+    await montar({
+      proyectos: paginaProyectos([proyecto(2, 'Proyecto Olmo', 'TI', 'PAUSADO')]),
+    })
+
+    const neutral = screen.getByRole('button', { name: /Proyecto Olmo/ })
+    const etiqueta = within(neutral).getByText('PAUSADO')
+    expect(etiqueta.className).not.toMatch(/inicio-proyectos__estado--/)
+    expect(neutral.querySelector('.inicio-estado__punto')).toBeNull()
   })
 
   it('cada fila de proyecto es interactiva y lleva a Mis proyectos', async () => {
@@ -303,7 +457,7 @@ describe('Inicio — proyectos (GET /me/projects)', () => {
         onIrAProyecto={onIrAProyecto}
       />,
     )
-    await screen.findByRole('heading', { name: 'Inicio', level: 1 })
+    await screen.findByRole('heading', { name: /^¡Hola/, level: 1 })
 
     // Semántica de botón nativa: la fila completa es el control.
     const filas = screen.getAllByRole('button', { name: /Proyecto/ })
@@ -350,6 +504,50 @@ describe('Inicio — resumen de competencias (compacto)', () => {
       expect.stringContaining('Comunicación'),
       expect.stringContaining('Capacidad de aprendizaje'),
     ])
+  })
+
+  it('la lista numerada empareja cada fila con su eje del gráfico', async () => {
+    const { container } = await montar()
+
+    const ejes = [...container.querySelectorAll('.inicio-radial__chip')].map(
+      (chip) => chip.textContent,
+    )
+    const indices = [
+      ...container.querySelectorAll('.inicio-competencias__indice'),
+    ].map((indice) => indice.textContent)
+    expect(ejes).toEqual(['1', '2', '3', '4', '5'])
+    expect(indices).toEqual(['1', '2', '3', '4', '5'])
+  })
+
+  it('el gráfico marca vértices SOLO en competencias calculables', async () => {
+    const { container } = await montar()
+
+    // El contrato de ejemplo trae UNA calculable (nivel 4) y cuatro DI.
+    expect(
+      container.querySelectorAll('.inicio-radial__vertice'),
+    ).toHaveLength(1)
+    // Los ejes DI existen (número neutro), pero sin vértice: nunca nivel 0.
+    expect(
+      container.querySelectorAll('.inicio-radial__chip--di'),
+    ).toHaveLength(4)
+  })
+
+  it('el gráfico es decorativo: la información accesible vive en la lista', async () => {
+    const { container } = await montar()
+
+    expect(container.querySelector('.inicio-radial')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    )
+  })
+
+  it('con una respuesta sin competencias no rompe la vista', async () => {
+    await montar({ resultado: resultado({ competencias: [] }) })
+
+    expect(
+      screen.getByRole('heading', { name: 'Resumen de competencias', level: 2 }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Datos insuficientes')).not.toBeInTheDocument()
   })
 
   it('muestra nivel y etiqueta en columnas separadas, sin chip ni punto medio', async () => {
@@ -418,25 +616,31 @@ describe('Inicio — resumen de competencias (compacto)', () => {
     ).toBeInTheDocument()
   })
 
-  it('no usa barras ni segmentos para el nivel', async () => {
+  it('la lista conserva número y etiqueta del contrato, sin marcas de nivel', async () => {
     const { container } = await montar()
 
-    // MB-7-2C/2E: la referencia muestra número y etiqueta en columnas, sin
-    // ninguna marca visual del nivel.
+    // MB-7-2C/2E: el nivel es el número y la etiqueta del contrato, sin
+    // barras ni segmentos por competencia (el radial del boceto es una capa
+    // decorativa general, no una barra por fila).
     expect(container.querySelectorAll('.inicio-nivel')).toHaveLength(0)
     expect(container.querySelectorAll('.inicio-nivel__paso')).toHaveLength(0)
-    // El nivel sigue presente y es el del contrato.
     expect(document.querySelector('.inicio-competencias__numero')).toHaveTextContent('4')
     expect(document.querySelector('.inicio-competencias__etiqueta')).toBeInTheDocument()
   })
 
-  it('el acceso a Mi progreso vive solo en competencias y Próximo paso', async () => {
+  it('el acceso a Mi progreso vive en el héroe, competencias y Próximo paso', async () => {
     await montar()
 
-    // Botón de ancho completo del resumen de competencias.
+    // Dos botones con el mismo texto (héroe y cierre del resumen de
+    // competencias): se distinguen por su clase de bloque.
     const botones = screen.getAllByRole('button', { name: 'Ver mi progreso' })
-    expect(botones).toHaveLength(1)
-    expect(botones[0].className).toContain('inicio-boton-ancho')
+    expect(botones).toHaveLength(2)
+    expect(
+      botones.some((boton) => boton.className.includes('inicio-hero__boton')),
+    ).toBe(true)
+    expect(
+      botones.some((boton) => boton.className.includes('inicio-boton-ancho')),
+    ).toBe(true)
     // Enlace discreto de Próximo paso.
     expect(screen.getByRole('button', { name: 'Mi progreso' })).toBeInTheDocument()
     // No queda copy alternativo de la sección.
@@ -500,7 +704,7 @@ describe('Inicio — estados de la vista (Style Guide §13)', () => {
 
     expect(await screen.findByText('Cargando tu inicio…')).toBeInTheDocument()
     resolver(resultado())
-    expect(await screen.findByRole('heading', { name: 'Inicio', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /^¡Hola/, level: 1 })).toBeInTheDocument()
   })
 
   it('muestra error con reintento si la consulta falla', async () => {

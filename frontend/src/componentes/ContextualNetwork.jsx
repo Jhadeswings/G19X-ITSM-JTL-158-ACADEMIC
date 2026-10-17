@@ -1,11 +1,17 @@
-export default function ContextualNetwork({ className = '', label = 'Red conceptual de crecimiento conectado' }) {
+export default function ContextualNetwork({
+  className = '',
+  label = 'Red conceptual de crecimiento conectado',
+  decorativa = false,
+}) {
+  const accesibilidad = decorativa
+    ? { 'aria-hidden': true }
+    : { role: 'img', 'aria-label': label }
   return (
     <svg
       className={`contextual-network ${className}`.trim()}
       viewBox="0 0 560 360"
       fill="none"
-      role="img"
-      aria-label={label}
+      {...accesibilidad}
     >
       <path className="contextual-network__path" d="M48 246C142 231 144 116 244 128C345 140 356 258 486 210" />
       <path className="contextual-network__path contextual-network__path--secondary" d="M106 92C187 112 225 67 291 87C373 112 381 226 480 252" />
