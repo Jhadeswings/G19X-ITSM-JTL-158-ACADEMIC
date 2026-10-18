@@ -67,3 +67,39 @@ desktop.ini
 # Logs
 logs/
 *.log
+
+# ---------------------------------------------------------------------------
+# Archivos locales de trabajo (preparación para GitHub, Fase A1).
+#
+# NO son producto: salidas de suites/builds de sesiones de trabajo, evidencias
+# de verificación local, copias de respaldo de vistas y prototipos de diseño.
+# Se excluyen para que un `git add .` no los publique por accidente.
+#
+# Regla de diseño: patrones ANCLADOS a la raíz (/) o a carpetas concretas.
+# Prohibido un `*.txt` general: `backend/requirements.txt` es un archivo del
+# producto y debe seguir versionado.
+# ---------------------------------------------------------------------------
+
+# Caché de Vitest (resultados de ejecuciones locales)
+.vite/
+
+# Raíz: salidas de suites y builds de sesiones de trabajo
+/audit_*.txt
+/be_*.txt
+/fe_*.txt
+/verify658e74d_*.txt
+
+# Frontend: salidas de pruebas dirigidas por sección (raíz de frontend/)
+/frontend/cap_*.txt
+/frontend/cuenta_*.txt
+/frontend/hist_*.txt
+/frontend/mp_*.txt
+/frontend/suite_carga*.txt
+
+# Frontend: copias de respaldo/rescate de vistas (el archivo vigente es el .jsx)
+/frontend/src/vistas/*.bak
+/frontend/src/vistas/*.part*.jsx
+/frontend/src/vistas/*.jsx.txt
+
+# Prototipo local de diseño (referencia del Style Guide; no es producto)
+/panel_empleado_v6_zonas(1).html
