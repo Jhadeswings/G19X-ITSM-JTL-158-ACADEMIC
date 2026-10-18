@@ -180,6 +180,29 @@ describe('MisCapacitaciones — carga y listado', () => {
       screen.queryByText('No pudimos cargar tus capacitaciones'),
     ).not.toBeInTheDocument()
   })
+
+  it('una respuesta muy rápida mantiene el loading visible el mínimo perceptible', async () => {
+    render(<MisCapacitaciones token="token-empleado" />)
+    const inicio = Date.now()
+
+    expect(screen.getByText('Cargando capacitaciones…')).toBeInTheDocument()
+    await screen.findByText('Curso de Python')
+    // El éxito esperó el mínimo (~400 ms): sin flash instantáneo.
+    expect(Date.now() - inicio).toBeGreaterThanOrEqual(350)
+  })
+
+  it('un error del listado no espera el mínimo', async () => {
+    vi.mocked(listarCapacitaciones).mockRejectedValueOnce(
+      Object.assign(new Error('Fallo'), { estado: 500 }),
+    )
+    const inicio = Date.now()
+    render(<MisCapacitaciones token="token-empleado" />)
+
+    expect(
+      await screen.findByText('No pudimos cargar tus capacitaciones'),
+    ).toBeInTheDocument()
+    expect(Date.now() - inicio).toBeLessThan(400)
+  })
 })
 
 describe('MisCapacitaciones — formulario de registro', () => {

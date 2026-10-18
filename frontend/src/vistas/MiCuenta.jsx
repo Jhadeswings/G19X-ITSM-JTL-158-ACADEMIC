@@ -32,12 +32,13 @@
 // Autorización: el frontend no decide permisos; un 401 delega en
 // `alSesionExpirada` (ET §31/§32, patrón de las demás vistas de Empleado).
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { obtenerCuenta } from '../api/cuenta.js'
 import CambioPasswordCuenta from '../componentes/CambioPasswordCuenta.jsx'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import SectionHeader from '../componentes/SectionHeader.jsx'
+import { crearEsperaMinimaCarga } from '../lib/esperaMinimaCarga.js'
 
 /** Texto neutro para datos ausentes: nunca un hueco ni un error. */
 const SIN_DATO = '—'
@@ -49,13 +50,30 @@ function consultaInicial() {
 
 export default function MiCuenta({ token, alSesionExpirada }) {
   const [consulta, setConsulta] = useState(consultaInicial)
+  // Espera mínima cancelable de la carga INICIAL + guarda de vigencia: solo
+  // la ÚLTIMA consulta actualiza el estado. Errores, reintento y 401 sin
+  // espera. Se cancela al desmontar.
+  const esperaRef = useRef(null)
+  if (esperaRef.current === null) esperaRef.current = crearEsperaMinimaCarga()
+  const cargaActualRef = useRef(0)
+  useEffect(() => () => {
+    esperaRef.current?.cancelar()
+    cargaActualRef.current += 1
+  }, [])
 
   const cargar = useCallback(() => {
+    const inicio = Date.now()
+    const solicitud = ++cargaActualRef.current
     setConsulta(consultaInicial())
     obtenerCuenta(token)
-      .then((datos) => setConsulta({ fase: 'listo', datos, error: null }))
+      .then(async (datos) => {
+        await esperaRef.current.esperar(inicio)
+        if (solicitud !== cargaActualRef.current) return
+        setConsulta({ fase: 'listo', datos, error: null })
+      })
       .catch((error) => {
         // 401: el backend ya decidió que la sesión no sirve (ET §31/§32).
+        if (solicitud !== cargaActualRef.current) return
         if (error?.estado === 401) {
           alSesionExpirada?.()
           return

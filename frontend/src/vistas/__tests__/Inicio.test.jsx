@@ -707,6 +707,27 @@ describe('Inicio — estados de la vista (Style Guide §13)', () => {
     expect(await screen.findByRole('heading', { name: /^¡Hola/, level: 1 })).toBeInTheDocument()
   })
 
+  it('una respuesta muy rápida mantiene el loading visible el mínimo perceptible', async () => {
+    vi.mocked(obtenerResultadoActual).mockResolvedValue(resultado())
+    const inicio = Date.now()
+    render(<Inicio token="token-empleado" alSesionExpirada={vi.fn()} />)
+
+    expect(await screen.findByText('Cargando tu inicio…')).toBeInTheDocument()
+    await screen.findByRole('heading', { name: /^¡Hola/, level: 1 })
+    expect(Date.now() - inicio).toBeGreaterThanOrEqual(350)
+  })
+
+  it('un error de la fuente principal no espera el mínimo', async () => {
+    vi.mocked(obtenerResultadoActual).mockRejectedValue(
+      Object.assign(new Error('Fallo'), { estado: 500 }),
+    )
+    const inicio = Date.now()
+    render(<Inicio token="token-empleado" alSesionExpirada={vi.fn()} />)
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(Date.now() - inicio).toBeLessThan(400)
+  })
+
   it('muestra error con reintento si la consulta falla', async () => {
     vi.mocked(obtenerResultadoActual).mockRejectedValue(
       Object.assign(new Error('Fallo'), { estado: 500 }),

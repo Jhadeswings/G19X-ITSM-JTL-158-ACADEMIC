@@ -133,17 +133,20 @@ beforeEach(() => {
 /**
  * Espera a que la pantalla esté pintada. NO busca un periodo: cada periodo
  * aparece dos veces por diseño (Timeline de evolución + listado completo), así
- * que se espera el encabezado de sección, que es único.
+ * que se espera el encabezado de sección, que es único. Con la espera mínima
+ * de carga (400 ms), el contenido tarda un poco más en llegar: se aguarda el
+ * primer periodo renderizado.
  */
 async function esperarHistorial() {
   await screen.findByRole('heading', { name: 'Mi historial', level: 1 })
-  await waitFor(() =>
-    expect(
-      screen.queryByText('Cargando tu historial…') ||
+  await waitFor(
+    () =>
+      expect(
         screen.queryByText('No pudimos cargar tu historial') ||
-        screen.queryByText('Todavía no tienes evaluaciones oficiales.') ||
-        document.querySelector('.historial-periodo'),
-    ).toBeTruthy(),
+          screen.queryByText('Todavía no tienes evaluaciones oficiales.') ||
+          document.querySelector('.historial-periodo'),
+      ).toBeTruthy(),
+    { timeout: 3000 },
   )
 }
 
@@ -172,6 +175,28 @@ describe('MiHistorial — carga y estados', () => {
 
     expect(screen.getByText('Cargando tu historial…')).toBeInTheDocument()
     await esperarHistorial()
+  })
+
+  it('una respuesta muy rápida mantiene el loading visible el mínimo perceptible', async () => {
+    const inicio = Date.now()
+    render(<MiHistorial token="token-empleado" />)
+
+    expect(screen.getByText('Cargando tu historial…')).toBeInTheDocument()
+    await esperarHistorial()
+    expect(Date.now() - inicio).toBeGreaterThanOrEqual(350)
+  })
+
+  it('un error de la consulta general no espera el mínimo', async () => {
+    vi.mocked(listarEvaluacionesPropias).mockRejectedValueOnce(
+      Object.assign(new Error('Fallo'), { estado: 500 }),
+    )
+    const inicio = Date.now()
+    render(<MiHistorial token="token-empleado" />)
+
+    expect(
+      await screen.findByText('No pudimos cargar tu historial'),
+    ).toBeInTheDocument()
+    expect(Date.now() - inicio).toBeLessThan(400)
   })
 
   it('muestra el estado vacío solo cuando total es 0', async () => {
@@ -509,21 +534,22 @@ describe('MiHistorial — lo que la vista NO muestra', () => {
 
 
 describe('MiHistorial — Historial de mis participaciones (apartado interno)', () => {
-  /** Espera a que el apartado del historial esté resuelto. */
+  /** Espera a que el apartado del historial esté resuelto (con espera mínima). */
   async function esperarCorrecciones() {
     await screen.findByRole('heading', {
       name: 'Historial de mis participaciones',
       level: 2,
     })
-    await waitFor(() =>
-      expect(
-        screen.queryByText('Cargando tus correcciones…') ||
+    await waitFor(
+      () =>
+        expect(
           screen.queryByText('No pudimos cargar tus correcciones') ||
-          screen.queryByText(
-            'Todavía no hay correcciones sobre tus participaciones.',
-          ) ||
-          document.querySelector('.historial-correcciones__eventos'),
-      ).toBeTruthy(),
+            screen.queryByText(
+              'Todavía no hay correcciones sobre tus participaciones.',
+            ) ||
+            document.querySelector('.historial-correcciones__eventos'),
+        ).toBeTruthy(),
+      { timeout: 3000 },
     )
   }
 

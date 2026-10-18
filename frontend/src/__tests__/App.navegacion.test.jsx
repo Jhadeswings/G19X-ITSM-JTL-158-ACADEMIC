@@ -273,8 +273,10 @@ describe('Shell de Empleado — navegación entre secciones', () => {
     expect(
       (await screen.findAllByRole('heading', { name: 'Inicio', level: 1 })).length,
     ).toBeGreaterThan(0)
+    // La carga inicial tiene espera mínima perceptible (~400 ms): el resumen
+    // llega un poco después del encabezado del shell.
     expect(
-      screen.getByRole('heading', { name: 'Resumen de competencias' }),
+      await screen.findByRole('heading', { name: 'Resumen de competencias' }),
     ).toBeInTheDocument()
     expect(
       screen.queryByText('«Inicio» todavía no está disponible'),

@@ -43,7 +43,7 @@
 // Autorización: el frontend no decide permisos; un 401 delega en
 // `alSesionExpirada` (ET §31/§32, patrón de las demás vistas de Empleado).
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   POR_PAGINA_DEFECTO,
   listarEvaluacionesPropias,
@@ -54,6 +54,7 @@ import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
 import SectionHeader from '../componentes/SectionHeader.jsx'
 import Pagination from '../componentes/ui/Pagination.jsx'
+import { crearEsperaMinimaCarga } from '../lib/esperaMinimaCarga.js'
 import { NOMBRES_COMPETENCIAS } from '../textos.js'
 
 /** Estado del snapshot de una competencia (contrato `status`). */
@@ -144,11 +145,25 @@ export default function MiHistorial({ token, alSesionExpirada }) {
   // Competencia seleccionada en la evolución. Empieza en la primera que llegue
   // del snapshot; la vista inicial muestra SIEMPRE una sola competencia (§21.5).
   const [competenciaActiva, setCompetenciaActiva] = useState(null)
+  // Espera mínima cancelable de la carga general + guarda de vigencia: solo
+  // la ÚLTIMA consulta actualiza el estado. Orden, paginación y estados
+  // intactos. Se cancela al desmontar.
+  const esperaRef = useRef(null)
+  if (esperaRef.current === null) esperaRef.current = crearEsperaMinimaCarga()
+  const cargaActualRef = useRef(0)
+  useEffect(() => () => {
+    esperaRef.current?.cancelar()
+    cargaActualRef.current += 1
+  }, [])
 
   const cargar = useCallback(() => {
+    const inicio = Date.now()
+    const solicitud = ++cargaActualRef.current
     setConsulta(consultaInicial())
     listarEvaluacionesPropias(token, { pagina, porPagina: POR_PAGINA_DEFECTO })
-      .then((datos) => {
+      .then(async (datos) => {
+        await esperaRef.current.esperar(inicio)
+        if (solicitud !== cargaActualRef.current) return
         setConsulta({ fase: 'listo', datos, error: null })
         // Primera competencia disponible en el snapshot: si ninguna viene
         // seleccionada, se elige la del primer periodo sin alterar los datos.
@@ -158,6 +173,7 @@ export default function MiHistorial({ token, alSesionExpirada }) {
       })
       .catch((error) => {
         // 401: el backend ya decidió que la sesión no sirve (§32).
+        if (solicitud !== cargaActualRef.current) return
         if (error?.estado === 401) {
           alSesionExpirada?.()
           return

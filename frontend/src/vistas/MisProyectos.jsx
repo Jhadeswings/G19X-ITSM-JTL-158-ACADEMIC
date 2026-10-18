@@ -70,7 +70,7 @@
 //   desde «Inicio» con un proyecto ya elegido, la pestaña del asistente
 //   queda activa.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, FolderKanban, Pencil, Repeat2, Save, Search } from 'lucide-react'
 import {
   actualizarParticipacion,
@@ -86,6 +86,7 @@ import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
 import FormField from '../componentes/FormField.jsx'
+import { crearEsperaMinimaCarga } from '../lib/esperaMinimaCarga.js'
 import Alert from '../componentes/ui/Alert.jsx'
 import Badge from '../componentes/ui/Badge.jsx'
 import { Button } from '../componentes/ui/Button.jsx'
@@ -269,6 +270,21 @@ export default function MisProyectos({
   // los datos actuales del item ya descargado. NO es una fase del flujo
   // normal: buscar o reiniciar la desactiva.
   const [edicionDesdeConsulta, setEdicionDesdeConsulta] = useState(false)
+  // Espera mínima de la carga INICIAL de «Registrados» + guarda de vigencia:
+  // solo la ÚLTIMA apertura actualiza el estado. Se cancela al desmontar
+  // para no actualizar un componente inexistente.
+  const esperaRegistradosRef = useRef(null)
+  if (esperaRegistradosRef.current === null) {
+    esperaRegistradosRef.current = crearEsperaMinimaCarga()
+  }
+  const cargaRegistradosRef = useRef(0)
+  useEffect(
+    () => () => {
+      esperaRegistradosRef.current?.cancelar()
+      cargaRegistradosRef.current += 1
+    },
+    [],
+  )
 
   // --- Entrada desde Inicio (MB-7-2E) -------------------------------------
   // Al llegar desde «Inicio» con el `proyectoId` de una fila pulsada, esta vista
@@ -425,8 +441,15 @@ export default function MisProyectos({
    * nuevo, no se cruzan datos de otros empleados y un proyecto sin
    * participación guardada no puede aparecer (la lista ES la de
    * participaciones).
+   *
+   * La carga INICIAL de «Registrados» tiene espera mínima cancelable para
+   * que «Consultando tus proyectos…» sea perceptible: solo el éxito espera;
+   * el error y el 401 llegan de inmediato. «Ver más», búsquedas, altas y
+   * detecciones NO esperan.
    */
   async function abrirRegistrados() {
+    const inicio = Date.now()
+    const solicitud = ++cargaRegistradosRef.current
     setRegistrados({ fase: 'cargando', datos: null, error: null })
     setDetalleRegistrado(null)
     try {
@@ -434,8 +457,11 @@ export default function MisProyectos({
         pagina: 1,
         por_pagina: 100,
       })
+      await esperaRegistradosRef.current.esperar(inicio)
+      if (solicitud !== cargaRegistradosRef.current) return
       setRegistrados({ fase: 'listo', datos: respuesta, error: null })
     } catch (error) {
+      if (solicitud !== cargaRegistradosRef.current) return
       if (error?.estado === 401) {
         alSesionExpirada?.()
         return

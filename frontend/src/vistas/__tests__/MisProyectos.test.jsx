@@ -1779,6 +1779,32 @@ describe('MisProyectos — consulta de proyectos registrados (Tarea B)', () => {
     ).toBeInTheDocument()
     expect(listarParticipaciones).toHaveBeenCalledTimes(2)
   })
+
+  it('una respuesta muy rápida mantiene «Consultando tus proyectos…» el mínimo perceptible', async () => {
+    montar()
+    const inicio = Date.now()
+
+    abrirConsulta()
+
+    expect(screen.getByText('Consultando tus proyectos…')).toBeInTheDocument()
+    await screen.findByText('Todavía no hay proyectos registrados')
+    expect(Date.now() - inicio).toBeGreaterThanOrEqual(350)
+  })
+
+  it('un error de la consulta inicial no espera el mínimo', async () => {
+    vi.mocked(listarParticipaciones).mockRejectedValueOnce(
+      errorDe(500, 'fallo del servidor'),
+    )
+    const inicio = Date.now()
+    montar()
+
+    abrirConsulta()
+
+    expect(
+      await screen.findByText('No pudimos cargar tus proyectos registrados'),
+    ).toBeInTheDocument()
+    expect(Date.now() - inicio).toBeLessThan(400)
+  })
 })
 
 // ---------------------------------------------------------------------------

@@ -26,13 +26,14 @@
 // Autorización: el frontend no decide permisos; un 401 delega en
 // `alSesionExpirada` (ET §31/§32, patrón de MiProgreso/MisProyectos).
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Save } from 'lucide-react'
 import {
   POR_PAGINA_DEFECTO,
   crearCapacitacion,
   listarCapacitaciones,
 } from '../api/capacitaciones.js'
+import { crearEsperaMinimaCarga } from '../lib/esperaMinimaCarga.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
@@ -72,20 +73,30 @@ function etiquetaCompletado(completado) {
 export default function MisCapacitaciones({ token, alSesionExpirada }) {
   const [pagina, setPagina] = useState(1)
   const [consulta, setConsulta] = useState(consultaInicial)
-  const [formulario, setFormulario] = useState({
-    nombre: '',
-    fecha: '',
-    completado: false,
-  })
-  const [avisos, setAvisos] = useState(avisosIniciales)
-  const [registro, setRegistro] = useState({ fase: 'inactivo', error: null, mensaje: null })
+  // Espera mínima cancelable de la carga INICIAL del listado + guarda de
+  // vigencia: solo la ÚLTIMA consulta actualiza el estado. El registro y su
+  // confirmación NO esperan. Se cancela al desmontar.
+  const esperaRef = useRef(null)
+  if (esperaRef.current === null) esperaRef.current = crearEsperaMinimaCarga()
+  const cargaActualRef = useRef(0)
+  useEffect(() => () => {
+    esperaRef.current?.cancelar()
+    cargaActualRef.current += 1
+  }, [])
 
   const cargar = useCallback(() => {
+    const inicio = Date.now()
+    const solicitud = ++cargaActualRef.current
     setConsulta(consultaInicial())
     listarCapacitaciones(token, { pagina, porPagina: POR_PAGINA_DEFECTO })
-      .then((datos) => setConsulta({ fase: 'listo', datos, error: null }))
+      .then(async (datos) => {
+        await esperaRef.current.esperar(inicio)
+        if (solicitud !== cargaActualRef.current) return
+        setConsulta({ fase: 'listo', datos, error: null })
+      })
       .catch((error) => {
         // 401: el backend ya decidió que la sesión no sirve (ET §32).
+        if (solicitud !== cargaActualRef.current) return
         if (error?.estado === 401) {
           alSesionExpirada?.()
           return
@@ -95,6 +106,13 @@ export default function MisCapacitaciones({ token, alSesionExpirada }) {
         setConsulta({ fase: 'error', datos: null, error })
       })
   }, [token, pagina, alSesionExpirada])
+  const [formulario, setFormulario] = useState({
+    nombre: '',
+    fecha: '',
+    completado: false,
+  })
+  const [avisos, setAvisos] = useState(avisosIniciales)
+  const [registro, setRegistro] = useState({ fase: 'inactivo', error: null, mensaje: null })
 
   useEffect(() => {
     cargar()

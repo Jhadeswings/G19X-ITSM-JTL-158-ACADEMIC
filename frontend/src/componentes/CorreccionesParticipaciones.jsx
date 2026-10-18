@@ -42,9 +42,10 @@
 // SOLO de presentación sobre las claves REALES de participación; una clave
 // desconocida se muestra tal cual llega, sin perder información.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { obtenerCuenta } from '../api/cuenta.js'
 import { POR_PAGINA_DEFECTO, listarMisAuditorias } from '../api/misAuditorias.js'
+import { crearEsperaMinimaCarga } from '../lib/esperaMinimaCarga.js'
 import EstadoCarga from '../componentes/EstadoCarga.jsx'
 import EstadoError from '../componentes/EstadoError.jsx'
 import EstadoVacio from '../componentes/EstadoVacio.jsx'
@@ -193,12 +194,29 @@ export default function CorreccionesParticipaciones({ token, alSesionExpirada })
   // Filtro visual activo sobre la página YA cargada ('' = Todos). No altera
   // el total del backend ni dispara nuevas consultas.
   const [filtro, setFiltro] = useState('')
+  // Espera mínima cancelable de la carga INICIAL + guarda de vigencia: solo
+  // la ÚLTIMA consulta actualiza el estado. Filtros locales y cambios de
+  // presentación NO esperan. Se cancela al desmontar.
+  const esperaRef = useRef(null)
+  if (esperaRef.current === null) esperaRef.current = crearEsperaMinimaCarga()
+  const cargaActualRef = useRef(0)
+  useEffect(() => () => {
+    esperaRef.current?.cancelar()
+    cargaActualRef.current += 1
+  }, [])
 
   const cargar = useCallback(() => {
+    const inicio = Date.now()
+    const solicitud = ++cargaActualRef.current
     setConsulta(consultaInicial())
     listarMisAuditorias(token, { pagina, porPagina: POR_PAGINA_DEFECTO })
-      .then((datos) => setConsulta({ fase: 'listo', datos, error: null }))
+      .then(async (datos) => {
+        await esperaRef.current.esperar(inicio)
+        if (solicitud !== cargaActualRef.current) return
+        setConsulta({ fase: 'listo', datos, error: null })
+      })
       .catch((error) => {
+        if (solicitud !== cargaActualRef.current) return
         if (error?.estado === 401) {
           alSesionExpirada?.()
           return

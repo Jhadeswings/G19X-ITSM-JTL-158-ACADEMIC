@@ -35,11 +35,12 @@
 // o las capacitaciones fallen no oculta el resumen de competencias, que ya sí
 // cargó. El 401 de cualquier fuente delega en `alSesionExpirada`.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, FolderKanban, GraduationCap, Target } from 'lucide-react'
 import { obtenerResultadoActual } from '../api/resultado.js'
 import { listarMisProyectos } from '../api/proyectos.js'
 import { listarCapacitaciones } from '../api/capacitaciones.js'
+import { crearEsperaMinimaCarga } from '../lib/esperaMinimaCarga.js'
 import { NOMBRES_COMPETENCIAS } from '../textos.js'
 import { Button } from '../componentes/ui/Button.jsx'
 import ContextualNetwork from '../componentes/ContextualNetwork.jsx'
@@ -91,19 +92,35 @@ function consultaInicial() {
  */
 function usarConsulta(consultar, token, alSesionExpirada) {
   const [estado, setEstado] = useState(consultaInicial)
+  // Espera mínima cancelable del estado de carga inicial: evita el destello
+  // cuando el backend responde muy rápido. Solo los éxitos esperan; los
+  // errores y el 401 llegan de inmediato. Guarda de vigencia: solo la
+  // ÚLTIMA solicitud iniciada actualiza el estado.
+  const esperaRef = useRef(null)
+  if (esperaRef.current === null) esperaRef.current = crearEsperaMinimaCarga()
+  const espera = esperaRef.current
+  const solicitudRef = useRef(0)
+  useEffect(() => () => espera.cancelar(), [espera])
 
   const cargar = useCallback(() => {
+    const inicio = Date.now()
+    const solicitud = ++solicitudRef.current
     setEstado(consultaInicial())
     consultar(token)
-      .then((datos) => setEstado({ fase: 'listo', datos, error: null }))
+      .then(async (datos) => {
+        await espera.esperar(inicio)
+        if (solicitud !== solicitudRef.current) return
+        setEstado({ fase: 'listo', datos, error: null })
+      })
       .catch((e) => {
         if (e?.estado === 401) {
           alSesionExpirada?.()
           return
         }
+        if (solicitud !== solicitudRef.current) return
         setEstado({ fase: 'error', datos: null, error: e })
       })
-  }, [consultar, token, alSesionExpirada])
+  }, [consultar, token, alSesionExpirada, espera])
 
   useEffect(() => {
     cargar()

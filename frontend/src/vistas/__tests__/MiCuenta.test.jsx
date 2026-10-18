@@ -60,6 +60,26 @@ describe('MiCuenta — carga', () => {
     expect(screen.getByText('Cargando tu información…')).toBeInTheDocument()
   })
 
+  it('una respuesta muy rápida mantiene el loading visible el mínimo perceptible', async () => {
+    const inicio = Date.now()
+    renderizar()
+
+    expect(screen.getByText('Cargando tu información…')).toBeInTheDocument()
+    await screen.findByRole('heading', { name: 'Información de la cuenta' })
+    expect(Date.now() - inicio).toBeGreaterThanOrEqual(350)
+  })
+
+  it('un error de carga no espera el mínimo', async () => {
+    vi.mocked(obtenerCuenta).mockRejectedValueOnce(errorCon(500, 'Fallo'))
+    const inicio = Date.now()
+    renderizar()
+
+    expect(
+      await screen.findByText('No pudimos cargar esta información.'),
+    ).toBeInTheDocument()
+    expect(Date.now() - inicio).toBeLessThan(400)
+  })
+
   it('consulta /me con el token y sin empleado_id', async () => {
     renderizar()
 
