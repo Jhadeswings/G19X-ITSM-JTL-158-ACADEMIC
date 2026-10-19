@@ -18,7 +18,7 @@ from app.services.ai.ai_orchestrator import (
     AIOrchestrator,
     validar_salida_proveedor,
 )
-from app.services.ai.proveedores import ErrorProveedor
+from app.services.ai.proveedores import ErrorProveedor, _texto_crudo
 from tests.helpers import (
     URL_RH_BUSQUEDA_MANUAL,
     URL_RH_INTERPRETAR_BUSQUEDA,
@@ -373,3 +373,58 @@ class TestIntegracionConBusquedaManual:
 
 
 
+class TestTextoCrudo:
+    """``_texto_crudo``: cadenas y listas de partes (adaptadores LangChain).
+
+    Una respuesta SIN texto utilizable jamás se convierte en respuesta
+    válida: cadena vacía, lista vacía, partes sin texto y tipos distintos
+    siguen siendo ``ErrorProveedor``.
+    """
+
+    class _ParteObjeto:
+        """Parte estilo objeto LangChain con atributo ``text``."""
+
+        def __init__(self, text):
+            self.text = text
+
+    @staticmethod
+    def _mensaje(contenido):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(content=contenido)
+
+    def test_cadena_simple(self):
+        assert _texto_crudo(self._mensaje("texto plano")) == "texto plano"
+
+    def test_cadena_vacia_es_error(self):
+        with pytest.raises(ErrorProveedor):
+            _texto_crudo(self._mensaje("   "))
+
+    def test_lista_una_parte_dict(self):
+        contenido = [{"type": "text", "text": "OK", "extras": {}}]
+        assert _texto_crudo(self._mensaje(contenido)) == "OK"
+
+    def test_lista_mixta_extrae_solo_segmentos_de_texto(self):
+        contenido = [
+            {"type": "thinking", "thinking": "razonamiento interno"},
+            {"type": "text", "text": "respuesta "},
+            self._ParteObjeto("final"),
+        ]
+        assert _texto_crudo(self._mensaje(contenido)) == "respuesta final"
+
+    def test_lista_vacia_es_error(self):
+        with pytest.raises(ErrorProveedor):
+            _texto_crudo(self._mensaje([]))
+
+    def test_partes_sin_texto_utilizable_son_error(self):
+        contenido = [
+            {"type": "image_url", "image_url": {"url": "x"}},
+            {"type": "text", "text": ""},
+            self._ParteObjeto("   "),
+        ]
+        with pytest.raises(ErrorProveedor):
+            _texto_crudo(self._mensaje(contenido))
+
+    def test_contenido_de_otro_tipo_es_error(self):
+        with pytest.raises(ErrorProveedor):
+            _texto_crudo(self._mensaje(None))

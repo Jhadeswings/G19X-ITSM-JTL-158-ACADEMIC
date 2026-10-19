@@ -54,12 +54,52 @@ class ProveedorLLM(Protocol):
         ...  # pragma: no cover
 
 
+def _segmentos_de_texto(partes: list) -> list[str]:
+    """Segmentos de texto válidos de una lista de partes de contenido.
+
+    Cada parte puede ser un dict ``{"type": "text", "text": ...}`` (formato
+    de los adaptadores LangChain actuales con modelos de varias partes) o un
+    objeto con atributo ``text``. Las partes que no aportan texto utilizable
+    (otros ``type``, ``text`` ausente o vacío) se omiten de forma explícita:
+    JAMÁS se fabrica texto que el proveedor no envió.
+    """
+    segmentos: list[str] = []
+    for parte in partes:
+        texto: str | None = None
+        if isinstance(parte, dict):
+            if parte.get("type") in (None, "text"):
+                valor = parte.get("text")
+                if isinstance(valor, str):
+                    texto = valor
+        else:
+            valor = getattr(parte, "text", None)
+            if isinstance(valor, str):
+                texto = valor
+        if texto is not None and texto.strip():
+            segmentos.append(texto)
+    return segmentos
+
+
 def _texto_crudo(mensaje: BaseMessage) -> str:
-    """Extrae el texto plano de la respuesta; rechaza salidas ilegibles."""
+    """Extrae el texto plano de la respuesta; rechaza salidas ilegibles.
+
+    Acepta ``content`` como cadena (contrato clásico) o como LISTA de partes
+    (el formato con el que los adaptadores LangChain actuales devuelven los
+    modelos de varias partes). En ambos casos una respuesta sin texto
+    utilizable — cadena vacía, lista vacía, partes sin texto o un tipo
+    distinto — sigue siendo ``ErrorProveedor``: nada se convierte
+    silenciosamente en una respuesta válida.
+    """
     contenido = mensaje.content
-    if not isinstance(contenido, str) or not contenido.strip():
+    if isinstance(contenido, str):
+        texto = contenido
+    elif isinstance(contenido, list):
+        texto = "".join(_segmentos_de_texto(contenido))
+    else:
         raise ErrorProveedor("El proveedor devolvió una respuesta sin texto.")
-    return contenido
+    if not texto.strip():
+        raise ErrorProveedor("El proveedor devolvió una respuesta sin texto.")
+    return texto
 
 
 class GroqProveedor:
