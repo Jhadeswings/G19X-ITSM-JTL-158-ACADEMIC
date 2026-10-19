@@ -980,6 +980,6 @@ El MVP se considera funcionalmente cerrado cuando:
 - la mentoría y sus desempates son deterministas;
 - `Atención requerida` es derivada, no persistente;
 - fortalezas y oportunidades son reproducibles por reglas;
-- el frontend respeta el Style Guide v1.1.
+- el frontend respeta el Style Guide v1.2.
 
 **ESTADO: LISTO PARA ENTREGA A GLM.**

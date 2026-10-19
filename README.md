@@ -2,7 +2,10 @@
 
 MVP web local para **PluriOne S.A. de C.V.**
 
-- **PRD:** v1.4 · **Especificación Técnica:** v1.6 · **Style Guide:** v1.2 (documentos en la raíz)
+**Alumno:** Jade Tinoco Landa · **Matrícula:** 222T098
+**Institución:** Instituto Tecnológico Superior de Misantla
+
+- **PRD:** v1.4 ([`docs/prd.md`](docs/prd.md)) · **Especificación Técnica:** v1.6 ([`docs/especificacion-tecnica.md`](docs/especificacion-tecnica.md)) · **Style Guide:** v1.2 ([`docs/style-guide.md`](docs/style-guide.md)) · versiones anteriores en [`docs/historico/`](docs/historico)
 - **Estado actual:** MVP funcional: autenticación con roles, gestión de empleados
   y proyectos, participaciones con auditoría transaccional, evaluaciones
   oficiales históricas, historial personal del empleado y exportación de
@@ -205,13 +208,154 @@ configurable por entorno (`backend/.env`; decisión y variables en
   correos reales. **La entrega contra un proveedor SMTP real aún no ha
   sido validada con credenciales de producción.**
 
+## Usuario de prueba
+
+**La instalación oficial no define usuario y contraseña universales de
+demostración** (decisión de seguridad del proyecto: ninguna credencial fija
+vive en el código ni en el repositorio). Existe, opcionalmente, un artefacto
+de datos sintéticos de demostración para evaluación académica, con
+credenciales públicas y estrictamente locales: véase
+[Datos de demostración](#datos-de-demostración-opcional-evaluación-académica).
+
+- **Primer usuario RH:** se configura al arrancar el sistema con las
+  variables `SEED_RH_EMAIL` y `SEED_RH_PASSWORD` de la raíz `.env`; sigue las
+  instrucciones de [Primer acceso de RH](#primer-acceso-de-rh).
+- **Empleados de prueba:** los crea RH desde la aplicación; cada empleado
+  recibe una **credencial temporal por correo** y debe cambiarla en su primer
+  inicio. En desarrollo los correos se consultan en la bandeja de MailHog
+  (`http://localhost:8025`; véase la sección de correo de arriba).
+- Guía completa de uso por rol (RH y Empleado):
+  [`docs/manual-usuario.md`](docs/manual-usuario.md).
+
+## Datos de demostración (opcional, evaluación académica)
+
+Esta sección describe un **artefacto opcional de evaluación local**. La
+**instalación oficial del sistema no lo requiere ni lo usa**: véase
+[Levantar el entorno](#levantar-el-entorno), donde Alembic sigue siendo la
+única fuente oficial del esquema y la primera cuenta de RH se crea con
+`SEED_RH_EMAIL`/`SEED_RH_PASSWORD`.
+
+`db/base-de-datos.sql` es un volcado generado con `pg_dump` desde una base
+que cumplió exactamente el camino oficial: migraciones de Alembic aplicadas
+sobre una base vacía y, después, el seed opcional
+`backend/app/core/seed_demo.py` (dataset 100 % sintético, invocación manual
+con `--confirmar-demo`; nunca corre en el arranque de Docker y no modifica
+el seed RH oficial).
+
+### Cuentas del dataset de demostración
+
+Todas las cuentas usan la **misma contraseña pública**: `Demo2026A`.
+
+| Correo | Rol | Notas |
+|---|---|---|
+| `rh.demo@example.com` | RH | Sin empleado asociado. |
+| `empleado01@example.com` … `empleado05@example.com` | Empleado | Empleados activos con historia de proyectos, capacitaciones y evaluaciones. |
+| `empleado06@example.com` | Empleado | Empleado inactivo a propósito (las evaluaciones lo excluyen). |
+
+> **Advertencia de seguridad:** son credenciales **públicas**, creadas solo
+> para la demostración local de este MVP. **Nunca deben emplearse en
+> producción** ni en ningún entorno con datos reales. El seed rechaza
+> ejecutarse si `APP_ENV=production` y aborta si la base no cumple la
+> convención `talento_demo*` o contiene datos ajenos.
+
+> **Advertencia de correo:** `example.com` es un dominio reservado de
+> ejemplo (RFC 2606): **esas cuentas no recibirán ningún correo**. El
+> sistema no intentará enviar nada a esas direcciones durante la
+> demostración y cualquier recuperación de contraseña quedará sin entregar.
+
+### Importar `db/base-de-datos.sql`
+
+Crear una base vacía con nombre único que cumpla la convención demo y
+volcar el archivo en ella:
+
+```bash
+# 1) Crear la base vacía (verifica antes que no exista)
+docker exec talento_db psql -U talento -d postgres -c \
+  "SELECT datname FROM pg_database WHERE datname = 'talento_demo_evaluacion';"
+docker exec talento_db psql -U talento -d postgres -c \
+  "CREATE DATABASE talento_demo_evaluacion;"
+
+# 2) Importar el volcado, deteniéndose ante cualquier error
+docker exec -i talento_db psql -U talento -d talento_demo_evaluacion \
+  -v ON_ERROR_STOP=1 < db/base-de-datos.sql
+```
+
+En PowerShell (Windows), la tubería debe ser transparente a bytes para no
+corromper los acentos del dataset:
+
+```powershell
+cmd /c type db\base-de-datos.sql | docker exec -i talento_db psql -U talento -d talento_demo_evaluacion -v ON_ERROR_STOP=1
+```
+
+La importación termina sin errores y la base queda con `alembic_version`
+en la revisión vigente, las 97 restricciones (PK/FK/UNIQUE/CHECK), el
+trigger de inmutabilidad de `evaluaciones`, las secuencias ajustadas y las
+7 cuentas de demostración. El inicio de sesión funciona con la API real:
+`POST /api/v1/auth/login` con cualquiera de las cuentas anteriores y
+`Demo2026A` responde 200.
+
+### Regenerar `db/base-de-datos.sql`
+
+Úsalo solo si el esquema (Alembic) o el dataset de `seed_demo.py` cambian:
+
+```bash
+# 1) Base temporal nueva con prefijo demo (verificar que no exista antes)
+docker exec talento_db psql -U talento -d postgres -c \
+  "CREATE DATABASE talento_demo_regeneracion;"
+
+# 2) Migraciones oficiales de Alembic sobre esa base
+cd backend
+DATABASE_URL="postgresql+psycopg2://talento:talento_local@localhost:5433/talento_demo_regeneracion" \
+  python -m alembic upgrade head
+
+# 3) Seed de demostración, con su confirmación explícita
+DATABASE_URL="postgresql+psycopg2://talento:talento_local@localhost:5433/talento_demo_regeneracion" \
+  python -m app.core.seed_demo --confirmar-demo
+
+# 4) Volcado con pg_dump (NO usar pg_dumpall)
+docker exec talento_db pg_dump -U talento talento_demo_regeneracion -f /tmp/base-de-datos.sql
+docker cp talento_db:/tmp/base-de-datos.sql ../db/base-de-datos.sql
+cd ..
+
+# 5) Eliminar SOLO la base temporal creada para regenerar
+docker exec talento_db psql -U talento -d postgres -c \
+  "DROP DATABASE talento_demo_regeneracion;"
+```
+
+En PowerShell, `docker cp` puede requerir ejecutar el volcado y la copia en
+la misma sesión; la verificación final es comparar el tamaño/contenido del
+archivo copiado con `docker exec talento_db sh -c "wc -c /tmp/base-de-datos.sql"`.
+
+### Separación entre instalación oficial y evaluación académica
+
+- **Instalación oficial:** [Levantar el entorno](#levantar-el-entorno);
+  esquema solo con Alembic, cuenta RH con variables del `.env`, sin
+  credenciales fijas. Es el único camino válido para cualquier uso real.
+- **Evaluación académica:** este apartado; importa un archivo estático en
+  una base desechable `talento_demo*` con credenciales públicas, para
+  mostrar el MVP poblado sin depender del flujo de correo ni del alta RH.
+
+El seed de demostración nunca borra ni modifica datos ajenos: no contiene
+`TRUNCATE` ni `DROP`, solo carga en bases vacías o revalida un dataset ya
+completo (idempotente).
+
 ## Estructura del repositorio
 
 ```
 .
 ├── docker-compose.yml       # orquestación local (db, backend, frontend, mailhog)
-├── db/init/                 # scripts de inicialización de PostgreSQL (pg_trgm)
+├── docs/                    # documentación técnica en Markdown
+│   ├── prd.md                      # PRD v1.4 (vigente)
+│   ├── especificacion-tecnica.md   # Especificación Técnica v1.6 (vigente)
+│   ├── style-guide.md              # Style Guide UX/UI v1.2 (vigente)
+│   ├── manual-usuario.md           # manual de uso por rol (RH y Empleado)
+│   ├── notas-diseno.md             # evolución del diseño frontend y alcance futuro
+│   └── historico/                  # versiones anteriores (PRD v1.3, ET v1.5, SG v1.1)
+├── db/
+│   ├── init/                # scripts de inicialización de PostgreSQL (pg_trgm)
+│   └── base-de-datos.sql    # volcado opcional de la base de demostración (evaluación académica)
 ├── backend/                 # API FastAPI + Alembic
+│   ├── DECISIONES_TECNICAS.md  # decisiones técnicas del proyecto (subordinadas a PRD/ET/SG)
 │   ├── app/
 │   │   ├── core/            # configuración, conexión a BD, seguridad, seed
 │   │   ├── api/             # routers: auth, me_*, rh_*
@@ -315,3 +459,45 @@ mockeado en todos los archivos de `src/**/__tests__/`.
 - Zona horaria de negocio: `America/Mexico_City`.
 - La entrega de correo contra un proveedor SMTP real aún no ha sido validada
   con credenciales de producción (en desarrollo se usa MailHog).
+
+## Limitaciones conocidas
+
+Nada de lo listado aquí es un defecto oculto: son límites declarados del MVP,
+distinguidos en tres categorías.
+
+### A. Implementado, pero no validado en producción
+
+- **Envío de correo con un servidor SMTP real:** las verificaciones
+  existentes se realizaron con MailHog (buzón local de desarrollo).
+- **Proveedores reales de IA (Groq/Gemini):** la interpretación de búsqueda y
+  las recomendaciones se han probado con proveedores simulados; sin claves
+  configuradas el sistema degrada de forma controlada.
+- **Despliegue público de producción:** el entorno Compose actual es de
+  desarrollo (`uvicorn --reload` y el servidor de desarrollo de Vite) y no
+  configura HTTPS de producción.
+- **Exportación de perfil a PDF:** depende de la función de impresión del
+  navegador («Guardar como PDF» del diálogo de impresión).
+
+### B. Decisiones deliberadas de diseño o seguridad
+
+- **Ausencia de credenciales fijas en la instalación oficial** (véase
+  [Usuario de prueba](#usuario-de-prueba)). El artefacto opcional de
+  [datos de demostración](#datos-de-demostración-opcional-evaluación-académica)
+  usa credenciales públicas que son **solo** para evaluación local.
+- **Recuperación de contraseña mediante token entregado por correo** que el
+  usuario introduce manualmente; el MVP no define un enlace público de
+  recuperación.
+- **Tokens de acceso JWT de 30 minutos y ausencia de refresh tokens**,
+  conforme a la decisión técnica documentada en
+  `backend/DECISIONES_TECNICAS.md` §1.
+- **Almacenamiento de la sesión en `localStorage`**, conforme a la
+  implementación actual del frontend.
+
+### C. Fuera del alcance del MVP
+
+Exclusiones declaradas por el producto (PRD v1.4 §2.2). **No son funciones
+fallidas ni pendientes de arreglo**: multitenancy, aplicación móvil nativa,
+hosting público de producción, módulo completo de vacantes/reclutamiento,
+ranking social entre empleados, score global de talento, chatbot permanente,
+reactivación de cuentas/proyectos como flujo especial y combinación/merge de
+proyectos. La lista completa está en [`docs/prd.md`](docs/prd.md) (§2.2).
