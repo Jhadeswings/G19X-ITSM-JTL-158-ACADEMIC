@@ -97,7 +97,7 @@ proveedores simulados: nunca llaman a servicios externos.
 
 ```bash
 cp .env.example .env            # Windows: copy .env.example .env
-cd backend && cp .env.example .env && cd ..   # opcional, solo para correr el backend fuera de Docker
+cd backend && cp .env.example .env && cd ..   # también obligatorio para Docker Compose (Windows: copy backend\.env.example backend\.env)
 cd frontend && cp .env.example .env && cd ..  # opcional, solo para correr el frontend fuera de Docker
 ```
 
@@ -120,9 +120,17 @@ En el `.env` de la raíz (el que lee Docker Compose):
 > real**, igual que `SECRET_KEY`. Nunca se versionan secretos reales: los
 > `.env` están ignorados por Git.
 
-`backend/.env` (solo se usa fuera de Docker; dentro de la red de Compose las
-variables las fija el propio `docker-compose.yml`) documenta además la
-conexión a PostgreSQL, la vida de los tokens y el proveedor SMTP/IA.
+`backend/.env` **también es necesario para Docker Compose**: el servicio
+`backend` lo carga mediante `env_file`, y `docker compose up` falla si el
+archivo no existe. Completa sus variables con valores válidos para tu
+entorno: `SECRET_KEY` (generada como arriba), la conexión a PostgreSQL
+(dentro de la red de Compose, `DATABASE_URL` la fija el propio
+`docker-compose.yml`), la vida de los tokens y el proveedor SMTP/IA. Las
+variables SMTP y las claves de IA pueden quedarse vacías: sin proveedor de
+correo el alta responde 503 sin crear la cuenta, y sin claves de IA la
+interpretación de búsqueda responde con el error 502 controlado (ver
+«Correo» más abajo). Los `.env` reales, con o sin secretos, jamás se suben
+a Git: están ignorados (ver nota anterior).
 
 ### 2. Construir y arrancar
 
