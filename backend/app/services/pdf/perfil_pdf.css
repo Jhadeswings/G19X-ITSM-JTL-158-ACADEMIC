@@ -1,0 +1,302 @@
+/* Perfil del empleado — hoja de estilos de impresión (DECISIONES §55).
+ * Especificación: 2 páginas Carta (Letter) verticales, márgenes 14mm/12mm,
+ * fondo blanco, sin cabeceras/pies automáticos, sin tarjetas ni sombras.
+ * Paleta exacta; sin más colores decorativos.
+ */
+
+@page {
+  size: Letter portrait;
+  margin: 14mm 12mm;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #FFFFFF;
+}
+
+body {
+  font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #263238;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Paginación explícita: la página 1 termina con FyO|Experiencia y la 2
+   comienza con Última Evaluación Oficial. Ningún bloque se parte. */
+.pagina { width: 100%; }
+.pagina--2 { break-before: page; page-break-before: always; }
+
+.titulo {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #234B4A;
+  margin: 0 0 6px;
+}
+
+.subtitulo {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #234B4A;
+  margin: 0;
+}
+
+.descripcion {
+  font-size: 12px;
+  color: #546E7A;
+  margin: 0 0 14px;
+}
+
+.descripcion--cursiva {
+  font-style: italic;
+  margin: 4px 0 0;
+}
+
+/* --- 5.1 Encabezado --- */
+.encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #234B4A;
+  padding-bottom: 18px;
+  margin-bottom: 22px;
+}
+
+.encabezado__izquierda { min-width: 0; }
+
+.encabezado__nombre {
+  font-size: 26px;
+  font-weight: 700;
+  color: #234B4A;
+  letter-spacing: -0.3px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.encabezado__subtitulo {
+  margin: 4px 0 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #4F7F7B;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.encabezado__meta {
+  font-size: 12px;
+  color: #263238;
+  white-space: nowrap;
+  margin: 0;
+  padding-top: 8px;
+}
+
+.encabezado__valor {
+  font-weight: 600;
+  color: #234B4A;
+  background: #E8EFEF;
+  padding: 2px 8px;
+}
+
+/* --- 5.2 Datos básicos --- */
+.datos-basicos {
+  display: flex;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid #E2E8E5;
+  margin-bottom: 28px;
+}
+
+.dato { flex: 1; min-width: 0; }
+
+.dato__etiqueta {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #4F7F7B;
+}
+
+.dato__valor {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* --- 5.3 Nota (recuadro gris claro, borde izquierdo verde) --- */
+.nota {
+  font-size: 12px;
+  color: #37474F;
+  background: #F5F7F5;
+  border-left: 3px solid #4F7F7B;
+  padding: 7px 12px;
+  margin: 6px 0 16px;
+}
+
+/* --- 5.4 Competencias en dos columnas --- */
+.competencias {
+  display: flex;
+  gap: 36px;
+}
+
+.competencias__columna { flex: 1; min-width: 0; }
+
+.competencia {
+  border-bottom: 1px solid #E2E8E5;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.competencia__fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.competencia__nombre {
+  font-size: 13px;
+  font-weight: 700;
+  color: #234B4A;
+}
+
+.competencia__nivel {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.competencia__nivel--consolidado { color: #234B4A; font-weight: 700; }
+.competencia__nivel--crecimiento { color: #4F7F7B; font-weight: 600; }
+.competencia__nivel--desarrollo { color: #A85A36; font-weight: 600; }
+.competencia__nivel--di { color: #90A4AE; font-style: italic; }
+
+/* Filas descripción izquierda / valor derecha (evidencias, experiencia,
+   históricos y 9-Box): nunca viñetas. */
+.fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.fila__desc { color: #546E7A; }
+
+.fila__valor {
+  color: #263238;
+  font-weight: 700;
+  text-align: right;
+}
+
+.fila__valor--di {
+  color: #90A4AE;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* --- 5.5 Fortalezas/Oportunidades | Experiencia (cierre de página 1) --- */
+.doble {
+  display: flex;
+  gap: 36px;
+  margin-top: 26px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.doble__columna { flex: 1; min-width: 0; }
+
+.grupo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 10px 0 2px;
+}
+
+.grupo--fortalezas { color: #4F7F7B; }
+.grupo--oportunidades { color: #D99A7C; }
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lista li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.lista__vineta { font-size: 8px; }
+.lista--fortalezas .lista__vineta { color: #4F7F7B; }
+.lista--oportunidades .lista__vineta { color: #D99A7C; }
+
+.lista__texto {
+  font-size: 13px;
+  font-weight: 700;
+  color: #263238;
+}
+
+/* --- 6.1 Bloque histórico --- */
+.historico {
+  border-left: 2px solid #234B4A;
+  padding-left: 14px;
+  margin-bottom: 24px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.historico__linea {
+  font-size: 12px;
+  color: #546E7A;
+  margin: 0 0 6px;
+}
+
+.historico__titulo {
+  font-size: 12px;
+  font-weight: 700;
+  color: #263238;
+  margin: 0 0 6px;
+}
+
+.competencias-historicas {
+  display: flex;
+  gap: 36px;
+}
+
+.competencias-historicas__columna { flex: 1; min-width: 0; }
+
+/* --- 6.2 9-Box y evolución --- */
+.ninebox {
+  max-width: 60%;
+  margin-bottom: 4px;
+}
+
+.fila--ninebox { font-size: 12.5px; }
+
+/* --- 6.3 Acciones de Desarrollo --- */
+.acciones {
+  margin-top: 26px;
+  border-top: 1px solid #E2E8E5;
+  padding-top: 14px;
+  font-size: 12px;
+  color: #546E7A;
+}
+
+.acciones p { margin: 0; }
+
+.acciones__titulo {
+  font-weight: 700;
+  color: #4F7F7B;
+}

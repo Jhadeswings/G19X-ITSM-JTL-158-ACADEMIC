@@ -9,7 +9,7 @@
 // y el backend aplica require_rh en cada petición (ET §31/§32). Aquí no se
 // decide ningún permiso.
 
-import { solicitar } from './clienteApi.js'
+import { solicitar, solicitarArchivo } from './clienteApi.js'
 
 /**
  * Crea un empleado con su cuenta de acceso.
@@ -209,4 +209,27 @@ function parametrosListado({
  */
 export async function listarEmpleados(token, filtros = {}) {
   return solicitar(`/api/v1/rh/employees?${parametrosListado(filtros)}`, { token })
+}
+
+// Descarga REAL del informe PDF del perfil (DECISIONES_TECNICAS §55).
+//
+// Usa el endpoint GET /api/v1/rh/employees/{id}/profile/pdf: el BACKEND
+// genera el documento (plantilla HTML+CSS convertida a PDF con Chromium vía
+// Playwright) componiendo los mismos servicios y permisos del perfil
+// (require_rh + 404 del empleado). Aquí no se calcula, se dibuja ni se
+// transforma nada: este módulo solo transporta el archivo binario y el
+// nombre seguro que propone el servidor (sin correo).
+
+/**
+ * Descarga el informe PDF del perfil de un empleado (RH).
+ * @param {string} token token de la sesión RH.
+ * @param {number|string} empleadoId identificador del empleado (`empleado.id`).
+ * @returns {Promise<{blob: Blob, nombreArchivo: string}>} archivo y nombre
+ *   seguro propuesto por el backend (p. ej. `perfil-empleado-ana-lopez-2026-10-18.pdf`).
+ */
+export async function descargarPerfilPdf(token, empleadoId) {
+  return solicitarArchivo(
+    `/api/v1/rh/employees/${encodeURIComponent(empleadoId)}/profile/pdf`,
+    { token },
+  )
 }

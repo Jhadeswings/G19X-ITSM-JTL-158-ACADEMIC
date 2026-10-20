@@ -975,3 +975,105 @@ manual).
     paginación, autorización y ausencia de escrituras en la base de datos
     (comparación de row counts, patrón de §37).
 
+## 55. Exportación real del perfil a PDF (HTML+CSS + Chromium, backend)
+
+**Contexto.** La exportación original (Tarea D) usaba la hoja de impresión
+del navegador (`window.print()`, ET §43). El producto exigió después una
+descarga REAL: un archivo `.pdf` generado por el sistema, con texto
+seleccionable y sin depender del diálogo de impresión. La primera versión
+usó ReportLab, pero su salida no cumplía la especificación visual; se
+reemplazó por una plantilla maquetada.
+
+**Decisión.**
+
+1. Motor: **plantilla HTML + CSS convertida a PDF con Chromium vía
+   Playwright**. Archivos dedicados: `app/services/pdf/plantilla_perfil.html`
+   (estructura) y `app/services/pdf/perfil_pdf.css` (hoja de impresión con
+   `@page { size: Letter portrait; margin: 14mm 12mm; }`). El renderizado
+   usa `print_background=True` (fondos y colores de impresión),
+   `prefer_css_page_size=True` (la CSS manda el tamaño de página) y
+   márgenes del renderizador a 0 (sin márgenes contradictorios), con
+   `display_header_footer=False` (sin cabeceras, pies ni numeración).
+   Resultado: texto real seleccionable, no una captura. Exactamente 2
+   páginas Carta: la página 1 cierra con «Fortalezas y oportunidades |
+   Experiencia» y la 2 abre con «Última evaluación oficial»; los cortes se
+   evitan con `break-inside/break-before` en la CSS.
+2. Chromium se instala **al construir la imagen Docker** (`python -m
+   playwright install --with-deps chromium` + fuentes), nunca en cada
+   petición: el servicio solo lanza el navegador, y la página, el navegador
+   y el contexto se cierran siempre (`finally`), también ante errores. Un
+   fallo de generación responde 500 con mensaje genérico; el detalle no se
+   expone ni se registra con datos del empleado.
+3. Endpoint `GET /api/v1/rh/employees/{empleado_id}/profile/pdf` dentro
+   del router YA protegido por `require_rh` (401 sin token, 403 Empleado,
+   404 inexistente): misma autorización y anti-IDOR que el perfil en
+   pantalla. La vista añade la acción «Descargar PDF» junto al «Guardar
+   como PDF» histórico, que se conserva.
+4. `app/services/perfil_pdf_service.py` COMPONE servicios existentes
+   (`empleado_service`, `resultado_actual_service`, `nine_box_service`,
+   `evaluation_service`): cero fórmulas duplicadas (ET §13), cero
+   persistencia (no crea evaluaciones ni guarda `ResultadoActual`,
+   §18/§24) y CERO IA — la descarga nunca dispara una sugerencia
+   (§52): el bloque «Acciones de Desarrollo» es un texto fijo de
+   presentación. Todo el contenido dinámico se escapa (`xml.sax.saxutils`)
+   antes de insertarse en el HTML.
+5. `INSUFFICIENT_DATA` se imprime como «Datos insuficientes» (cursiva
+   `#90A4AE`, nunca nivel 0, §14) y el 9-Box vacío como tal (§20.2). El
+   histórico del snapshot NUNCA se recalcula; convive con un resultado
+   actual que puede diferir (prueba `test_historico_no_recalculado`). Sin
+   evaluaciones oficiales se muestra el estado de ausencia permitido, sin
+   inventar periodo.
+6. Nombre de archivo ASCII sanitizado SIN correo:
+   `perfil-empleado-{slug}-{YYYY-MM-DD}.pdf` (fecha de negocio
+   `America/Mexico_City`, nunca la de una evaluación). El documento no
+   lleva cabeceras, pies, fechas al margen ni números de página; nada del
+   contenido se registra en logs.
+7. `reportlab` se eliminó de `requirements.txt`: su único consumidor era
+   este servicio. `playwright` pasa a ser dependencia de ejecución y
+   `pypdf` de pruebas (inspección de páginas/tamaño y extracción de texto).
+
+**Pruebas** (`tests/test_perfil_pdf.py`): validez de archivo, cabecera
+`Content-Disposition`, dos páginas Carta exactas (612 × 792 pt por página),
+corte de páginas (página 1 cierra en FyO|Experiencia; página 2 abre en
+«Última evaluación oficial»), ausencia de cabeceras/pies/numeración,
+secciones y acentos, orden de las cinco competencias, datos reales por
+empleado (nunca los del documento de referencia), DI y ausentes («—»),
+histórico no recalculado, autorización 401/403/404, ausencia de escrituras
+(row counts) y de invocación IA (trampa en `construir_orchestrator`), y una
+**muestra sintética** con todos los valores de referencia del documento
+(generada con `tests/muestra_perfil_pdf.py`, auxiliar LOCAL excluido del
+repositorio: no forma parte de la suite ni de la entrega; ver
+`.gitignore`). Frontend: 6 pruebas
+en `PerfilEmpleado.test.jsx` (descarga con nombre del servidor, estado
+«Generando PDF…», error con reintento, 401 delegado, sin IA ni
+escrituras).
+
+## 56. Extractor de texto IA: cadena o lista de partes (`_texto_crudo`)
+
+**Contexto.** Los adaptadores LangChain actuales (comprobado con
+`langchain-google-genai` 4.x y modelos de varias partes) pueden devolver
+`message.content` como LISTA de partes (`[{"type": "text", "text": ...}]`)
+en lugar de una cadena. El extractor original solo aceptaba `str`, de modo
+que respuestas válidas de Gemini se descartaban como «sin texto» y el
+orquestador terminaba en el error controlado (502) aunque la llamada al
+proveedor hubiera tenido éxito.
+
+**Decisión.**
+
+1. `_texto_crudo` (`app/services/ai/proveedores.py`) acepta cadena O lista
+   de partes: concatena exclusivamente los segmentos de texto válidos
+   (dicts `{"type": "text", "text": ...}` u objetos con atributo `text`);
+   las partes de otro tipo (p. ej. `thinking`) se omiten de forma
+   explícita. JAMÁS se fabrica texto que el proveedor no envió.
+2. Una respuesta SIN texto utilizable — cadena vacía, lista vacía, partes
+   sin texto o un tipo distinto — sigue siendo `ErrorProveedor`
+   controlado: nunca se convierte silenciosamente en una respuesta
+   válida.
+3. Aplica a AMBOS adaptadores (Groq y Gemini) por compartir la función;
+   sin cambios de modelos, dependencias ni parámetros de generación.
+
+**Pruebas.** `backend/tests/test_interpretacion_busqueda.py::
+TestTextoCrudo` cubre cadena simple, cadena vacía, listas con texto,
+listas mixtas (thinking+text+objeto), lista vacía y partes sin texto.
+Verificado además contra los proveedores reales (Groq primario y Gemini
+fallback) en entorno de desarrollo.

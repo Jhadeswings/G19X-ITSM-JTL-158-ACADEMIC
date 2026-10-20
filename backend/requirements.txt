@@ -26,3 +26,14 @@ langchain-google-genai>=4.4,<5.0
 # Tests (Fase 3): suite contra PostgreSQL real vía Docker.
 pytest>=8.0
 httpx>=0.27
+
+# Exportación del perfil de empleado a PDF (DECISIONES_TECNICAS §55):
+# plantilla HTML+CSS convertida a PDF con Chromium vía Playwright (texto
+# seleccionable, fondos de impresión, tamaño de página por CSS). Chromium se
+# instala AL CONSTRUIR la imagen Docker (ver Dockerfile), nunca en cada
+# petición.
+playwright>=1.49
+
+# Tests (Fase 3): inspección del PDF generado (número de páginas, tamaño
+# Carta y extracción de texto) en tests/test_perfil_pdf.py.
+pypdf>=4.0

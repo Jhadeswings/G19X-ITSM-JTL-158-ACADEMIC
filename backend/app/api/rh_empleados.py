@@ -19,7 +19,11 @@ Un Empleado no puede gestionar empleados (403).
   exclusiva del empleado.
 """
 
+import io
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_rh
@@ -38,6 +42,7 @@ from app.schemas.resultado_actual import ClaveCompetencia, ResultadoActualDTO
 from app.services import (
     empleado_service,
     nine_box_service,
+    perfil_pdf_service,
     resultado_actual_service,
 )
 from app.services.ai.ai_orchestrator import construir_orchestrator
@@ -46,6 +51,7 @@ from app.services.recomendacion_service import RecommendationService
 router = APIRouter(
     prefix="/rh/employees", tags=["rh-empleados"], dependencies=[Depends(require_rh)]
 )
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=EmpleadoOut, status_code=status.HTTP_201_CREATED)
@@ -172,6 +178,49 @@ def consultar_nine_box_actual(
     - Empleado inexistente ⇒ 404 (mismo comportamiento que ``/result``).
     """
     return nine_box_service.obtener_nine_box_actual(db, empleado_id)
+
+
+@router.get("/{empleado_id}/profile/pdf")
+def descargar_perfil_pdf(
+    empleado_id: int, db: Session = Depends(get_db)
+) -> StreamingResponse:
+    """Descarga el informe PDF real del perfil del empleado (DECISIONES §55).
+
+    - Exclusivo RH (``require_rh`` del router): 401 sin token, 403 Empleado,
+      404 si el empleado no existe. Mismos permisos que el perfil en
+      pantalla (ET §43): no se exporta nada que la interfaz no muestre.
+    - Composición de SOLO LECTURA de los servicios existentes (empleado,
+      resultado actual, 9-Box vigente, evaluaciones históricas): cero
+      fórmulas, sin IA, sin persistencia (no crea evaluaciones ni guarda
+      ``ResultadoActual``).
+    - El nombre del archivo es ASCII sanitizado, sin correo:
+      ``perfil-empleado-{slug}-{fecha}.pdf``.
+    - Un fallo de generación (p. ej. el motor de renderizado) responde 500
+      con un mensaje genérico: no se expone el detalle interno ni del
+      empleado en la respuesta ni en logs.
+    - Nada del contenido se registra en logs.
+    """
+    try:
+        contenido, nombre = perfil_pdf_service.generar_pdf_perfil(
+            db, empleado_id
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.warning(
+            "No fue posible generar el PDF del perfil (empleado_id=%s)",
+            empleado_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No fue posible generar el PDF del perfil. "
+                   "Inténtalo de nuevo.",
+        ) from None
+    return StreamingResponse(
+        io.BytesIO(contenido),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
 
 
 @router.get("/{empleado_id}/recommendation", response_model=RecomendacionIAOut)

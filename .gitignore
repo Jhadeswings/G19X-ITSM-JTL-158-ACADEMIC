@@ -104,3 +104,13 @@ logs/
 
 # Prototipo local de diseño (referencia del Style Guide; no es producto)
 /panel_empleado_v6_zonas(1).html
+
+# Backend: scripts temporales de diagnóstico y logs de sesión de trabajo.
+# Un `git add .` no debe publicarlos por accidente (se conservan localmente).
+/backend/_*.py
+/backend/pip_log.txt
+
+# Backend: muestras PDF generadas por la utilidad manual de evidencias
+# (tests/muestra_perfil_pdf.py); no son producto ni parte de la suite.
+/backend/tests/salidas/
+/backend/tests/muestra_perfil_pdf.py

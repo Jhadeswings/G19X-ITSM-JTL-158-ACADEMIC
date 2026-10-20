@@ -64,3 +64,47 @@ export async function solicitar(ruta, { metodo = 'GET', cuerpo, token } = {}) {
   }
   return respuesta.json()
 }
+
+/**
+ * Descarga un archivo binario (p. ej. el informe PDF del perfil) con la
+ * misma disciplina de errores que `solicitar`: el token viaja SIEMPRE en
+ * Authorization y los fallos se traducen a mensajes comprensibles.
+ *
+ * @param {string} ruta ruta relativa de la API.
+ * @param {{token?: string}} [opciones]
+ * @returns {Promise<{blob: Blob, nombreArchivo: string}>} contenido
+ *   binario y nombre seguro propuesto por el backend (Content-Disposition).
+ * @throws {ErrorApi} con mensaje comprensible y estado HTTP.
+ */
+export async function solicitarArchivo(ruta, { token } = {}) {
+  let respuesta
+  try {
+    respuesta = await fetch(`${BASE_URL}${ruta}`, {
+      headers: {
+        Accept: 'application/pdf',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    })
+  } catch {
+    throw new ErrorApi(
+      'No fue posible conectar con el servidor. Verifica tu conexión e inténtalo de nuevo.',
+      0,
+    )
+  }
+
+  if (!respuesta.ok) {
+    let cuerpo = null
+    try {
+      cuerpo = await respuesta.json()
+    } catch {
+      cuerpo = null
+    }
+    throw new ErrorApi(detalleLegible(cuerpo), respuesta.status)
+  }
+  const disposicion = respuesta.headers.get('Content-Disposition') || ''
+  const coincidencia = disposicion.match(/filename="?([^";]+)"?/)
+  return {
+    blob: await respuesta.blob(),
+    nombreArchivo: coincidencia ? coincidencia[1] : 'descarga.pdf',
+  }
+}

@@ -35,13 +35,14 @@
 // un estado neutral con opción de volver a consultar, nunca un error ni
 // texto inventado (ET §38).
 //
-// «Guardar como PDF» (Tarea D) exporta el perfil con la impresión del
-// navegador (window.print() + estilos @media print): sin dependencias ni
-// endpoints nuevos, imprime EXACTAMENTE lo que la interfaz ya muestra
-// (ET §43) y no crea ni modifica ningún resultado.
+// «Descargar PDF» (DECISIONES_TECNICAS §55) descarga el informe REAL
+// generado por el backend (plantilla HTML+CSS convertida a PDF con
+// Chromium vía Playwright) con los mismos servicios y permisos del perfil
+// (require_rh + 404 del empleado): sin cálculos, sin IA y sin escrituras.
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import {
+  descargarPerfilPdf,
   obtenerEmpleado,
   obtenerNineBox,
   obtenerRecomendacionDesarrollo,
@@ -398,15 +399,34 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
     ? competenciaEvolucion
     : clavesEvolucion[0] ?? null
 
-  // Exportar a PDF (Tarea D; ET §43): la exportación del perfil es la HOJA
-  // DE IMPRESIÓN del navegador («Guardar como PDF» del diálogo). window.print()
-  // no consulta, no crea ni modifica nada: se imprime EXACTAMENTE lo que la
-  // interfaz ya muestra con los permisos ya aplicados por el backend —ni un
-  // dato más (ET §43: no se exporta información que la interfaz no muestra).
-  // La hoja imprimible (sin navegación ni controles) la preparan las reglas
-  // @media print de empleados.css.
-  function imprimirPerfil() {
-    window.print()
+  // Descarga REAL del informe PDF (DECISIONES_TECNICAS §55): el backend
+  // genera el documento con los mismos servicios y permisos del perfil
+  // (require_rh). Aquí solo se transporta el archivo binario y se dispara
+  // la descarga del navegador con el nombre seguro que propone el servidor
+  // (sin correo). Sin cálculos, sin IA y sin escrituras; un 401 delega la
+  // sesión expirada como el resto de las consultas.
+  const [descargaPdf, setDescargaPdf] = useState({ fase: 'reposo', error: null })
+
+  async function descargarPdf() {
+    setDescargaPdf({ fase: 'generando', error: null })
+    try {
+      const { blob, nombreArchivo } = await descargarPerfilPdf(token, empleadoId)
+      const url = URL.createObjectURL(blob)
+      const enlace = document.createElement('a')
+      enlace.href = url
+      enlace.download = nombreArchivo
+      document.body.appendChild(enlace)
+      enlace.click()
+      enlace.remove()
+      URL.revokeObjectURL(url)
+      setDescargaPdf({ fase: 'reposo', error: null })
+    } catch (error) {
+      if (error?.estado === 401) {
+        alSesionExpirada?.()
+        return
+      }
+      setDescargaPdf({ fase: 'error', error })
+    }
   }
 
   return (
@@ -415,14 +435,27 @@ export default function PerfilEmpleado({ token, empleadoId, alVolver, alSesionEx
         <Button variant="ghost" onClick={alVolver}>
           Volver al listado
         </Button>
-        {/* Solo se exporta un perfil que existe y ya está en pantalla: sin
-            información básica (carga o error) no hay hoja que imprimir. */}
+        {/* Descarga del informe PDF generado por el backend: solo con un
+            perfil existente ya en pantalla. */}
         {fase === 'listo' && datos && (
-          <Button variant="secondary" onClick={imprimirPerfil}>
-            Guardar como PDF
+          <Button
+            variant="primary"
+            onClick={descargarPdf}
+            loading={descargaPdf.fase === 'generando'}
+            disabled={descargaPdf.fase === 'generando'}
+          >
+            {descargaPdf.fase === 'generando' ? 'Generando PDF…' : 'Descargar PDF'}
           </Button>
         )}
       </div>
+
+      {descargaPdf.fase === 'error' && (
+        <EstadoError
+          titulo="No pudimos generar el PDF"
+          mensaje="Ocurrió un problema al generar el informe PDF del perfil. El resto del perfil no se ha modificado y puedes reintentarlo."
+          onReintentar={descargarPdf}
+        />
+      )}
 
       {fase === 'cargando' && <EstadoCarga texto="Cargando información del empleado…" />}
 

@@ -178,6 +178,12 @@ Historial → Fortalezas y oportunidades → **Acciones de desarrollo**.
   con texto breve y hasta 5 acciones dirigidas al empleado, tal como las
   genera el sistema. Si la IA no está disponible, verás un estado neutral con
   la opción de reintentar; nunca se muestra texto inventado.
+- **Descargar PDF** genera y descarga el informe completo del perfil como
+  un archivo PDF real de dos páginas (Carta): resultado actual, evidencias,
+  fortalezas/oportunidades, experiencia, última evaluación oficial,
+  9-Box, evolución y acciones de desarrollo. No crea ni modifica ningún
+  resultado ni consulta a la IA; el nombre del archivo no incluye el
+  correo.
 - **Guardar como PDF** exporta el perfil usando el diálogo de impresión del
   navegador (opción «Guardar como PDF»). La exportación no crea ni modifica
   ningún resultado.

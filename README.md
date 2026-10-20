@@ -41,8 +41,9 @@ pruebas (`backend/tests/`, `frontend/src/**/__tests__/`).
 
 - **Empleados:** alta (la credencial temporal se entrega solo por correo),
   listado con filtros de competencia y nivel, perfil completo, recomendación
-  de desarrollo (IA opcional) y **exportación del perfil a PDF** («Guardar
-  como PDF»: hoja de impresión del navegador, ET §43).
+  de desarrollo (IA opcional) y **descarga del informe PDF real** del perfil
+  («Descargar PDF», DECISIONES §55) además de la hoja de impresión del
+  navegador («Guardar como PDF», ET §43).
 - **Proyectos y participaciones:** administración de proyectos existentes,
   consulta del detalle y **corrección administrativa de participaciones**,
   auditada en la misma transacción.
@@ -206,7 +207,11 @@ configurable por entorno (`backend/.env`; decisión y variables en
   conserva el token vigente para reintentar.
 - Las pruebas automatizadas usan un proveedor simulado: nunca envían
   correos reales. **La entrega contra un proveedor SMTP real aún no ha
-  sido validada con credenciales de producción.**
+  sido validada con credenciales de producción.** Como verificación
+  parcial, el flujo completo (alta con credencial temporal y recuperación
+  con token) se probó contra una cuenta de Gmail de pruebas en
+  desarrollo; esa verificación local no equivale a validar una
+  configuración de producción.
 
 ## Usuario de prueba
 
@@ -475,8 +480,10 @@ distinguidos en tres categorías.
 - **Despliegue público de producción:** el entorno Compose actual es de
   desarrollo (`uvicorn --reload` y el servidor de desarrollo de Vite) y no
   configura HTTPS de producción.
-- **Exportación de perfil a PDF:** depende de la función de impresión del
-  navegador («Guardar como PDF» del diálogo de impresión).
+- **Exportación de perfil a PDF:** la acción «Descargar PDF» genera el
+  archivo PDF real en el backend (DECISIONES §55) y no depende del
+  navegador; la opción «Guardar como PDF» sí depende del diálogo de
+  impresión del navegador y se conserva como alternativa.
 
 ### B. Decisiones deliberadas de diseño o seguridad
 

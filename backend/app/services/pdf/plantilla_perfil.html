@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Perfil del empleado</title>
+<style>{css}</style>
+</head>
+<body>
+
+  <section class="pagina pagina--1">
+    <header class="encabezado">
+      <div class="encabezado__izquierda">
+        <h1 class="encabezado__nombre">{nombre}</h1>
+        <p class="encabezado__subtitulo">PERFIL DEL EMPLEADO • INFORMACIÓN BÁSICA REGISTRADA</p>
+      </div>
+      <p class="encabezado__meta">ESTADO: <span class="encabezado__valor">{estado}</span> • ROL: <span class="encabezado__valor">{rol}</span></p>
+    </header>
+
+    <div class="datos-basicos">
+      <div class="dato">
+        <span class="dato__etiqueta">PUESTO</span>
+        <span class="dato__valor">{puesto}</span>
+      </div>
+      <div class="dato">
+        <span class="dato__etiqueta">ÁREA</span>
+        <span class="dato__valor">{area}</span>
+      </div>
+      <div class="dato">
+        <span class="dato__etiqueta">FECHA DE INGRESO</span>
+        <span class="dato__valor">{fecha_ingreso}</span>
+      </div>
+      <div class="dato">
+        <span class="dato__etiqueta">CORREO DE ACCESO</span>
+        <span class="dato__valor">{correo}</span>
+      </div>
+    </div>
+
+    <h2 class="titulo">RESULTADO ACTUAL</h2>
+    <p class="nota">Cálculo dinámico con el estado actual del empleado. No corresponde a un periodo ni se guarda como registro.</p>
+    <h3 class="subtitulo">COMPETENCIAS &amp; EVIDENCIA</h3>
+    <p class="descripcion">Evidencia que sustenta cada competencia del resultado actual.</p>
+
+    <div class="competencias">
+      <div class="competencias__columna">
+{bloques_izquierda}
+      </div>
+      <div class="competencias__columna">
+{bloques_derecha}
+      </div>
+    </div>
+
+    <div class="doble">
+      <section class="doble__columna">
+        <h2 class="titulo">FORTALEZAS Y OPORTUNIDADES</h2>
+        <p class="descripcion">Derivadas por reglas del sistema a partir del resultado actual: la experiencia no participa en estas categorías.</p>
+        <p class="grupo grupo--fortalezas">FORTALEZAS</p>
+        <ul class="lista lista--fortalezas">
+{lista_fortalezas}
+        </ul>
+        <p class="grupo grupo--oportunidades">OPORTUNIDADES</p>
+        <ul class="lista lista--oportunidades">
+{lista_oportunidades}
+        </ul>
+      </section>
+      <section class="doble__columna">
+        <h2 class="titulo">EXPERIENCIA</h2>
+        <p class="descripcion">La experiencia es información contextual: no modifica las competencias.</p>
+        <div class="fila"><span class="fila__desc">Antigüedad</span><span class="fila__valor">{antiguedad}</span></div>
+        <div class="fila"><span class="fila__desc">Proyectos únicos</span><span class="fila__valor">{proyectos_unicos}</span></div>
+      </section>
+    </div>
+  </section>
+
+  <section class="pagina pagina--2">
+    <h2 class="titulo">ÚLTIMA EVALUACIÓN OFICIAL</h2>
+{nota_historica}
+{bloque_historico}
+
+    <h2 class="titulo">9-BOX Y EVOLUCIÓN</h2>
+    <div class="ninebox">
+      <div class="fila fila--ninebox"><span class="fila__desc">9-Box</span><span class="fila__valor{clase_ninebox}">{ninebox_actual}</span></div>
+      <div class="fila fila--ninebox"><span class="fila__desc">9-Box histórico</span><span class="fila__valor{clase_ninebox_historico}">{ninebox_historico}</span></div>
+    </div>
+    <p class="descripcion descripcion--cursiva">{nota_evolucion}</p>
+
+    <div class="acciones">
+      <p><span class="acciones__titulo">Acciones de Desarrollo:</span> Sugerencia de apoyo generada con IA a partir del resultado actual del empleado. Es una idea para su desarrollo: no determina niveles ni modifica el resultado oficial. Consulta una sugerencia de desarrollo cuando la necesites: se genera en el momento a partir de los datos actuales del empleado.</p>
+    </div>
+  </section>
+
+</body>
+</html>
