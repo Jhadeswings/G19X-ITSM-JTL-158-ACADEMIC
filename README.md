@@ -276,6 +276,14 @@ Todas las cuentas usan la **misma contraseña pública**: `Demo2026A`.
 > sistema no intentará enviar nada a esas direcciones durante la
 > demostración y cualquier recuperación de contraseña quedará sin entregar.
 
+La base de demostración **no incluye** la cuenta del seed de RH oficial
+(`rh@empresa.dev`): esa cuenta la crea `python -m app.core.seed` a partir de
+`SEED_RH_EMAIL` / `SEED_RH_PASSWORD` del `.env` de la raíz, y por tanto sus
+credenciales son **las que tú definas**, no las públicas del dataset. Tras
+ejecutar el seed, la base de demostración queda con **8 cuentas**: las 7
+públicas de la tabla anterior más `rh@empresa.dev`. Para validar el login de
+RH basta con cualquiera de las cuentas públicas de la tabla.
+
 ### Importar `db/base-de-datos.sql`
 
 Crear una base vacía con nombre único que cumpla la convención demo y
@@ -301,11 +309,144 @@ cmd /c type db\base-de-datos.sql | docker exec -i talento_db psql -U talento -d 
 ```
 
 La importación termina sin errores y la base queda con `alembic_version`
-en la revisión vigente, las 97 restricciones (PK/FK/UNIQUE/CHECK), el
-trigger de inmutabilidad de `evaluaciones`, las secuencias ajustadas y las
-7 cuentas de demostración. El inicio de sesión funciona con la API real:
+en la revisión vigente, 97 restricciones en total (35 restricciones
+PK/FK/UNIQUE/CHECK más 62 columnas `NOT NULL`), el trigger de inmutabilidad
+de `evaluaciones`, las secuencias ajustadas y las 7 cuentas de demostración.
+El inicio de sesión funciona con la API real:
 `POST /api/v1/auth/login` con cualquiera de las cuentas anteriores y
 `Demo2026A` responde 200.
+
+> **Cómo verificar que la base existe.** `pg_isready` **no** sirve para
+> esto: responde `accepting connections` y termina con código **0** incluso
+> cuando la base indicada **no existe** (solo comprueba que el servidor
+> acepta conexiones). La comprobación correcta es consultar el catálogo:
+>
+> ```bash
+> docker exec talento_db psql -U talento -d postgres -tAc \
+>   "SELECT count(*) FROM pg_database WHERE datname = 'talento_demo_evaluacion';"
+> ```
+>
+> Devuelve `1` si existe y `0` si no. Mide el código de salida **dentro del
+> contenedor** (`docker exec ... sh -c "..."`) para no confundirlo con el de
+> PowerShell.
+
+### Conectar el backend a la base de demostración
+
+Importar el volcado no basta: el backend tiene que apuntar a
+`talento_demo_evaluacion`. Hay dos caminos, ambos verificados.
+
+#### Opción A — Docker Compose (override de `POSTGRES_DB`)
+
+En el `.env` de la **raíz** (el que lee Docker Compose):
+
+```bash
+POSTGRES_DB=talento_demo_evaluacion
+```
+
+Compose lo propaga automáticamente a la URL del backend:
+
+```
+postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+```
+
+> **Limitación importante (verificada):** `POSTGRES_DB` **solo se aplica la
+> primera vez que se inicializa el volumen** de PostgreSQL. Si el volumen ya
+> existía con otra base, cambiar `POSTGRES_DB` **no crea** la base nueva: el
+> servidor sigue teniendo únicamente la original. Comprobado: tras
+> inicializar un volumen con `POSTGRES_DB=base_inicial` y relanzarlo con
+> `POSTGRES_DB=base_cambiada`, el catálogo siguió conteniendo solo
+> `base_inicial`.
+>
+> Consecuencia: para usar la base de demostración con Compose sobre un volumen
+> ya inicializado, **importa el volcado a mano** en esa base (sección
+> anterior) y apunta `POSTGRES_DB` a ella; o parte de un volumen nuevo.
+
+#### Opción B — Backend fuera de Docker
+
+`backend/.env` (o la variable de entorno) debe llevar explícitamente el nombre
+de la base de demostración, apuntando al puerto **publicado en el host**:
+
+```bash
+DATABASE_URL=postgresql+psycopg2://talento:talento_local@localhost:5433/talento_demo_evaluacion
+```
+
+Arranque:
+
+```bash
+cd backend
+.venv\Scripts\activate        # Windows | source .venv/bin/activate (Linux/macOS)
+uvicorn app.main:app --port 8000
+```
+
+> `DATABASE_URL` es obligatoria en esta vía: el valor por defecto de
+> `backend/app/core/config.py` apunta a `talento_alto_potencial`, no a la base
+> de demostración. El puerto es el **publicado en el host** (`POSTGRES_PORT`,
+> por defecto `5433`), no el `5432` interno del contenedor.
+
+Con el backend levantado, el login se valida contra la API real:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"rh.demo@example.com","password":"Demo2026A"}'
+```
+
+Responde **200** con `access_token` y `rol: "RH"`. Con
+`empleado01@example.com` responde **200** con `rol: "EMPLEADO"`; con una
+contraseña incorrecta responde **401** y el mensaje uniforme «Credenciales
+inválidas.».
+
+#### Frontend (interfaz web)
+
+Con Compose no hay nada que configurar: el proxy de Vite ya apunta al
+servicio `backend` (`VITE_API_PROXY_TARGET: http://backend:8000`).
+
+Fuera de Docker, el valor por defecto del proxy (`http://localhost:8000`)
+coincide con el backend local:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+El navegador sigue llamando a rutas relativas del mismo origen
+(`http://localhost:5173/api/v1/auth/login`) y el proxy de Vite las reenvía al
+backend. Verificado de extremo a extremo: login 200 con rol RH a través del
+proxy.
+
+### El seed de RH y su efecto sobre la base de demostración
+
+El arranque del backend en Compose encadena tres pasos:
+
+```
+alembic upgrade head && python -m app.core.seed && uvicorn app.main:app ...
+```
+
+- `alembic upgrade head` es **idempotente**: el volcado ya contiene la
+  revisión vigente (`b7c1e9f2a4d3`), así que no aplica nada nuevo.
+- `python -m app.core.seed` **sí modifica la base de demostración**: crea la
+  cuenta de RH de las variables `SEED_RH_EMAIL` / `SEED_RH_PASSWORD`
+  (`rh@empresa.dev` con la contraseña del `.env`) si no existe. Tras el seed la
+  base tiene **8 cuentas**: las 7 de demostración más `rh@empresa.dev`. Es
+  idempotente: si la cuenta ya existe, no hace nada.
+- Si el seed **falla**, la cadena `&&` se corta y **Uvicorn no arranca**. Y el
+  seed termina con código de salida **1** si `SEED_RH_EMAIL` o
+  `SEED_RH_PASSWORD` están vacíos, o si la contraseña no cumple la política
+  del PRD §3.5 (mínimo 8 caracteres y al menos un número). Verificado: con la
+  contraseña `corta` el seed imprime «Seed de RH abortado: …» y sale con
+  código 1, y la cadena `alembic && seed && uvicorn` no llega a lanzar
+  Uvicorn.
+
+> **Advertencia:** si levantas Compose contra la base de demostración,
+> `SEED_RH_EMAIL` y `SEED_RH_PASSWORD` deben ser **válidos y cumplir la
+> política**; si no, el backend no levanta la API y, con
+> `restart: unless-stopped`, Compose lo reinicia en bucle. El seed aborta
+> (código de salida 1) cuando las variables están vacías —lo que ocurre si
+> el `.env` de la raíz no las define o si Compose no encuentra ese archivo— y
+> también cuando la contraseña no cumple la política del PRD §3.5. Alternativa:
+> arranca el backend fuera de Docker (opción B), donde el seed no forma parte
+> de la cadena de arranque.
 
 ### Regenerar `db/base-de-datos.sql`
 
@@ -400,6 +541,12 @@ python -m venv .venv
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
+
+> Si lo que quieres es levantar el backend contra la **base de
+> demostración**, `DATABASE_URL` debe apuntar explícitamente a
+> `talento_demo_evaluacion` (el valor por defecto apunta a
+> `talento_alto_potencial`). Véase
+> [Conectar el backend a la base de demostración](#conectar-el-backend-a-la-base-de-demostración).
 
 **Frontend:**
 
