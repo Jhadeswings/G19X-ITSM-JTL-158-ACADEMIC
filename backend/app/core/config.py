@@ -19,10 +19,10 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "Sistema de Identificación de Talento de Alto Potencial"
     API_V1_PREFIX: str = "/api/v1"
-    DATABASE_URL: str = (
-        "postgresql+psycopg2://talento:talento_local@localhost:5433/"
-        "talento_alto_potencial"
-    )
+    # Obligatoria y SIN valor por defecto (igual que SECRET_KEY): la app no
+    # arranca si falta (fail-fast). Se define en backend/.env fuera de Docker
+    # o la fija docker-compose.yml dentro de la red de Compose (host "db").
+    DATABASE_URL: str
     # Zona horaria de negocio (Especificación Técnica §1)
     TZ: str = "America/Mexico_City"
 

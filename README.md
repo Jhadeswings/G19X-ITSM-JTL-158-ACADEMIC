@@ -123,9 +123,13 @@ En el `.env` de la raíz (el que lee Docker Compose):
 `backend/.env` **también es necesario para Docker Compose**: el servicio
 `backend` lo carga mediante `env_file`, y `docker compose up` falla si el
 archivo no existe. Completa sus variables con valores válidos para tu
-entorno: `SECRET_KEY` (generada como arriba), la conexión a PostgreSQL
-(dentro de la red de Compose, `DATABASE_URL` la fija el propio
-`docker-compose.yml`), la vida de los tokens y el proveedor SMTP/IA. Las
+entorno: `SECRET_KEY` (generada como arriba), la vida de los tokens y el
+proveedor SMTP/IA. Además define la **`DATABASE_URL` (obligatoria)**, la
+conexión a PostgreSQL para ejecutar el backend fuera de Docker (host y puerto
+publicados, por defecto `localhost:5433`); dentro de la red de Compose la
+fija el propio `docker-compose.yml` (host `db`, puerto `5432`), por lo que la
+de `backend/.env` no aplica en contenedores. Sin `DATABASE_URL` la aplicación
+no arranca (fail-fast, igual que `SECRET_KEY`). Las
 variables SMTP y las claves de IA pueden quedarse vacías: sin proveedor de
 correo el alta responde 503 sin crear la cuenta, y sin claves de IA la
 interpretación de búsqueda responde con el error 502 controlado (ver
@@ -378,9 +382,9 @@ cd backend
 uvicorn app.main:app --port 8000
 ```
 
-> `DATABASE_URL` es obligatoria en esta vía: el valor por defecto de
-> `backend/app/core/config.py` apunta a `talento_alto_potencial`, no a la base
-> de demostración. El puerto es el **publicado en el host** (`POSTGRES_PORT`,
+> `DATABASE_URL` es obligatoria (sin valor por defecto: si falta, la app no
+> arranca) y en esta vía debe apuntar a la base de demostración, no a
+> `talento_alto_potencial`. El puerto es el **publicado en el host** (`POSTGRES_PORT`,
 > por defecto `5433`), no el `5432` interno del contenedor.
 
 Con el backend levantado, el login se valida contra la API real:
@@ -543,9 +547,8 @@ uvicorn app.main:app --reload
 ```
 
 > Si lo que quieres es levantar el backend contra la **base de
-> demostración**, `DATABASE_URL` debe apuntar explícitamente a
-> `talento_demo_evaluacion` (el valor por defecto apunta a
-> `talento_alto_potencial`). Véase
+> demostración**, `DATABASE_URL` (obligatoria, en `backend/.env`) debe apuntar
+> explícitamente a `talento_demo_evaluacion`. Véase
 > [Conectar el backend a la base de demostración](#conectar-el-backend-a-la-base-de-demostración).
 
 **Frontend:**
