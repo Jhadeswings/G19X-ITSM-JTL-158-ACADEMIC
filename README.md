@@ -4,6 +4,7 @@ MVP web local para **PluriOne S.A. de C.V.**
 
 **Alumno:** Jade Tinoco Landa · **Matrícula:** 222T098
 **Institución:** Instituto Tecnológico Superior de Misantla
+**Identificador académico del proyecto:** G19X-ITSM-JTL-158
 
 - **PRD:** v1.4 ([`docs/prd.md`](docs/prd.md)) · **Especificación Técnica:** v1.6 ([`docs/especificacion-tecnica.md`](docs/especificacion-tecnica.md)) · **Style Guide:** v1.2 ([`docs/style-guide.md`](docs/style-guide.md)) · versiones anteriores en [`docs/historico/`](docs/historico)
 - **Estado actual:** MVP funcional: autenticación con roles, gestión de empleados
