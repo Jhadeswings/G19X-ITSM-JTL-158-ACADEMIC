@@ -314,7 +314,7 @@ cmd /c type db\base-de-datos.sql | docker exec -i talento_db psql -U talento -d 
 ```
 
 La importación termina sin errores y la base queda con `alembic_version`
-en la revisión vigente, 97 restricciones en total (35 restricciones
+en la revisión `b7c1e9f2a4d3`, 97 restricciones en total (35 restricciones
 PK/FK/UNIQUE/CHECK más 62 columnas `NOT NULL`), el trigger de inmutabilidad
 de `evaluaciones`, las secuencias ajustadas y las 7 cuentas de demostración.
 El inicio de sesión funciona con la API real:
@@ -452,6 +452,89 @@ alembic upgrade head && python -m app.core.seed && uvicorn app.main:app ...
 > también cuando la contraseña no cumple la política del PRD §3.5. Alternativa:
 > arranca el backend fuera de Docker (opción B), donde el seed no forma parte
 > de la cadena de arranque.
+
+### Guía de demostración de 10 minutos
+
+Recorrido sugerido para presentar el MVP con el dataset de demostración
+(secciones anteriores). Tiempos orientativos; la suma es de 10 minutos.
+Los pasos y la preparación corresponden **exclusivamente** a la base de
+demostración `talento_demo_evaluacion`: no modifican la base de desarrollo
+`talento_alto_potencial` ni la base de pruebas `talento_test`.
+
+**Preparación (antes de empezar; no cuenta en los 10 minutos):**
+
+1. Levanta la base de demostración y el sistema como se describe arriba:
+   importa `db/base-de-datos.sql` en una base nueva
+   `talento_demo_evaluacion`, fija `POSTGRES_DB=talento_demo_evaluacion` en
+   el `.env` de la raíz y arranca con `docker compose up`. En el arranque
+   Alembic aplica las migraciones pendientes sobre el volcado: es normal y
+   no daña el dataset.
+2. Deja el navegador en `http://localhost:5173` con la pantalla de inicio
+   de sesión abierta. No necesitas MailHog ni claves de IA: las cuentas demo
+   no reciben correo y la búsqueda manual no depende de IA.
+
+**Paso 1 — Arranque y acceso como RH (1:30).** Inicia sesión con
+`rh.demo@example.com` / `Demo2026A`. *Resultado esperado:* la app abre el
+Inicio de RH (panel operativo). *Si falla:* confirma que la base activa es
+la de demostración (`POSTGRES_DB`) y que el backend terminó de arrancar; en
+la instalación oficial sin dataset, usa las credenciales de
+`SEED_RH_EMAIL`.
+
+**Paso 2 — Panel de RH y matriz 9-Box (2:00).** Presenta el Inicio de RH
+(resumen operativo y «Atención requerida»):
+
+![Inicio del panel de RH con resumen de empleados, proyectos y atención requerida](docs/capturas/rh-inicio.png)
+
+La captura muestra el panel inicial de RH. La matriz 9-Box no está en el
+dashboard: es exclusiva de RH y se consulta desde el perfil de un empleado.
+Entra en «Empleados», abre un empleado activo y muestra el bloque «9-Box»
+con sus ejes (desempeño/potencial) y la celda actual resaltada. *Resultado
+esperado:* matriz 3×3 con la posición del empleado. *Si falla:* si el perfil
+muestra «Datos insuficientes», explica que es un estado válido del motor de
+competencias (nunca se inventan niveles) y abre otro empleado del dataset.
+
+![Matriz 9-Box calculada con desempeño alto, potencial medio y celda AM resaltada](docs/capturas/perfil-ninebox.png)
+
+**Paso 3 — Comparación de empleados (1:30).** En «Comparar», selecciona dos
+empleados activos. *Resultado esperado:* vista lateral con las cinco
+competencias (valor y etiqueta) y la experiencia solo como contexto; por
+diseño no hay ganador, ranking ni score global. *Si falla:* muestra
+«Brechas por competencia», otra vista derivada del mismo estado actual.
+
+![Comparación de dos empleados en cinco competencias y experiencia contextual](docs/capturas/comparar-empleados.jpeg)
+
+**Paso 4 — Búsqueda de talento (2:00).** Recorrido principal: en
+«Búsqueda», filtra manualmente por competencia y nivel mínimo y ejecuta la
+búsqueda. *Resultado esperado:* lista de empleados activos que cumplen
+todos los criterios. De forma opcional, si las claves de IA ya están
+configuradas, escribe una necesidad en lenguaje natural y muestra que la IA
+solo PROPONE criterios que RH revisa antes de buscar; si no hay claves,
+continúa simplemente con la búsqueda manual, que siempre está disponible.
+
+![Búsqueda manual de talento por competencia y nivel mínimo con un resultado coincidente](docs/capturas/busqueda-talento.png)
+
+**Paso 5 — Perfil y descarga de PDF (1:30).** En «Empleados», abre un
+perfil y pulsa «Descargar PDF». *Resultado esperado:* se descarga un PDF
+real de dos páginas (tamaño Carta) con resultado actual, evidencias,
+fortalezas y oportunidades, experiencia y última evaluación oficial.
+
+Las imágenes siguientes son una **muestra sintética de referencia** del
+PDF de perfil (generada con datos de prueba; no son capturas de una sesión
+real de la aplicación):
+
+![Página 1 del PDF de perfil — muestra sintética de referencia](docs/capturas/pdf-perfil-pagina-1.png)
+
+![Página 2 del PDF de perfil — muestra sintética de referencia](docs/capturas/pdf-perfil-pagina-2.png)
+
+*Si falla:* reintenta con el mismo botón (ofrece reintento ante error) o
+presenta el perfil en pantalla, que contiene las mismas secciones.
+
+**Paso 6 — Perspectiva del empleado (1:30).** Pulsa «Cerrar sesión» en la
+cabecera e inicia con `empleado01@example.com` / `Demo2026A`.
+*Resultado esperado:* espacio del empleado con «Mi progreso» y, si se
+desea, «Mis proyectos» o «Mi historial». Señala que el empleado NO ve ejes
+ni 9-Box (PRD §21). *Si falla:* prueba con `empleado02`…`empleado05`; no
+uses `empleado06`, que está inactivo a propósito.
 
 ### Regenerar `db/base-de-datos.sql`
 
