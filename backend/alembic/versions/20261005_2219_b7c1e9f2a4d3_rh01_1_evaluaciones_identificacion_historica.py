@@ -2,7 +2,7 @@
 
 Revision ID: b7c1e9f2a4d3
 Revises: 938cef8a3bac
-Create Date: 2026-05-10 12:00:00.000000
+Create Date: 2026-10-05 22:19:00.000000
 
 RH-01.1: añade a ``evaluaciones`` la identificación del empleado CAPTURADA
 al generar el snapshot: ``empleado_nombre``, ``empleado_puesto`` y
