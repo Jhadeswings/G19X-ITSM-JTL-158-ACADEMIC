@@ -750,3 +750,22 @@ hosting público de producción, módulo completo de vacantes/reclutamiento,
 ranking social entre empleados, score global de talento, chatbot permanente,
 reactivación de cuentas/proyectos como flujo especial y combinación/merge de
 proyectos. La lista completa está en [`docs/prd.md`](docs/prd.md) (§2.2).
+
+## Declaración de uso de inteligencia artificial
+
+Durante el desarrollo de este proyecto utilicé ChatGPT y Cline, utilizando el
+modelo GLM-5.2 en Cline, como herramientas de apoyo.
+
+La idea del sistema, sus módulos, los roles de usuario, el funcionamiento
+esperado y las decisiones de diseño fueron definidos por mí. Utilicé estas
+herramientas para organizar ideas, resolver dudas, apoyar la programación,
+redactar y revisar documentación, y analizar pruebas. Fui revisando sus
+respuestas y propuestas para decidir qué cambios incorporar al proyecto.
+
+El uso de estas herramientas fue de asistencia al desarrollo y no sustituye
+mi responsabilidad sobre el trabajo realizado.
+
+Las funciones de inteligencia artificial integradas en el sistema, como la
+interpretación de búsquedas y las recomendaciones de desarrollo, forman parte
+del producto y son distintas de las herramientas utilizadas como apoyo
+durante su construcción.
